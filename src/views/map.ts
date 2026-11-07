@@ -1,9 +1,9 @@
 import { FB, HL, POLY, WS } from '../seed/farm';
-import { F, REC, fld } from '../seed/simulate';
+import { F } from '../seed/simulate';
 import { S, saveOffsets } from '../state';
-import type { Field, FieldId, Health, MapLayer, WaterState } from '../types';
-import { fieldNo, mix, T, ws } from '../ui/helpers';
-import { can, canIn, fieldNumberLabel, plants, polyPoints } from '../ui/icons';
+import type { Field, FieldId, Health, MapLayer } from '../types';
+import { mix, T, ws } from '../ui/helpers';
+import { canIn, fieldNumberLabel, plants, polyPoints } from '../ui/icons';
 
 const VIEW_W = 800;
 const VIEW_H = 520;
@@ -48,34 +48,14 @@ const PIPES = `<g fill=none stroke-linecap=round stroke-linejoin=round><path d='
 
 const PATTERNS = `<defs><pattern id=st0 width=12 height=12 patternUnits=userSpaceOnUse patternTransform=rotate(25)><line x1=0 y1=0 x2=0 y2=12 stroke=#fff stroke-opacity=.35 stroke-width=4 /></pattern><pattern id=st1 width=14 height=14 patternUnits=userSpaceOnUse patternTransform=rotate(-40)><line x1=0 y1=0 x2=0 y2=14 stroke=#000 stroke-opacity=.12 stroke-width=3 /></pattern><pattern id=st2 width=10 height=10 patternUnits=userSpaceOnUse><circle cx=5 cy=5 r=1.6 fill=#fff fill-opacity=.55 /></pattern></defs>`;
 
-const LAYER_KEY: Record<Exclude<MapLayer, 'water'>, string> = {
-  health: 'Green = healthy, yellow = needs attention, red = critical.',
-  moisture: 'Darker blue = wetter soil.',
-  temp: 'Darker orange = warmer soil.',
-};
-
-const fieldCard = () => {
-  const f = fld(S.sel);
-  const r = REC.find((q) => q.f === f.id);
-  const k: WaterState = ws(f);
-  const look = FB[k];
-  return `<section class='mc fcard' data-testid=card-field style='background:${look.bg};color:${look.fg};--mut:${look.fg};--ink:${look.fg};--g:${look.fg};--bg:${look.bg}'><p class=fk>FIELD ${fieldNo(f.id)} — ${f.crop.toUpperCase()}</p><div class=row style='align-items:flex-end;flex-wrap:nowrap'><div class=fn style='font-size:4.4rem;color:${look.n}'>${f.m}<span>%</span></div><button class=cb data-act=op data-id=${f.id} aria-label='Watering details'>${can(k, 52)}</button></div><p class=chip style='background:${look.fg};color:${look.bg}'><i style='background:${WS[k].h}'></i>${look.c}</p><p class=mut>${f.name} · ${f.crop} · sensors ${f.s[0]} of ${f.s[1]} online</p><p>Soil moisture <b>${f.m}%</b> <span class=mut>(ideal ${f.mi[0]}–${f.mi[1]}%)</span><br>Soil temperature <b>${T(f.st)}</b></p>${r ? `<p>${r.t}.</p>` : `<p>Nothing to do right now.</p>`}<button class='btn sm' data-act=go data-p=field>Field details</button> <button class='btn alt sm' data-act=op data-id=${f.id}>Why?</button></section>`;
-};
-
-const legendCard = (layer: MapLayer) => {
-  const items =
-    layer === 'water'
-      ? (['now', 'soon', 'rain', 'none'] as WaterState[]).map((w) => `<span class=lgi>${can(w, 22)}${WS[w].t}</span>`).join('')
-      : `<span class=lgi>${LAYER_KEY[layer]}</span>`;
-  return `<section class='mc lg'>${items}<span class=lgi>● Sensor online ○ offline</span><span class='lgi demo-chip' data-testid=demo-note>Demo map · simulated data</span></section>`;
-};
-
-/** The map with its controls and the field card and key; the summary cards are passed in. */
-export function map(sideCards: string): string {
+/** The map with its controls, and the two columns of cards floating over it. */
+export function map(left: string, right: string): string {
   const L = S.ly;
-  const controls = `<div class=mtop><div class=mtl><span class='mpc brand'>${can('now', 24, '#fff')}Fieldwise</span><div class=mpc>${LAYERS.map(([key, n]) => `<button data-act=lyr data-k=${key} aria-pressed=${L === key}>${n}</button>`).join('')}</div><div class=mpc><button aria-pressed=${S.edit} data-act=ed>${S.edit ? 'Done editing' : 'Edit layout'}</button>${S.edit ? `<button data-act=rl>Reset</button>` : ''}</div>${S.edit ? `<span class='mpc note'>Drag fields to match your farm</span>` : ''}</div><div class=mtr><div class=mpc><button aria-label='Zoom in' data-act=zm data-f=1.5>+</button><button aria-label='Zoom out' data-act=zm data-f=${1 / 1.5}>−</button><button aria-label='Reset view' data-act=rs>⟲</button></div><span class='mpc north'>▲ N</span></div></div>`;
+  const controls = `<div class=mtop><div class=mtl><div class=mpc>${LAYERS.map(([key, n]) => `<button data-act=lyr data-k=${key} aria-pressed=${L === key}>${n}</button>`).join('')}</div><div class=mpc><button aria-pressed=${S.edit} data-act=ed>${S.edit ? 'Done editing' : 'Edit layout'}</button>${S.edit ? `<button data-act=rl>Reset</button>` : ''}</div>${S.edit ? `<span class='mpc note'>Drag fields to match your farm</span>` : ''}</div><div class=mtr><div class=mpc><button aria-label='Zoom in' data-act=zm data-f=1.5>+</button><button aria-label='Zoom out' data-act=zm data-f=${1 / 1.5}>−</button><button aria-label='Reset view' data-act=rs>⟲</button></div><div class=mpc><button aria-pressed=${S.bare} data-act=bare data-testid=toggle-cards>${S.bare ? 'Show cards' : 'Hide cards'}</button></div></div></div>`;
+  const scale = `<div class=mscale aria-hidden=true><span class=north>▲ N</span><span class=sbar><i></i>200 m</span></div>`;
   const svg = `<svg id=fmap viewBox='0 0 ${VIEW_W} ${VIEW_H}' style='width:100%;height:100%;display:block;touch-action:none;cursor:grab' role=group aria-label='Farm map'>${PATTERNS}<g id=vp transform='translate(${S.v.x} ${S.v.y}) scale(${S.v.k})'>${BASE}${F.map((x) => fieldShape(x, L)).join('')}${Object.keys(S.off).length ? '' : PIPES}</g></svg>`;
-  return `<div class=mapbox>${svg}</div>${controls}<aside class='col col-l' data-scroll=l>${fieldCard()}${legendCard(L)}</aside><aside class='col col-r' data-scroll=r>${sideCards}</aside>`;
+  const cols = S.bare ? '' : `<aside class='col col-l' data-scroll=l>${left}</aside><aside class='col col-r' data-scroll=r>${right}</aside>`;
+  return `<div class='mapbox${S.bare ? ' bare' : ''}'>${svg}</div>${controls}${scale}${cols}`;
 }
 
 // ---- pan, zoom and layout editing -----------------------------------------

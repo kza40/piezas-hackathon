@@ -1,13 +1,27 @@
 import type { Crop, DayForecast, FeatureLook, FieldId, FieldSeed, Level, Metric, WaterLook, WaterState } from '../types';
 
 export const FIELD_SEEDS: FieldSeed[] = [
-  { id: 'A', name: 'North Wheat', crop: 'Wheat', mi: [30, 45] },
-  { id: 'B', name: 'East Canola', crop: 'Canola', mi: [32, 45] },
-  { id: 'C', name: 'South Barley', crop: 'Barley', mi: [28, 42] },
-  { id: 'D', name: 'West Oats', crop: 'Oats', mi: [28, 42] },
-  { id: 'E', name: 'Creek Alfalfa', crop: 'Alfalfa', mi: [35, 50] },
-  { id: 'F', name: 'Hill Peas', crop: 'Peas', mi: [30, 45] },
+  { id: 'A', name: 'North Wheat', crop: 'Wheat', mi: [30, 45], ac: 86, stage: 'Tillering', soil: 'Clay loam' },
+  { id: 'B', name: 'East Canola', crop: 'Canola', mi: [32, 45], ac: 64, stage: 'Rosette', soil: 'Loam' },
+  { id: 'C', name: 'South Barley', crop: 'Barley', mi: [28, 42], ac: 72, stage: 'Stem elongation', soil: 'Silt loam' },
+  { id: 'D', name: 'West Oats', crop: 'Oats', mi: [28, 42], ac: 58, stage: 'Tillering', soil: 'Loam' },
+  { id: 'E', name: 'Creek Alfalfa', crop: 'Alfalfa', mi: [35, 50], ac: 41, stage: 'Early bud', soil: 'Sandy loam' },
+  { id: 'F', name: 'Hill Peas', crop: 'Peas', mi: [30, 45], ac: 47, stage: 'Flowering', soil: 'Clay loam' },
 ];
+
+export const FARM = { location: 'Wellington County, ON', station: 'Farmstead weather station' };
+
+export const PROFILE = {
+  email: 'sam@willowcreekfarm.ca',
+  phone: '(519) 555-0142',
+  since: 2011,
+  alerts: 'Text + email for critical alerts',
+  crew: [
+    { name: 'Priya Natarajan', role: 'Farm manager', on: true },
+    { name: 'Luis Ortega', role: 'Field worker', on: true },
+    { name: 'Dale Morrison', role: 'Agronomist', on: false },
+  ],
+};
 
 export const HL: Record<Level, [label: string, symbol: string]> = {
   ok: ['Healthy', '✓'],

@@ -1,10 +1,10 @@
 import './styles.css';
 import { fld } from './seed/simulate';
-import { S, saveLog, saveOffsets } from './state';
+import { S, saveCards, saveLog, saveOffsets } from './state';
 import type { AlertFilter, CardId, FieldId, MapLayer, MetricKey, PanelId, Units } from './types';
-import { esc, initials, openAlerts } from './ui/helpers';
+import { esc, openAlerts } from './ui/helpers';
 import { IC } from './ui/icons';
-import { actionsCard, alertsCard, todayCard, weatherCard } from './views/cards';
+import { actionsCard, alertsCard, fieldCard, legendCard, profileCard, todayCard, topBar, weatherCard } from './views/cards';
 import { map, onMapPointerDown, onMapWheel, resetView, zoom } from './views/map';
 import * as pages from './views/pages';
 
@@ -23,9 +23,10 @@ const isPanel = (p: string): p is PanelId => p in PANELS;
 
 function dock(): string {
   return `<nav class=dock aria-label='Farm tools'>${(Object.keys(PANELS) as PanelId[])
+    .filter((k) => k !== 'profile')
     .map((k) => {
       const p = PANELS[k];
-      const icon = k === 'profile' ? `<span class='pill in'>${esc(initials())}</span>` : (IC[k] ?? p.icon);
+      const icon = IC[k] ?? p.icon;
       const badge = k === 'alerts' ? `<span class=badge>${openAlerts().length}</span>` : '';
       return `<button data-act=go data-p=${k} data-testid=dock-${k} aria-pressed=${S.panel === k}><span aria-hidden=true class=di>${icon}</span><span class=dl>${p.title}</span>${badge}</button>`;
     })
@@ -57,9 +58,10 @@ function render() {
     return;
   }
   main.className = 'mp';
-  const cards = todayCard() + weatherCard() + alertsCard() + actionsCard();
+  const left = fieldCard() + todayCard() + legendCard(S.ly);
+  const right = profileCard() + alertsCard() + actionsCard() + weatherCard();
   keepScroll(() => {
-    main.innerHTML = `<div class=board>${map(cards)}${S.panel ? panel(S.panel) : ''}${dock()}</div>${modal}${toast}`;
+    main.innerHTML = `<div class=board>${topBar()}<div class=stage>${map(left, right)}${S.panel ? panel(S.panel) : ''}${dock()}</div></div>${modal}${toast}`;
   });
 }
 
@@ -110,8 +112,21 @@ function act(node: ActionElement, target: Element) {
       const c = d.c as CardId;
       if (S.min[c]) delete S.min[c];
       else S.min[c] = true;
+      saveCards();
       return render();
     }
+    case 'bare':
+      S.bare = !S.bare;
+      saveCards();
+      return render();
+    case 'me':
+      // Small screens have no room for the side column, so the profile opens in full.
+      if (matchMedia('(max-width: 760px)').matches) return go('profile');
+      S.bare = false;
+      delete S.min.profile;
+      saveCards();
+      render();
+      return document.querySelector('[data-testid=card-profile]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     case 'sel':
       S.sel = d.id as FieldId;
       return render();
@@ -129,6 +144,10 @@ function act(node: ActionElement, target: Element) {
     case 'pk':
       if (S.moved) return;
       S.sel = d.id as FieldId;
+      if (S.min.field) {
+        delete S.min.field;
+        saveCards();
+      }
       if (target.closest('[data-w]')) S.wm = S.sel;
       return render();
     case 'pkm':

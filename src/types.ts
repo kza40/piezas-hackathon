@@ -11,7 +11,7 @@ export type Page = 'login' | 'map';
 /** A full-detail view that opens over the map. */
 export type PanelId = 'dashboard' | 'field' | 'weather' | 'recs' | 'alerts' | 'settings' | 'profile';
 /** A summary card that sits on the map. */
-export type CardId = 'today' | 'weather' | 'alerts' | 'recs';
+export type CardId = 'profile' | 'field' | 'legend' | 'today' | 'weather' | 'alerts' | 'recs';
 export type MapLayer = 'water' | 'health' | 'moisture' | 'temp';
 export type AlertFilter = Level | 'all';
 export type Units = '°C' | '°F';
@@ -22,6 +22,11 @@ export interface FieldSeed {
   crop: Crop;
   /** Ideal soil-moisture range for the crop, in percent. */
   mi: Range;
+  /** Area in acres. */
+  ac: number;
+  /** Current growth stage. */
+  stage: string;
+  soil: string;
 }
 
 export interface Field extends FieldSeed {
@@ -109,6 +114,8 @@ export interface AppState {
   panel: PanelId | null;
   /** Map cards the farmer has collapsed to their header. */
   min: Partial<Record<CardId, true>>;
+  /** Every card hidden so only the map shows. */
+  bare: boolean;
   sel: FieldId;
   done: Record<number, true>;
   dis: Record<number, true>;
