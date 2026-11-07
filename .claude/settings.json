@@ -1,0 +1,50 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact|fork",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path'),f=require('fs'),u=require('url'),o=require('os');const e=process.argv[1],H=o.homedir();const shim=(d)=>p.join(d,'.piezas','hooks','hook.mjs');const proj=(d)=>f.existsSync(shim(d))||f.existsSync(p.join(d,'piezas.manifest.json'))||f.existsSync(p.join(d,'.piezas'));const miss=(d)=>{let j=null;try{j=JSON.parse(f.readFileSync(0,'utf8'))}catch(x){}const ev=(j&&j.hook_event_name)||({'pre-tool-use':'PreToolUse','session-start':'SessionStart','user-prompt-submit':'UserPromptSubmit','stop':'Stop'})[e];if(ev==='PreToolUse'){if(d===''){console.error('Piezas check could not run; refusing this step. (For the AI: no Piezas project folder was found.)');process.exit(2)}const w=JSON.stringify((j&&j.tool_input)||{}).toLowerCase();if(/[.]piezas[/]hooks|[.]claude[/]settings|[.]codex[/](hooks[.]json|config[.]toml)|node_modules[/]piezas/.test(w)&&/npx piezas init/.test(w)===false){console.error('This would change the files that run the Piezas guardrails, which are not running right now, so it was stopped. (For the AI: the Piezas hook file .piezas/hooks/hook.mjs is missing; run npx piezas init in the project folder first.)');process.exit(2)}process.exit(0)}if(d!==''&&(ev==='SessionStart'||ev==='UserPromptSubmit')){process.stdout.write(JSON.stringify({systemMessage:'Piezas guardrails are not running in this project: their hook file is missing. Ask your AI tool to set them up again (npx piezas init); they start with your next message.',hookSpecificOutput:{hookEventName:ev,additionalContext:'[Piezas] The Piezas hook file (.piezas/hooks/hook.mjs) is missing in this project, so the guardrails are not running. Run npx piezas init in the project folder, then tell the owner in one plain sentence.'}}))}process.exit(0)};let d=process.env.CLAUDE_PROJECT_DIR||'';if(d===''){d=process.cwd();for(;;){if(proj(d))break;const n=p.dirname(d);if(n===d||d===H){d='';break}d=n}}if(d!==''&&f.existsSync(shim(d)))import(u.pathToFileURL(shim(d)).href).catch(()=>miss(d));else miss(d);\" session-start",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path'),f=require('fs'),u=require('url'),o=require('os');const e=process.argv[1],H=o.homedir();const shim=(d)=>p.join(d,'.piezas','hooks','hook.mjs');const proj=(d)=>f.existsSync(shim(d))||f.existsSync(p.join(d,'piezas.manifest.json'))||f.existsSync(p.join(d,'.piezas'));const miss=(d)=>{let j=null;try{j=JSON.parse(f.readFileSync(0,'utf8'))}catch(x){}const ev=(j&&j.hook_event_name)||({'pre-tool-use':'PreToolUse','session-start':'SessionStart','user-prompt-submit':'UserPromptSubmit','stop':'Stop'})[e];if(ev==='PreToolUse'){if(d===''){console.error('Piezas check could not run; refusing this step. (For the AI: no Piezas project folder was found.)');process.exit(2)}const w=JSON.stringify((j&&j.tool_input)||{}).toLowerCase();if(/[.]piezas[/]hooks|[.]claude[/]settings|[.]codex[/](hooks[.]json|config[.]toml)|node_modules[/]piezas/.test(w)&&/npx piezas init/.test(w)===false){console.error('This would change the files that run the Piezas guardrails, which are not running right now, so it was stopped. (For the AI: the Piezas hook file .piezas/hooks/hook.mjs is missing; run npx piezas init in the project folder first.)');process.exit(2)}process.exit(0)}if(d!==''&&(ev==='SessionStart'||ev==='UserPromptSubmit')){process.stdout.write(JSON.stringify({systemMessage:'Piezas guardrails are not running in this project: their hook file is missing. Ask your AI tool to set them up again (npx piezas init); they start with your next message.',hookSpecificOutput:{hookEventName:ev,additionalContext:'[Piezas] The Piezas hook file (.piezas/hooks/hook.mjs) is missing in this project, so the guardrails are not running. Run npx piezas init in the project folder, then tell the owner in one plain sentence.'}}))}process.exit(0)};let d=process.env.CLAUDE_PROJECT_DIR||'';if(d===''){d=process.cwd();for(;;){if(proj(d))break;const n=p.dirname(d);if(n===d||d===H){d='';break}d=n}}if(d!==''&&f.existsSync(shim(d)))import(u.pathToFileURL(shim(d)).href).catch(()=>miss(d));else miss(d);\" user-prompt-submit",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|apply_patch|exec_command|shell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path'),f=require('fs'),u=require('url'),o=require('os');const e=process.argv[1],H=o.homedir();const shim=(d)=>p.join(d,'.piezas','hooks','hook.mjs');const proj=(d)=>f.existsSync(shim(d))||f.existsSync(p.join(d,'piezas.manifest.json'))||f.existsSync(p.join(d,'.piezas'));const miss=(d)=>{let j=null;try{j=JSON.parse(f.readFileSync(0,'utf8'))}catch(x){}const ev=(j&&j.hook_event_name)||({'pre-tool-use':'PreToolUse','session-start':'SessionStart','user-prompt-submit':'UserPromptSubmit','stop':'Stop'})[e];if(ev==='PreToolUse'){if(d===''){console.error('Piezas check could not run; refusing this step. (For the AI: no Piezas project folder was found.)');process.exit(2)}const w=JSON.stringify((j&&j.tool_input)||{}).toLowerCase();if(/[.]piezas[/]hooks|[.]claude[/]settings|[.]codex[/](hooks[.]json|config[.]toml)|node_modules[/]piezas/.test(w)&&/npx piezas init/.test(w)===false){console.error('This would change the files that run the Piezas guardrails, which are not running right now, so it was stopped. (For the AI: the Piezas hook file .piezas/hooks/hook.mjs is missing; run npx piezas init in the project folder first.)');process.exit(2)}process.exit(0)}if(d!==''&&(ev==='SessionStart'||ev==='UserPromptSubmit')){process.stdout.write(JSON.stringify({systemMessage:'Piezas guardrails are not running in this project: their hook file is missing. Ask your AI tool to set them up again (npx piezas init); they start with your next message.',hookSpecificOutput:{hookEventName:ev,additionalContext:'[Piezas] The Piezas hook file (.piezas/hooks/hook.mjs) is missing in this project, so the guardrails are not running. Run npx piezas init in the project folder, then tell the owner in one plain sentence.'}}))}process.exit(0)};let d=process.env.CLAUDE_PROJECT_DIR||'';if(d===''){d=process.cwd();for(;;){if(proj(d))break;const n=p.dirname(d);if(n===d||d===H){d='';break}d=n}}if(d!==''&&f.existsSync(shim(d)))import(u.pathToFileURL(shim(d)).href).catch(()=>miss(d));else miss(d);\" pre-tool-use",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path'),f=require('fs'),u=require('url'),o=require('os');const e=process.argv[1],H=o.homedir();const shim=(d)=>p.join(d,'.piezas','hooks','hook.mjs');const proj=(d)=>f.existsSync(shim(d))||f.existsSync(p.join(d,'piezas.manifest.json'))||f.existsSync(p.join(d,'.piezas'));const miss=(d)=>{let j=null;try{j=JSON.parse(f.readFileSync(0,'utf8'))}catch(x){}const ev=(j&&j.hook_event_name)||({'pre-tool-use':'PreToolUse','session-start':'SessionStart','user-prompt-submit':'UserPromptSubmit','stop':'Stop'})[e];if(ev==='PreToolUse'){if(d===''){console.error('Piezas check could not run; refusing this step. (For the AI: no Piezas project folder was found.)');process.exit(2)}const w=JSON.stringify((j&&j.tool_input)||{}).toLowerCase();if(/[.]piezas[/]hooks|[.]claude[/]settings|[.]codex[/](hooks[.]json|config[.]toml)|node_modules[/]piezas/.test(w)&&/npx piezas init/.test(w)===false){console.error('This would change the files that run the Piezas guardrails, which are not running right now, so it was stopped. (For the AI: the Piezas hook file .piezas/hooks/hook.mjs is missing; run npx piezas init in the project folder first.)');process.exit(2)}process.exit(0)}if(d!==''&&(ev==='SessionStart'||ev==='UserPromptSubmit')){process.stdout.write(JSON.stringify({systemMessage:'Piezas guardrails are not running in this project: their hook file is missing. Ask your AI tool to set them up again (npx piezas init); they start with your next message.',hookSpecificOutput:{hookEventName:ev,additionalContext:'[Piezas] The Piezas hook file (.piezas/hooks/hook.mjs) is missing in this project, so the guardrails are not running. Run npx piezas init in the project folder, then tell the owner in one plain sentence.'}}))}process.exit(0)};let d=process.env.CLAUDE_PROJECT_DIR||'';if(d===''){d=process.cwd();for(;;){if(proj(d))break;const n=p.dirname(d);if(n===d||d===H){d='';break}d=n}}if(d!==''&&f.existsSync(shim(d)))import(u.pathToFileURL(shim(d)).href).catch(()=>miss(d));else miss(d);\" stop",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

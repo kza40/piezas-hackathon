@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "updatedAt": "2026-10-23",
+  "rule": "Before telling the owner something is possible, check this list. If it is not listed as available, say Piezas doesn't support it yet (contract Rule 11). Never build it yourself inside Piezas, never call Piezas addresses that are not in the contract, and never edit or rebuild @piezas/sdk.",
+  "signIn": {
+    "available": [
+      { "id": "email-password", "what": "Sign up, sign in, sign out and password reset with email and password", "sdk": ["users.signUp", "users.signIn", "users.signOut", "users.forgotPassword", "users.resetPassword"], "api": ["users /v1/apps/{appId}/sessions"] },
+      { "id": "email-verification", "what": "Confirm a member's email address with an emailed link", "sdk": ["users.requestEmailVerification", "users.confirmEmailVerification"] },
+      { "id": "mfa-totp", "what": "Second step with an authenticator app (TOTP)", "sdk": ["users.enrollTotp", "users.confirmTotp"] },
+      { "id": "mfa-email", "what": "Second step with an emailed code", "sdk": ["users.enableEmailMfa", "users.completeMfaChallenge"] },
+      { "id": "sso-google", "what": "Sign in with Google, through @piezas/sdk/sso (the owner sets the Google client id and secret as hosting environment variables)", "sdk": ["sso.createSsoRoutes", "sso.getSsoSession"] },
+      { "id": "sso-microsoft", "what": "Sign in with Microsoft (Entra), through @piezas/sdk/sso (the owner sets the Microsoft client id and secret as hosting environment variables)", "sdk": ["sso.createSsoRoutes", "sso.getSsoSession"] }
+    ],
+    "notAvailable": ["saml", "okta", "magic-link", "passwordless-email-code", "sign-in-via-integrations"]
+  },
+  "integrations": {
+    "purpose": "data access only",
+    "note": "Integrations read and write a provider's data for the app. They never sign people in.",
+    "available": [
+      { "id": "google_calendar", "what": "Google Calendar: calendars, free/busy, events", "sdk": ["piezas.integrations.listConnectors", "piezas.integrations.grantAction"], "api": ["integrations /v1/connectors"] },
+      { "id": "google_drive", "what": "Google Drive: list, read and create files, share them", "sdk": ["piezas.integrations.grantAction"] },
+      { "id": "gmail", "what": "Gmail: send and list messages, list labels", "sdk": ["piezas.integrations.grantAction"] },
+      { "id": "zoom", "what": "Zoom: create, read, update and delete meetings", "sdk": ["piezas.integrations.grantAction"] },
+      { "id": "hubspot", "what": "HubSpot: contacts, companies and deals", "sdk": ["piezas.integrations.grantAction"] },
+      { "id": "docusign", "what": "DocuSign: send envelopes and read their status", "sdk": ["piezas.integrations.grantAction"] },
+      { "id": "quickbooks", "what": "QuickBooks: customers, invoices, bills, journal entries", "sdk": ["piezas.integrations.grantAction"] },
+      { "id": "aws_textract", "what": "AWS Textract: read receipts, invoices and documents", "sdk": ["piezas.integrations.grantAction"] }
+    ],
+    "comingSoon": ["custom_http", "microsoft_outlook", "slack", "github", "stripe"]
+  },
+  "hosting": {
+    "available": [
+      { "id": "shared-hosting", "what": "Free plan: up to 2 apps, 50 MB each, at <app>.apps.piezas.ai", "tool": ["piezas_deploy"], "console": ["app → Hosting"] },
+      { "id": "environment-variables", "what": "Settings and secrets are set by the owner on the app page (Hosting → Environment) or with `piezas env set` in their own terminal. Values are write-only: never read back, never through the chat.", "console": ["app → Hosting → Environment"] }
+    ],
+    "comingSoon": ["own-server"],
+    "notAvailable": ["reading-environment-values-back"]
+  },
+  "data": {
+    "available": [
+      { "id": "records", "what": "Business records (entities): create, list, search, update, links, activity, CSV/JSON export", "sdk": ["piezas.defineEntities", "entity.create", "entity.list", "entity.search", "entity.update"], "api": ["entity-records /v1/records"] },
+      { "id": "pipelines", "what": "Pipelines and boards (stages an item moves through)", "sdk": ["piezas.definePipeline", "piezas.pipeline"] },
+      { "id": "tasks", "what": "Tasks", "sdk": ["piezas.tasks.create"] },
+      { "id": "calendar", "what": "Calendars, availability, open slots and bookings", "sdk": ["piezas.calendar.createCalendar", "piezas.calendar.getAvailableSlots", "piezas.calendar.createBooking"] },
+      { "id": "forms", "what": "Forms", "sdk": ["piezas.forms.createForm"] }
+    ],
+    "notAvailable": ["local-database", "raw-sql"]
+  },
+  "documents": {
+    "available": [
+      { "id": "files", "what": "Store and serve documents", "sdk": ["piezas.documents.createDocument"] },
+      { "id": "signatures", "what": "Signature requests", "sdk": ["piezas.documents.createSignatureRequest"] },
+      { "id": "extraction", "what": "Read data out of documents (extraction jobs)", "sdk": ["piezas.documents.createExtractionJob"] }
+    ]
+  },
+  "workflows": {
+    "available": [
+      { "id": "jobs", "what": "Background jobs: enqueue, claim, requeue", "sdk": ["piezas.workflow.enqueueJob", "piezas.workflow.claimJobs"] }
+    ]
+  },
+  "notifications": {
+    "purpose": "transactional only",
+    "available": [
+      { "id": "transactional-email", "what": "One message to one person for something they did or need: confirmations, resets, alerts, reminders", "sdk": ["piezas.notify", "piezas.sendEmail"], "api": ["notification-engine /v1/messages/send"] }
+    ],
+    "notAvailable": ["bulk-email", "newsletters", "custom-sender-identity", "open-and-click-tracking"]
+  },
+  "other": {
+    "available": [
+      { "id": "report-a-problem", "what": "The Report a problem button and the owner's report list", "sdk": ["createReportProblemRoute", "mountReportProblem"] },
+      { "id": "reporting", "what": "Dashboards and reports", "sdk": ["piezas.reporting.createDashboard"] },
+      { "id": "pricing", "what": "Quotes and price documents", "sdk": ["piezas.pricing.createDocument"] },
+      { "id": "discussion", "what": "Comment threads", "sdk": ["piezas.discussion.createThread"] },
+      { "id": "knowledge-base", "what": "Searchable help articles", "sdk": ["piezas.knowledgeBase.search"] }
+    ],
+    "notAvailable": ["payments"]
+  }
+}
