@@ -84,6 +84,14 @@ export const MET: Metric[] = [
   { key: 'l', name: 'Sunlight, peak today', unit: '%', range: [60, 100] },
 ];
 
+/** Sensor posts sit in the four corners of each field, in map units from the centre. */
+export const SENSOR_XY: [number, number][] = [
+  [-70, -55],
+  [70, -55],
+  [-70, 60],
+  [70, 60],
+];
+
 export const POLY: Record<FieldId, string> = {
   A: '40,40 300,30 320,200 60,215',
   B: '335,30 520,40 540,210 345,205',

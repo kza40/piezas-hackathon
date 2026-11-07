@@ -51,13 +51,17 @@ export const plants = (id: FieldId, c: Crop) => {
   const p = polyPoints(id);
   const xs = p.map((q) => q[0]);
   const ys = p.map((q) => q[1]);
-  const x0 = Math.min(...xs) + 26;
-  const x1 = Math.max(...xs) - 26;
-  const y0 = Math.min(...ys) + 10;
-  const y1 = Math.max(...ys) - 30;
+  const row = c === 'Blueberries' ? 38 : 26;
+  const col = c === 'Blueberries' ? 34 : 22;
+  const x0 = Math.min(...xs) + 22;
+  const x1 = Math.max(...xs) - 22;
+  const y0 = Math.min(...ys) + 14;
+  const y1 = Math.max(...ys) - 36;
   let o = '';
-  for (let X = x0; X < x1; X += 34) {
-    o += `<g transform='translate(${X} ${y0})'>${cropIn(c)}</g><g transform='translate(${X} ${y1})'>${cropIn(c)}</g>`;
+  for (let Y = y0, r = 0; Y < y1; Y += row, r++) {
+    for (let X = x0 + (r % 2 ? col / 2 : 0); X < x1; X += col) {
+      o += `<g transform='translate(${X} ${Y}) scale(0.72)'>${cropIn(c)}</g>`;
+    }
   }
   return o;
 };

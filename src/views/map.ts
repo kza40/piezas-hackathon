@@ -1,13 +1,13 @@
-import { BRIDGES, FB, HL, LANES, POLY, TREES, WS } from '../seed/farm';
-import { F } from '../seed/simulate';
+import { BRIDGES, FB, HL, LANES, POLY, SENSOR_XY, TREES, WS } from '../seed/farm';
+import { F, sensorsOf } from '../seed/simulate';
 import { S, saveOffsets } from '../state';
 import type { Field, FieldId, Health, MapLayer } from '../types';
-import { mix, T, ws } from '../ui/helpers';
+import { lastWatered, mix, moistureTint, T, ws } from '../ui/helpers';
 import { canIn, fieldNumberLabel, plants, polyPoints } from '../ui/icons';
 
 const VIEW_W = 800;
 const VIEW_H = 520;
-export const SENSOR_OFFSETS: [number, number][] = [[-70, -55], [70, -55], [-70, 60], [70, 60]];
+export const SENSOR_OFFSETS = SENSOR_XY;
 const HEALTH_FILL: Record<Health, string> = { ok: '#8fc47a', wn: '#f0c75a', cr: '#e07a63' };
 const HEIGHT_MEANS: Record<MapLayer, string> = { water: 'needs water sooner', health: 'needs more attention', moisture: 'wetter soil', temp: 'warmer soil' };
 const LAYERS: [MapLayer, string][] = [['water', 'Watering'], ['health', 'Health'], ['moisture', 'Moisture'], ['temp', 'Temp']];
@@ -34,12 +34,24 @@ export const valueFor = (x: Field, layer: MapLayer) => {
 const fieldShape = (x: Field, layer: MapLayer) => {
   const [cx, cy] = center(x.id);
   const sel = S.sel === x.id;
-  const sensors = Array.from({ length: x.s[1] }, (_, i) => {
-    const online = i < x.s[0];
-    const [dx, dy] = SENSOR_OFFSETS[i];
-    return `<circle cx='${cx + dx}' cy='${cy + dy}' r='6' fill='${online ? '#1f3d27' : '#fff'}' stroke='${online ? '#fff' : '#b97a00'}' stroke-width='${online ? 2 : 3}'/>`;
-  }).join('');
-  return `<g data-act=pk data-id=${x.id} transform='translate(${(S.off[x.id] ?? [0, 0]).join(' ')})' tabindex=0 role=button aria-label='${x.name}, ${HL[x.hl][0]}' style='cursor:pointer'><polygon points='${POLY[x.id]}' fill='${fillFor(x, layer)}' stroke='${sel ? '#1b2229' : '#fff'}' stroke-width='${sel ? 7 : 3}' stroke-linejoin='round'/><polygon points='${POLY[x.id]}' fill='url(#st${'ABCDEF'.indexOf(x.id) % 3})' pointer-events='none'/><polygon points='${POLY[x.id]}' fill=none stroke='#7a5a3a' stroke-width=1.6 stroke-dasharray='2 6' stroke-linecap=round pointer-events=none />${fieldNumberLabel(x.id)}${plants(x.id, x.crop)}${sensors}<g data-w=1><circle cx='${cx}' cy='${cy - 8}' r='24' fill='#fff' stroke='#1b2229' stroke-width='4'/><g transform='translate(${cx - 17} ${cy - 25}) scale(1.21)'>${canIn(ws(x))}</g></g><rect x='${cx - 64}' y='${cy + 18}' width='128' height='42' fill='#1b2229'/><text x='${cx}' y='${cy + 36}' text-anchor='middle' font-size='14' font-weight='800' fill='#f6efd9'>${x.name}</text><text x='${cx}' y='${cy + 53}' text-anchor='middle' font-size='13' font-weight='800' fill='#f0d6a0'>${valueFor(x, layer)}</text></g>`;
+  const posts = sensorsOf(x.id);
+  const zones = posts
+    .map((s) => {
+      const fill = s.m == null ? '#ccc' : moistureTint(s.m);
+      const op = sel ? 0.55 : 0.28;
+      return `<circle cx='${cx + s.dx}' cy='${cy + s.dy}' r='${sel ? 42 : 34}' fill='${fill}' fill-opacity='${op}' pointer-events='none'/>`;
+    })
+    .join('');
+  const sensors = posts
+    .map((s) => {
+      const label = sel && s.m != null ? `<text x='${cx + s.dx}' y='${cy + s.dy - 12}' text-anchor='middle' font-size='11' font-weight='800' fill='#1b2229'>${s.id} ${Math.round(s.m)}%</text>` : '';
+      return `<circle cx='${cx + s.dx}' cy='${cy + s.dy}' r='6' fill='${s.online ? '#1f3d27' : '#fff'}' stroke='${s.online ? '#fff' : '#b97a00'}' stroke-width='${s.online ? 2 : 3}'/>${label}`;
+    })
+    .join('');
+  const hud = sel
+    ? `<g pointer-events='none'><rect x='${cx - 92}' y='${cy + 64}' width='184' height='52' fill='#fffef8' stroke='#1b2229' stroke-width='1.5'/><text x='${cx}' y='${cy + 82}' text-anchor='middle' font-size='11' font-weight='800' fill='#1b2229'>Humidity ${x.h}% · ${T(x.st)}</text><text x='${cx}' y='${cy + 98}' text-anchor='middle' font-size='11' font-weight='700' fill='#434e3a'>Last watered: ${lastWatered(x.id)}</text><text x='${cx}' y='${cy + 112}' text-anchor='middle' font-size='10' fill='#434e3a'>Moisture ${Math.min(...posts.map((s) => s.m ?? x.m))}-${Math.max(...posts.map((s) => s.m ?? x.m))}% across the field</text></g>`
+    : '';
+  return `<g data-act=pk data-id=${x.id} transform='translate(${(S.off[x.id] ?? [0, 0]).join(' ')})' tabindex=0 role=button aria-label='${x.name}, ${HL[x.hl][0]}' style='cursor:pointer'><polygon points='${POLY[x.id]}' fill='${fillFor(x, layer)}' stroke='${sel ? '#1b2229' : '#fff'}' stroke-width='${sel ? 7 : 3}' stroke-linejoin='round'/><polygon points='${POLY[x.id]}' fill='url(#st${'ABCDEF'.indexOf(x.id) % 3})' pointer-events='none'/>${zones}<polygon points='${POLY[x.id]}' fill=none stroke='#7a5a3a' stroke-width=1.6 stroke-dasharray='2 6' stroke-linecap=round pointer-events=none />${fieldNumberLabel(x.id)}${plants(x.id, x.crop)}${sensors}<g data-w=1><circle cx='${cx}' cy='${cy - 8}' r='24' fill='#fff' stroke='#1b2229' stroke-width='4'/><g transform='translate(${cx - 17} ${cy - 25}) scale(1.21)'>${canIn(ws(x))}</g></g><rect x='${cx - 64}' y='${cy + 18}' width='128' height='42' fill='#1b2229'/><text x='${cx}' y='${cy + 36}' text-anchor='middle' font-size='14' font-weight='800' fill='#f6efd9'>${x.name}</text><text x='${cx}' y='${cy + 53}' text-anchor='middle' font-size='13' font-weight='800' fill='#f0d6a0'>${valueFor(x, layer)}</text>${hud}</g>`;
 };
 
 const LANES_SVG = `<g fill=none stroke-linecap=square>${LANES.map(({ from: [a, b], to: [c, d], w }) => `<path d='M${a} ${b}L${c} ${d}' stroke=#6e542c stroke-width=${w + 4} /><path d='M${a} ${b}L${c} ${d}' stroke=#c4a36a stroke-width=${w} />`).join('')}</g>`;

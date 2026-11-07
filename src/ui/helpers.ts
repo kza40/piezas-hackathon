@@ -37,6 +37,14 @@ export const idealRange = (f: Field, m: Metric): Range => (m.key === 'ph' && f.p
 export const isStation = (k: MetricKey): k is StationKey => k === 'at' || k === 'h' || k === 'l';
 export const fieldNo = (id: FieldId) => '0' + ('ABCDEF'.indexOf(id) + 1);
 
+export const lastWatered = (id: FieldId) => {
+  const e = S.log.find((x) => x.f === id);
+  return e ? `${e.d} · ${e.mm} mm` : 'Not this week';
+};
+
+/** Dry soil is brown, wet soil is blue — used for per-area moisture on the map. */
+export const moistureTint = (m: number) => mix([176, 86, 42], [55, 118, 168], Math.max(0, Math.min(1, (m - 14) / 34)));
+
 export const openAlerts = () => AL.filter((a) => !S.dis[a.id] && a.l !== 'in');
 export const firstName = () => S.name.split(' ')[0] ?? '';
 export const initials = () =>
