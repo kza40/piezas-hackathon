@@ -6,7 +6,7 @@ Built for the Piezas hackathon as a **mock-first** frontend: all readings, forec
 
 ## Features
 
-- **Map-first board** — 2D and interactive 3D farm map with crop rows, roads, creek, barn and irrigation lines
+- **Map-first board** — 2D and interactive 3D farm map with crop rows, woodland, rivers, hills, barn and irrigation lines
 - **Per-field detail** — soil moisture (including variation by sensor area), humidity, soil temp, last watering, pH and salinity
 - **Floating cards** — farm overview, weather, alerts, recommended actions and farmer profile; each card minimizes
 - **Adjust farm** — drag parcels to match a real layout; **Standard layout** restores the default

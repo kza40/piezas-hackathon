@@ -10,37 +10,48 @@ export const FIELD_SEEDS: FieldSeed[] = [
 ];
 
 /**
- * Gravel farm lanes in map coordinates (the 2D map's 800×520 viewBox).
- * Every field has a lane on each side so equipment can get around it:
- * a perimeter loop, lanes between neighbours, creek-side tracks, and the barn drive.
+ * Woodland outside the crop parcels — windbreaks, creek banks, and the
+ * woodlot around the farmstead. Coordinates match the 800×520 map.
  */
-export const LANES: { from: [number, number]; to: [number, number]; w: number }[] = [
-  { from: [16, 16], to: [784, 16], w: 12 },
-  { from: [16, 16], to: [16, 508], w: 12 },
-  { from: [16, 508], to: [784, 508], w: 12 },
-  { from: [784, 16], to: [784, 508], w: 12 },
-  { from: [328, 16], to: [328, 228], w: 10 },
-  { from: [548, 16], to: [548, 228], w: 10 },
-  { from: [270, 228], to: [270, 508], w: 10 },
-  { from: [464, 228], to: [464, 508], w: 7 },
-  { from: [494, 228], to: [494, 412], w: 7 },
-  { from: [494, 412], to: [662, 412], w: 10 },
-  { from: [662, 228], to: [662, 412], w: 10 },
-  { from: [662, 412], to: [784, 412], w: 10 },
-  { from: [721, 228], to: [721, 300], w: 9 },
-];
-/** Wooden decks where a lane or the concession crosses Willow Creek. */
-export const BRIDGES: [number, number][] = [
-  [478, 228],
-  [468, 508],
-];
-/** Shade trees: field corners, farmstead, and a light windbreak just outside the lanes. */
 export const TREES: [number, number][] = [
-  [28, 28], [180, 28], [400, 28], [640, 28], [772, 32],
-  [28, 120], [28, 360], [28, 494],
-  [180, 494], [400, 494], [640, 528],
-  [772, 120], [808, 300], [808, 400],
-  [690, 380], [752, 392], [768, 462], [715, 478],
+  // North windbreak
+  [18, 18], [48, 12], [78, 22], [110, 10], [145, 18], [190, 8], [230, 16], [270, 10],
+  [310, 20], [360, 8], [410, 14], [455, 6], [500, 16], [545, 8], [590, 18], [635, 10],
+  [680, 16], [725, 8], [765, 18], [792, 12],
+  // West woodlot
+  [12, 70], [22, 110], [10, 155], [24, 200], [14, 250], [26, 300], [12, 350], [22, 400],
+  [10, 450], [28, 490], [48, 505], [90, 510], [130, 500],
+  // East ridge / blueberry edge
+  [790, 70], [805, 120], [788, 165], [810, 210], [795, 255], [808, 310], [790, 360],
+  [805, 410], [785, 455], [760, 500], [720, 512],
+  // Creek corridor & pond woods
+  [450, 230], [470, 270], [455, 320], [480, 370], [460, 420], [485, 470], [450, 505],
+  [510, 430], [545, 450], [580, 470], [610, 495], [650, 485], [690, 470],
+  [700, 430], [735, 415], [760, 390], [745, 350], [710, 370], [680, 395],
+  // South pasture fringe
+  [180, 505], [230, 512], [280, 500], [330, 510], [380, 498], [420, 508],
+  // Gaps between north / south blocks
+  [300, 220], [320, 235], [545, 225], [565, 240],
+];
+
+/** Distant ridges north of the farm (map x, peak height, base width). */
+export const RIDGES: { x: number; h: number; w: number }[] = [
+  { x: -120, h: 90, w: 220 },
+  { x: 80, h: 140, w: 280 },
+  { x: 280, h: 110, w: 240 },
+  { x: 480, h: 160, w: 300 },
+  { x: 680, h: 125, w: 260 },
+  { x: 880, h: 95, w: 220 },
+];
+
+/** Meadow / scrub patches painted under the trees (open land, not yellow dirt). */
+export const MEADOWS: string[] = [
+  '0,0 800,0 800,55 0,70',
+  '0,0 55,0 70,520 0,520',
+  '740,0 800,0 800,520 755,520',
+  '0,480 800,520 800,520 0,520',
+  '430,210 520,205 535,520 445,520',
+  '650,360 800,340 800,520 640,520',
 ];
 
 export const FARM = { location: 'Wellington County, ON', station: 'Farmstead weather station' };

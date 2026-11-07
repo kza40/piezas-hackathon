@@ -1,4 +1,4 @@
-import { BRIDGES, FB, HL, LANES, POLY, SENSOR_XY, TREES, WS } from '../seed/farm';
+import { FB, HL, MEADOWS, POLY, RIDGES, SENSOR_XY, TREES, WS } from '../seed/farm';
 import { F, sensorsOf } from '../seed/simulate';
 import { S, saveOffsets } from '../state';
 import type { Field, FieldId, Health, MapLayer } from '../types';
@@ -54,13 +54,23 @@ const fieldShape = (x: Field, layer: MapLayer) => {
   return `<g data-act=pk data-id=${x.id} transform='translate(${(S.off[x.id] ?? [0, 0]).join(' ')})' tabindex=0 role=button aria-label='${x.name}, ${HL[x.hl][0]}' style='cursor:pointer'><polygon points='${POLY[x.id]}' fill='${fillFor(x, layer)}' stroke='${sel ? '#1b2229' : '#fff'}' stroke-width='${sel ? 7 : 3}' stroke-linejoin='round'/><polygon points='${POLY[x.id]}' fill='url(#st${'ABCDEF'.indexOf(x.id) % 3})' pointer-events='none'/>${zones}<polygon points='${POLY[x.id]}' fill=none stroke='#7a5a3a' stroke-width=1.6 stroke-dasharray='2 6' stroke-linecap=round pointer-events=none />${fieldNumberLabel(x.id)}${plants(x.id, x.crop)}${sensors}<g data-w=1><circle cx='${cx}' cy='${cy - 8}' r='24' fill='#fff' stroke='#1b2229' stroke-width='4'/><g transform='translate(${cx - 17} ${cy - 25}) scale(1.21)'>${canIn(ws(x))}</g></g><rect x='${cx - 64}' y='${cy + 18}' width='128' height='42' fill='#1b2229'/><text x='${cx}' y='${cy + 36}' text-anchor='middle' font-size='14' font-weight='800' fill='#f6efd9'>${x.name}</text><text x='${cx}' y='${cy + 53}' text-anchor='middle' font-size='13' font-weight='800' fill='#f0d6a0'>${valueFor(x, layer)}</text>${hud}</g>`;
 };
 
-const LANES_SVG = `<g fill=none stroke-linecap=square>${LANES.map(({ from: [a, b], to: [c, d], w }) => `<path d='M${a} ${b}L${c} ${d}' stroke=#6e542c stroke-width=${w + 4} /><path d='M${a} ${b}L${c} ${d}' stroke=#c4a36a stroke-width=${w} />`).join('')}</g>`;
-const BRIDGE_SVG = BRIDGES.map(([x, y]) => `<rect x=${x - 14} y=${y - 9} width=28 height=18 fill=#8a6a48 stroke=#4a3a28 stroke-width=1.6 /><path d='M${x - 12} ${y}L${x + 12} ${y}' stroke=#d7c4a0 stroke-width=2 stroke-dasharray='4 3' />`).join('');
-const TREE_SVG = TREES.filter(([x, y]) => x >= 0 && x <= 800 && y >= 0 && y <= 520)
-  .map(([a, b]) => `<circle cx='${a}' cy='${b}' r='11' fill='#56755f'/><circle cx='${a - 2}' cy='${b - 3}' r='5' fill='#6b8a70'/>`)
-  .join('');
+const treeMark = (a: number, b: number, i: number) => {
+  const s = 0.85 + (i % 4) * 0.12;
+  const tone = ['#3d6b45', '#4a7a52', '#2f5a38', '#557f5c'][i % 4];
+  const tip = ['#5f9468', '#6da074', '#4d7f56', '#78a87e'][i % 4];
+  return `<g transform='translate(${a} ${b}) scale(${s})'><rect x='-2' y='-2' width='4' height='10' fill='#5a4030'/><ellipse cx='0' cy='-10' rx='12' ry='10' fill='${tone}'/><ellipse cx='-3' cy='-14' rx='7' ry='6' fill='${tip}'/></g>`;
+};
+const TREE_SVG = TREES.map((p, i) => treeMark(p[0], p[1], i)).join('');
+const MEADOW_SVG = MEADOWS.map((pts, i) => `<polygon points='${pts}' fill='${i % 2 ? '#6f9458' : '#628850'}' fill-opacity='.92'/>`).join('');
+const RIDGE_SVG = RIDGES.map(({ x, h, w }, i) => {
+  const base = 42;
+  const peak = base - Math.min(38, h * 0.28);
+  const mid = (base + peak) / 2;
+  const fill = ['#5a6d78', '#677b86', '#4c5f6c'][i % 3];
+  return `<path d='M${x - w / 2} ${base} L${x - w * 0.22} ${mid} L${x} ${peak} L${x + w * 0.2} ${mid + 4} L${x + w / 2} ${base} Z' fill='${fill}'/><path d='M${x - w * 0.06} ${peak + 6} L${x} ${peak} L${x + w * 0.1} ${peak + 10} Z' fill='#eef3f6' fill-opacity='.5'/>`;
+}).join('');
 
-const BASE = `<rect width=800 height=520 fill=#efe6c8 /><path d='M0 120C120 90 220 140 330 110S560 70 800 100M0 330C140 300 260 360 400 330S640 290 800 320M0 450C160 430 300 480 460 455S680 430 800 460' fill=none stroke=#dccfa5 stroke-width=2 />${LANES_SVG}<path d='M470 215 C492 300 478 400 468 520' stroke='#5b8ec9' stroke-width='12' fill='none'/>${BRIDGE_SVG}<path d='M0 228 L800 228' stroke='#4a3a28' stroke-width='16'/><path d='M0 228 L800 228' stroke='#fff' stroke-opacity='.6' stroke-width='2' stroke-dasharray='12 10'/><ellipse cx='620' cy='460' rx='60' ry='32' fill='#5b8ec9'/><text x='620' y='464' text-anchor='middle' font-size='13' font-weight='800' fill='#fff'>Pond</text><rect x='685' y='290' width='72' height='46' rx='5' fill='#8a6a48'/><rect x='760' y='300' width='18' height='20' fill='#a0805a'/><text x='721' y='318' text-anchor='middle' font-size='13' fill='#fff'>Barn</text><text x='721' y='352' text-anchor='middle' font-size='12' fill='#3a2a14'>Farmstead</text><text x='70' y='232' font-size='11' fill='#efe6c8'>Concession Road 4</text><text x='600' y='232' font-size='11' fill='#efe6c8'>Concession Road 4</text><text transform='translate(11 370) rotate(-90)' font-size='11' fill='#efe6c8' text-anchor='middle'>Sideroad 27</text><text transform='translate(789 200) rotate(90)' font-size='11' fill='#efe6c8' text-anchor='middle'>Sideroad 25</text><text x='400' y='13' text-anchor='middle' font-size='10' fill='#3a2a14'>North farm lane</text><text x='200' y='516' text-anchor='middle' font-size='10' fill='#3a2a14'>South farm lane</text><text transform='translate(484 340) rotate(90)' font-size='11' fill='#1f4a63' text-anchor='middle'>Willow Creek</text><path d='M470 215C492 300 478 400 468 520' stroke=#fff stroke-opacity=.55 stroke-width=2 stroke-dasharray='6 12' fill=none /><g transform='translate(360 210)'><rect x=0 y=6 width=26 height=10 rx=2 fill=#c0392b /><rect x=14 y=-2 width=11 height=9 rx=1 fill=#e8e1c8 /><circle cx=7 cy=18 r=6 fill=#222 /><circle cx=22 cy=19 r=4 fill=#222 /></g>${TREE_SVG}`;
+const BASE = `<defs><linearGradient id=land y1=0 y2=1><stop offset=0 stop-color=#7fa867 /><stop offset=.55 stop-color=#6d9658 /><stop offset=1 stop-color=#5f874c /></linearGradient><linearGradient id=water x1=0 x2=1><stop offset=0 stop-color=#3d7aaa /><stop offset=.5 stop-color=#5aa0c8 /><stop offset=1 stop-color=#3a6f9a /></linearGradient></defs><rect width=800 height=520 fill=url(#land) />${MEADOW_SVG}<g>${RIDGE_SVG}</g><path d='M455 200 C478 270 465 360 458 430 S448 520 448 540' stroke='#2f5a3a' stroke-width='28' fill='none' stroke-linecap='round'/><path d='M470 195 C492 275 478 365 468 440 S458 530 458 545' stroke='url(#water)' stroke-width='16' fill='none' stroke-linecap='round'/><path d='M470 195C492 275 478 365 468 440S458 530 458 545' stroke=#fff stroke-opacity=.35 stroke-width=2.5 stroke-dasharray='8 14' fill=none /><path d='M120 510 C180 470 240 455 310 448 S430 430 470 400' stroke='#2f5a3a' stroke-width='18' fill='none' stroke-linecap='round'/><path d='M125 508 C185 472 245 458 315 450 S435 432 472 402' stroke='url(#water)' stroke-width='10' fill='none' stroke-linecap='round'/><ellipse cx='620' cy='460' rx='68' ry='36' fill='#2f5a3a'/><ellipse cx='620' cy='460' rx='60' ry='32' fill='url(#water)'/><ellipse cx='605' cy='452' rx='18' ry='8' fill=#fff fill-opacity=.25 /><text x='620' y='464' text-anchor='middle' font-size='13' font-weight='800' fill='#fff'>Pond</text><rect x='685' y='290' width='72' height='46' rx='5' fill='#8a4a32'/><rect x='760' y='300' width='18' height='20' fill='#a0805a'/><path d='M680 290 L721 268 L762 290' fill='#3b2f2a'/><text x='721' y='318' text-anchor='middle' font-size='13' fill='#fff'>Barn</text><text x='721' y='352' text-anchor='middle' font-size='12' fill='#1f2a18'>Farmstead</text><text transform='translate(490 340) rotate(90)' font-size='11' fill='#1f4a63' text-anchor='middle'>Willow Creek</text>${TREE_SVG}`;
 
 const PIPE_PATH = 'M610 428V412H668V222H275M326 222V30M548 222V48M275 222V482';
 const PIPES = `<g fill=none stroke-linecap=round stroke-linejoin=round><path d='${PIPE_PATH}' stroke=#fff stroke-width=6 /><path d='${PIPE_PATH}' stroke=#5b8ec9 stroke-width=2.5 stroke-dasharray='7 6' />${[[326, 222], [548, 222], [275, 222], [668, 300]].map(([a, b]) => `<circle cx=${a} cy=${b} r=7 fill=#fff stroke=#5b8ec9 stroke-width=3 />`).join('')}</g>`;
@@ -71,7 +81,9 @@ const PATTERNS = `<defs><pattern id=st0 width=12 height=12 patternUnits=userSpac
 export function map(left: string, right: string): string {
   const L = S.ly;
   const dim = `<div class=mpc><button data-act=dim data-k=3 data-testid=view-3d aria-pressed=${S.d3}>3D</button><button data-act=dim data-k=2 data-testid=view-2d aria-pressed=${!S.d3}>2D</button></div>`;
-  const hint = S.d3 ? `<span class=hint3>Drag to rotate · right-drag to pan · scroll to zoom · taller block = ${HEIGHT_MEANS[L]}</span>` : '';
+  const hint = S.d3
+    ? `<span class=hint3>Drag to rotate · right-drag to pan · scroll to zoom · taller block = ${HEIGHT_MEANS[L]}</span>`
+    : `<span class=hint3>Drag to pan · scroll to zoom</span>`;
   const controls = `<div class=mtop><div class=mtl>${dim}<div class=mpc>${LAYERS.map(([key, n]) => `<button data-act=lyr data-k=${key} aria-pressed=${L === key}>${n}</button>`).join('')}</div><div class=mpc><button aria-pressed=${S.edit} data-act=ed>${S.edit ? 'Done' : 'Adjust farm'}</button>${S.edit ? `<button data-act=rl>Standard layout</button>` : ''}</div>${S.edit ? `<span class='mpc note'>Drag parcels to match your farm · Standard layout restores the default</span>` : ''}</div><div class=mtr><div class=mpc><button aria-label='Zoom in' data-act=zm data-f=1.5>+</button><button aria-label='Zoom out' data-act=zm data-f=${1 / 1.5}>−</button><button aria-label='Reset view' data-act=rs>⟲</button></div><div class=mpc><button aria-pressed=${S.bare} data-act=bare data-testid=toggle-cards>${S.bare ? 'Show cards' : 'Hide cards'}</button></div></div></div>`;
   const scale = `<div class=mscale aria-hidden=true><span class=north>▲ N</span><span class=sbar><i></i>200 m</span></div>`;
   const svg = `<svg id=fmap viewBox='0 0 ${VIEW_W} ${VIEW_H}' style='width:100%;height:100%;display:block;touch-action:none;cursor:grab' role=group aria-label='Farm map'>${PATTERNS}<g id=vp transform='translate(${S.v.x} ${S.v.y}) scale(${S.v.k})'>${BASE}${F.map((x) => fieldShape(x, L)).join('')}${Object.keys(S.off).length ? '' : PIPES}</g></svg>`;
@@ -82,10 +94,19 @@ export function map(left: string, right: string): string {
 
 // ---- pan, zoom and layout editing -----------------------------------------
 
+/** How far past the farm edge you can drag (map units). */
+const PAN_PAD = 320;
+const ZOOM_MIN = 0.55;
+const ZOOM_MAX = 5;
+
 function clampView() {
   const v = S.v;
-  v.x = Math.min(0, Math.max(VIEW_W * (1 - v.k), v.x));
-  v.y = Math.min(0, Math.max(VIEW_H * (1 - v.k), v.y));
+  const minX = VIEW_W * (1 - v.k) - PAN_PAD;
+  const maxX = PAN_PAD;
+  const minY = VIEW_H * (1 - v.k) - PAN_PAD;
+  const maxY = PAN_PAD;
+  v.x = Math.min(maxX, Math.max(minX, v.x));
+  v.y = Math.min(maxY, Math.max(minY, v.y));
 }
 
 function applyView() {
@@ -95,7 +116,7 @@ function applyView() {
 export function zoom(factor: number, px = VIEW_W / 2, py = VIEW_H / 2) {
   const v = S.v;
   const k1 = v.k;
-  const k2 = Math.max(1, Math.min(4, k1 * factor));
+  const k2 = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, k1 * factor));
   v.x = px - ((px - v.x) * k2) / k1;
   v.y = py - ((py - v.y) * k2) / k1;
   v.k = k2;
@@ -163,15 +184,21 @@ export function onMapPointerDown(e: PointerEvent, svg: Element) {
   const { s } = viewScale(svg);
   let lx = e.clientX;
   let ly = e.clientY;
-  track((ev) => {
-    if (Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY) > 6) S.moved = true;
-    if (S.moved) {
+  (svg as SVGElement).style.cursor = 'grabbing';
+  track(
+    (ev) => {
+      if (Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY) > 4) S.moved = true;
+      if (!S.moved) return;
       S.v.x += (ev.clientX - lx) * s;
       S.v.y += (ev.clientY - ly) * s;
       clampView();
       applyView();
-    }
-    lx = ev.clientX;
-    ly = ev.clientY;
-  });
+      lx = ev.clientX;
+      ly = ev.clientY;
+    },
+    () => {
+      (svg as SVGElement).style.cursor = 'grab';
+    },
+  );
+  e.preventDefault();
 }

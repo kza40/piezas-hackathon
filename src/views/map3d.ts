@@ -3,7 +3,7 @@
 // with innerHTML and a new canvas would lose its GPU context and camera.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { BRIDGES, LANES, POLY, TREES } from '../seed/farm';
+import { POLY, RIDGES, TREES } from '../seed/farm';
 import { F, sensorsOf } from '../seed/simulate';
 import { S } from '../state';
 import type { Field, FieldId, MapLayer, WaterState } from '../types';
@@ -96,44 +96,76 @@ function box(w: number, h: number, d: number, color: string, x: number, y: numbe
   return m;
 }
 
+function waterPath(pts: [number, number][], radius: number, color: string) {
+  const curve = new THREE.CatmullRomCurve3(pts.map(([x, y]) => new THREE.Vector3(wx(x), 0.4, wz(y))));
+  const mesh = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 72, radius, 10),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.22, metalness: 0.18 }),
+  );
+  mesh.scale.y = 0.1;
+  return mesh;
+}
+
 function scenery(scene: THREE.Scene) {
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(5000, 5000), new THREE.MeshStandardMaterial({ color: '#e6dcb6', roughness: 1 }));
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.MeshStandardMaterial({ color: '#6d9658', roughness: 1 }));
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
 
-  const strip = (from: [number, number], to: [number, number], w: number, color: string, y: number, h = 0.55) => {
-    const dx = to[0] - from[0];
-    const dy = to[1] - from[1];
-    const len = Math.hypot(dx, dy) || 1;
-    const m = box(len + w * 0.35, h, w, color, wx((from[0] + to[0]) / 2), y, wz((from[1] + to[1]) / 2));
-    m.rotation.y = -Math.atan2(dy, dx);
-    m.castShadow = false;
-    return m;
-  };
-  for (const { from, to, w } of LANES) {
-    scene.add(strip(from, to, w + 3, '#6e542c', 0.35, 0.4));
-    scene.add(strip(from, to, w, '#c4a36a', 0.55, 0.4));
-  }
-  scene.add(box(1400, 1.4, 16, '#4a3a28', 0, 0.9, wz(228)));
-  for (let x = -680; x < 700; x += 22) scene.add(box(12, 0.4, 1.6, '#e8e1c8', x, 1.7, wz(228)));
-  for (const [bx, by] of BRIDGES) {
-    const deck = new THREE.Group();
-    deck.add(box(28, 2.2, 18, '#8a6a48', 0, 2.2, 0), box(28, 4, 1.6, '#4a3a28', 0, 4.2, -9), box(28, 4, 1.6, '#4a3a28', 0, 4.2, 9));
-    deck.position.set(wx(bx), 0, wz(by));
-    scene.add(deck);
+  // Soft meadow patches so open land reads as pasture, not bare dirt.
+  for (const [x, z, sx, sz, tone] of [
+    [wx(40), wz(40), 180, 90, '#628850'],
+    [wx(400), wz(20), 420, 70, '#73985c'],
+    [wx(20), wz(300), 70, 280, '#5f874c'],
+    [wx(780), wz(280), 90, 260, '#678e54'],
+    [wx(460), wz(360), 90, 220, '#4f7340'],
+    [wx(680), wz(450), 160, 120, '#5a8048'],
+  ] as const) {
+    const patch = new THREE.Mesh(new THREE.PlaneGeometry(sx, sz), new THREE.MeshStandardMaterial({ color: tone, roughness: 1 }));
+    patch.rotation.x = -Math.PI / 2;
+    patch.position.set(x, 0.15, z);
+    patch.receiveShadow = true;
+    scene.add(patch);
   }
 
-  const creek = new THREE.CatmullRomCurve3([[470, 215], [492, 300], [478, 400], [468, 560]].map(([x, y]) => new THREE.Vector3(wx(x), 0, wz(y))));
-  const river = new THREE.Mesh(new THREE.TubeGeometry(creek, 60, 7, 8), new THREE.MeshStandardMaterial({ color: '#5b8ec9', roughness: 0.3, metalness: 0.1 }));
-  river.scale.y = 0.12;
-  river.position.y = 0.6;
-  scene.add(river);
+  // Distant mountain range north of the farm.
+  const rock = new THREE.MeshStandardMaterial({ color: '#5a6d78', roughness: 0.95 });
+  const snow = new THREE.MeshStandardMaterial({ color: '#eef3f6', roughness: 0.7 });
+  RIDGES.forEach(({ x, h, w }, i) => {
+    const peak = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.ConeGeometry(w * 0.42, h * 1.8, 7), rock);
+    body.position.y = h * 0.9;
+    body.castShadow = true;
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(w * 0.16, h * 0.45, 6), snow);
+    cap.position.y = h * 1.55;
+    peak.add(body, cap);
+    if (i % 2 === 0) {
+      const shoulder = new THREE.Mesh(new THREE.ConeGeometry(w * 0.28, h * 1.1, 6), rock);
+      shoulder.position.set(w * 0.28, h * 0.55, w * 0.08);
+      peak.add(shoulder);
+    }
+    peak.position.set(wx(x), 0, wz(-90 - (i % 3) * 40));
+    scene.add(peak);
+  });
+  // Far hinterland ridges so the horizon isn't flat.
+  [[-900, 220, 380], [200, 280, 420], [1100, 200, 360], [-400, 160, 300], [700, 190, 340]].forEach(([x, h, r], i) => {
+    const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, 6), new THREE.MeshStandardMaterial({ color: i % 2 ? '#4c5f6c' : '#677b86', roughness: 1 }));
+    m.position.set(x, h / 2 - 10, -1100 - (i % 3) * 120);
+    scene.add(m);
+  });
 
-  const pond = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 48), new THREE.MeshStandardMaterial({ color: '#5b8ec9', roughness: 0.25, metalness: 0.1 }));
-  pond.scale.set(60, 1, 32);
-  pond.position.set(wx(620), 0.3, wz(460));
+  scene.add(waterPath([[470, 195], [492, 275], [478, 365], [468, 440], [458, 545]], 9, '#4a8eb8'));
+  scene.add(waterPath([[125, 508], [185, 472], [245, 458], [315, 450], [435, 432], [472, 402]], 6, '#3d7aaa'));
+
+  const pond = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 48), new THREE.MeshStandardMaterial({ color: '#3d7aaa', roughness: 0.2, metalness: 0.15 }));
+  pond.scale.set(62, 1.2, 34);
+  pond.position.set(wx(620), 0.2, wz(460));
   scene.add(pond);
+  const bank = new THREE.Mesh(new THREE.TorusGeometry(1, 0.08, 8, 48), new THREE.MeshStandardMaterial({ color: '#2f5a3a', roughness: 1 }));
+  bank.scale.set(62, 1, 34);
+  bank.rotation.x = Math.PI / 2;
+  bank.position.set(wx(620), 0.8, wz(460));
+  scene.add(bank);
 
   const barn = new THREE.Group();
   barn.add(box(72, 24, 46, '#8a4a32', 0, 12, 0));
@@ -152,25 +184,22 @@ function scenery(scene: THREE.Scene) {
   barn.position.set(wx(712), 0, wz(313));
   scene.add(barn);
 
-  const tractor = new THREE.Group();
-  tractor.add(box(26, 8, 12, '#c0392b', 0, 6, 0), box(11, 9, 11, '#e8e1c8', 6, 14, 0));
-  [[-8, 6], [8, 4.5]].forEach(([x, r]) => {
-    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 14, 16), new THREE.MeshStandardMaterial({ color: '#222' }));
-    wheel.rotation.x = Math.PI / 2;
-    wheel.position.set(x, r, 0);
-    tractor.add(wheel);
-  });
-  tractor.position.set(wx(373), 0, wz(222));
-  scene.add(tractor);
-
-  const leaf = new THREE.MeshStandardMaterial({ color: '#4f7558', roughness: 0.9 });
-  const bark = new THREE.MeshStandardMaterial({ color: '#6b4f33' });
+  const leaves = ['#3d6b45', '#4a7a52', '#2f5a38', '#557f5c'].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.92 }));
+  const bark = new THREE.MeshStandardMaterial({ color: '#5a4030', roughness: 1 });
   TREES.forEach(([x, y], i) => {
     const t = new THREE.Group();
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(2, 2.5, 10), bark);
-    trunk.position.y = 5;
-    const crown = new THREE.Mesh(new THREE.ConeGeometry(11 + (i % 3) * 2, 28 + (i % 2) * 6, 10), leaf);
-    crown.position.y = 22;
+    const tall = 22 + (i % 5) * 5;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2.4, tall * 0.45, 6), bark);
+    trunk.position.y = tall * 0.22;
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(9 + (i % 4) * 2.2, 8, 6), leaves[i % leaves.length]);
+    crown.position.y = tall * 0.55;
+    crown.scale.y = 1.15 + (i % 3) * 0.1;
+    if (i % 3 !== 1) {
+      const mid = new THREE.Mesh(new THREE.SphereGeometry(7 + (i % 3), 8, 6), leaves[(i + 1) % leaves.length]);
+      mid.position.set(3, tall * 0.42, -2);
+      mid.castShadow = true;
+      t.add(mid);
+    }
     crown.castShadow = trunk.castShadow = true;
     t.add(trunk, crown);
     t.position.set(wx(x), 0, wz(y));
@@ -337,10 +366,10 @@ function create(onPick: (id: FieldId) => void): Ctx {
   renderer.domElement.setAttribute('role', 'img');
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#cfe0ea');
-  scene.fog = new THREE.Fog('#cfe0ea', 1500, 2800);
-  scene.add(new THREE.HemisphereLight('#ffffff', '#b7a77a', 1.6));
-  const sun = new THREE.DirectionalLight('#fff4dc', 2.4);
+  scene.background = new THREE.Color('#9ec4e0');
+  scene.fog = new THREE.Fog('#b7cfc0', 1400, 3200);
+  scene.add(new THREE.HemisphereLight('#e8f2ff', '#5f874c', 1.35));
+  const sun = new THREE.DirectionalLight('#fff4dc', 2.2);
   sun.position.set(-380, 620, 300);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
