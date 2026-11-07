@@ -64,7 +64,7 @@ export function dashboard(): string {
     (d) => `<div class=wc><b>${d.rain}%</b><div class=wb><i style='height:${Math.max(4, d.rain)}%'></i></div><b>${d.day}</b><span>${T(d.temp)}</span></div>`,
   ).join('')}</div><p>Blue bars show the chance of rain. Tomorrow (6 mm) and Tuesday (14 mm) are the wet days.</p></div><div class='grid g2' style='margin-top:14px'><div class='blk orange' style='margin:0'><h2>Needs you</h2>${alertItems(3)}<button class=btn data-act=go data-p=alerts>All ${open.length} alerts</button></div><div class='blk lime row' style='margin:0;justify-content:flex-start;gap:20px'><div class=ring style='background:conic-gradient(#1b2229 0 ${(healthy / F.length) * 100}%,rgba(6,33,15,.2) 0)'><b>${healthy}/${F.length}</b></div><div><h2>Fields healthy</h2><p>${F.filter((x) => x.hl !== 'ok')
     .map((x) => x.name)
-    .join(', ')} need a look.</p></div></div></div><h2 class=sh>Sensors</h2><div class=row style='justify-content:flex-start;gap:24px'><div class=fn style='font-size:clamp(4rem,10vw,7rem);color:var(--g)'>${sum((x) => x.s[0])}<span>/${sum((x) => x.s[1])}</span></div><div><p>sensors reporting. Average soil moisture is ${avg}%.</p><button class='btn alt' data-act=go data-p=sensors>View history</button></div></div>`;
+    .join(', ')} need a look.</p></div></div></div><h2 class=sh>Fields &amp; sensors</h2><div class=row style='justify-content:flex-start;gap:24px'><div class=fn style='font-size:clamp(4rem,10vw,7rem);color:var(--g)'>${sum((x) => x.s[0])}<span>/${sum((x) => x.s[1])}</span></div><div><p>${sum((x) => x.s[0])} of ${sum((x) => x.s[1])} sensors reporting · average soil moisture ${avg}%.</p><button class='btn alt' data-act=go data-p=field>Open fields &amp; sensors</button></div></div>`;
 }
 
 const history = (f: Field) => {
@@ -108,9 +108,9 @@ export function field(): string {
     const temp = m.unit === '°C';
     return `<div class='mt ${o === 'in range' ? '' : 'off'}'><div class=mv>${temp ? T(v) : v}<small>${temp ? '' : m.unit}</small></div><b>${m.name}</b>${rng(v, rg)}<span>${o}</span></div>`;
   }).join('');
-  const rec = r ? `<div class='blk orange'><h2>Recommended action</h2><p><b>${r.t}</b></p><p>${r.w}</p><p>${r.c}</p></div>` : '';
+  const rec = r ? `<div class='blk orange'><h2>Recommended action</h2><p><b>${r.t}</b></p><p>${r.w}</p><p>${r.c}</p></div>` : `<div class='blk lime'><h2>Recommended action</h2><p>No action needed for this field right now.</p></div>`;
   const metricTabs = MET.map((m) => `<button aria-pressed=${m.key === S.mk} data-act=mk data-k=${m.key}>${m.name}</button>`).join('');
-  return `${demo}${fieldTabs()}${feat(f)}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>History and sensors</h2><div class=tabs>${metricTabs}</div>${history(f)}${waterLog(f)}`;
+  return `${demo}<h1>Fields &amp; sensors</h1><p class=mut>Readings, history and watering for each parcel — in one place.</p>${fieldTabs()}${feat(f)}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>Sensor history</h2><div class=tabs>${metricTabs}</div>${history(f)}${waterLog(f)}`;
 }
 
 export function weather(): string {
@@ -161,9 +161,9 @@ export function settings(): string {
     (f) =>
       `<tr><td>${f.name}</td><td>${f.s[0]} of ${f.s[1]}</td><td><button class="btn alt" data-act="say" data-t="Pairing is not available in this demo">Add sensor</button></td></tr>`,
   ).join('');
-  return `<div style="max-width:760px;margin:0 auto">${demo}<h1>Settings</h1><div class="grid"><div class="card"><h3>Farm</h3><label for="fn2">Farm name</label><input id="fn2" data-bind="farm" value="${esc(S.farm)}"><label for="un">Temperature units</label><select id="un" data-bind="units"><option ${S.units === '°C' ? 'selected' : ''}>°C</option><option ${S.units === '°F' ? 'selected' : ''}>°F</option></select><p><button class="btn" data-act="say" data-t="Settings saved">Save changes</button></p></div>
+  return `${demo}<h1>Settings</h1><div class="stack"><div class="card"><h3>Farm</h3><label for="fn2">Farm name</label><input id="fn2" data-bind="farm" value="${esc(S.farm)}"><label for="un">Temperature units</label><select id="un" data-bind="units"><option ${S.units === '°C' ? 'selected' : ''}>°C</option><option ${S.units === '°F' ? 'selected' : ''}>°F</option></select><p><button class="btn" data-act="say" data-t="Settings saved">Save changes</button></p></div>
 <div class="card"><h3>Notifications</h3>${notify}</div>
-<div class="card" style="grid-column:1/-1"><h3>Sensors</h3><table><tr><th>Field</th><th>Online</th><th></th></tr>${sensors}</table></div></div><p><button class="btn alt" data-act="go" data-p="login">Edit farm setup</button></p></div>`;
+<div class="card"><h3>Sensors</h3><table><tr><th>Field</th><th>Online</th><th></th></tr>${sensors}</table></div><p><button class="btn alt" data-act="go" data-p="login">Edit farm setup</button></p></div>`;
 }
 
 export function profile(): string {

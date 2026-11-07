@@ -92,13 +92,18 @@ export const SENSOR_XY: [number, number][] = [
   [70, 60],
 ];
 
+/**
+ * Field parcels as irregular cadastral shapes (not perfect rectangles),
+ * so the map reads like a real Ontario concession farm. Farmers can still
+ * drag parcels in Edit layout to match their own place.
+ */
 export const POLY: Record<FieldId, string> = {
-  A: '40,40 300,30 320,200 60,215',
-  B: '335,30 520,40 540,210 345,205',
-  F: '555,45 760,60 750,210 565,212',
-  C: '50,250 255,242 265,470 70,482',
-  D: '285,242 455,236 462,470 295,472',
-  E: '500,255 650,262 655,400 510,392',
+  A: '38,42 155,28 298,36 318,118 308,198 175,212 58,204 42,120',
+  B: '338,34 455,26 528,42 548,125 538,202 420,214 348,198 332,110',
+  F: '562,48 680,36 762,58 778,130 752,208 640,218 558,198 548,110',
+  C: '42,258 150,246 262,252 278,360 268,478 140,492 48,470 36,350',
+  D: '292,252 380,242 458,248 478,355 468,472 360,486 278,462 272,340',
+  E: '498,262 580,248 655,268 668,340 648,402 560,412 492,388 482,310',
 };
 
 export const CC: Record<Crop, string> = {

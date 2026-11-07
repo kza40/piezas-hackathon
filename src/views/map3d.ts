@@ -3,7 +3,7 @@
 // with innerHTML and a new canvas would lose its GPU context and camera.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { BRIDGES, LANES, TREES } from '../seed/farm';
+import { BRIDGES, LANES, POLY, TREES } from '../seed/farm';
 import { F, sensorsOf } from '../seed/simulate';
 import { S } from '../state';
 import type { Field, FieldId, MapLayer, WaterState } from '../types';
@@ -66,9 +66,12 @@ interface Ctx {
   /** Field the camera last centred on, and the point it is gliding towards. */
   sel: FieldId;
   focus: THREE.Vector3 | null;
+  /** Baked field outlines; if the farm parcels change, rebuild the scene. */
+  layout: string;
 }
 
 let ctx: Ctx | null = null;
+const layoutKey = () => Object.values(POLY).join('|');
 
 const prng = (seed: number) => () => {
   seed = (seed * 16807) % 2147483647;
@@ -243,6 +246,7 @@ function zoneTiles(f: Field, pts: [number, number][], cx: number, cy: number): T
 }
 
 function hudHtml(f: Field): string {
+  // Click HUD: last watering, humidity, and moisture per sensor area.
   const zones = sensorsOf(f.id);
   const live = zones.filter((s) => s.m != null).map((s) => s.m!);
   const lo = live.length ? Math.min(...live) : f.m;
@@ -363,7 +367,7 @@ function create(onPick: (id: FieldId) => void): Ctx {
   const pipes = irrigation();
   scene.add(pipes);
 
-  const c: Ctx = { renderer, scene, camera, controls, labels, fields, pipes, running: false, onPick, sel: S.sel, focus: null };
+  const c: Ctx = { renderer, scene, camera, controls, labels, fields, pipes, running: false, onPick, sel: S.sel, focus: null, layout: layoutKey() };
 
   // A click picks a field; a drag only moves the camera.
   const ray = new THREE.Raycaster();
@@ -491,9 +495,10 @@ if (import.meta.hot) {
 }
 
 export function mount3D(host: HTMLElement, onPick: (id: FieldId) => void) {
-  // Crop and moisture meshes are built once; drop the scene when the host already has a stale canvas.
-  if (ctx && !host.contains(ctx.renderer.domElement) && host.querySelector('.gl3')) {
+  // Crop and parcel meshes are built once; rebuild if the layout changed or a stale canvas is left behind.
+  if (ctx && (ctx.layout !== layoutKey() || (!host.contains(ctx.renderer.domElement) && host.querySelector('.gl3')))) {
     ctx.renderer.dispose();
+    ctx.labels.remove();
     ctx = null;
   }
   ctx ??= create(onPick);

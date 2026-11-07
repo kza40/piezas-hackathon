@@ -11,9 +11,9 @@ import * as pages from './views/pages';
 
 const PANELS: Record<PanelId, { title: string; icon: string; view: () => string }> = {
   dashboard: { title: 'Farm', icon: '⌂', view: pages.dashboard },
-  field: { title: 'Field', icon: '❀', view: pages.field },
+  field: { title: 'Fields', icon: '❀', view: pages.field },
   weather: { title: 'Weather', icon: '☁', view: pages.weather },
-  recs: { title: 'Actions', icon: '✎', view: pages.recs },
+  recs: { title: 'Advice', icon: '✎', view: pages.recs },
   alerts: { title: 'Alerts', icon: '🔔', view: pages.alerts },
   settings: { title: 'Settings', icon: '⚙', view: pages.settings },
   profile: { title: 'Profile', icon: '', view: pages.profile },
@@ -35,7 +35,8 @@ function dock(): string {
 }
 
 function panel(id: PanelId): string {
-  return `<section class=panel data-testid=panel-${id} data-scroll=p role=dialog aria-label='${PANELS[id].title}'><button class='btn alt sm pclose' data-act=go data-p=map aria-label='Close and show the map'>✕ Back to map</button>${PANELS[id].view()}</section>`;
+  const narrow = id === 'settings' || id === 'profile' ? ' panel-center' : '';
+  return `<section class='panel${narrow}' data-testid=panel-${id} data-scroll=p role=dialog aria-label='${PANELS[id].title}'><button class='btn alt sm pclose' data-act=go data-p=map aria-label='Close and show the map'>✕ Back to map</button><div class=panel-body>${PANELS[id].view()}</div></section>`;
 }
 
 /** Re-rendering replaces the overlays, so keep each scrolled area where the farmer left it. */

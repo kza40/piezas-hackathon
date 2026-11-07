@@ -91,7 +91,7 @@ export function fieldCard(): string {
     .join('');
   const hero = `<div class=fhero style='background:${look.bg};color:${look.fg}'><div><div class=fn style='color:${look.n}'>${f.m}<span>%</span></div><div class=fsub>Soil moisture · ${trend}</div></div><button class=cb data-act=op data-id=${f.id} aria-label='Watering details'>${can(k, 48)}</button><p class=chip style='background:${look.fg};color:${look.bg}'><i style='background:${WS[k].h}'></i>${look.c}</p></div>`;
   const grid = `<div class='kvs g2'>${kv('Crop', `${f.crop} · ${f.stage}`)}${kv('Area', `${f.ac} ac`)}${kv('Soil', f.soil)}${kv('Air humidity', `${f.h}%`)}${kv('Soil temp', T(f.st))}${kv('pH', String(f.ph))}${kv('Last watered', lastWatered(f.id))}${kv('Across field', span)}</div>`;
-  const body = `${hero}${spark(f)}${grid}<p class=sub>Moisture by area</p><div class=zrows>${zones}</div><div class=nx><span class=mut>Recommended</span><br>${r ? r.t : 'Nothing to do right now'}.</div><div class=btns><button class='btn sm' data-act=go data-p=field>Log watering &amp; sensors</button><button class='btn alt sm' data-act=op data-id=${f.id}>Why this advice?</button></div>`;
+  const body = `${hero}${spark(f)}${grid}<p class=sub>Moisture by area</p><div class=zrows>${zones}</div><div class=nx><span class=mut>Recommended action</span><br>${r ? r.t : 'No action needed right now'}.</div><div class=btns><button class='btn sm' data-act=go data-p=field>Open field &amp; sensors</button><button class='btn alt sm' data-act=op data-id=${f.id}>Why this advice?</button></div>`;
   return mapCard('field', `Field ${fieldNo(f.id)} · ${f.name}`, body, { sum: `${f.m}% · ${WS[k].t}`, panel: 'field', cls: 'fcard' });
 }
 
@@ -157,7 +157,7 @@ export function actionsCard(): string {
         )
         .join('') + (todo.length > 3 ? `<button class='btn alt sm' data-act=go data-p=recs>See all ${todo.length}</button>` : '')
     : '<p class=mut>All caught up.</p>';
-  return mapCard('recs', 'Work orders', items, { count: todo.length, sum: todo.length ? `next: ${todo[0].t.toLowerCase()}` : 'all done', panel: 'recs' });
+  return mapCard('recs', 'Recommended actions', items, { count: todo.length, sum: todo.length ? `next: ${todo[0].t.toLowerCase()}` : 'all done', panel: 'recs' });
 }
 
 // ---- top bar ---------------------------------------------------------------
