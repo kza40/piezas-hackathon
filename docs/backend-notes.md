@@ -30,7 +30,13 @@ The script cleans up everything it creates and exits 1 if any design assumption 
 | E14 | Delete | Record is gone (`not_found`). | Retention (deleting old day records) is possible. |
 | E15 | Users | `configurePolicy({ requireEmailVerification: false })` works with the app key. Sign-up returns an `active` user but no token. `signIn` returns `{ user, session }`; `getSession` returns `valid: true`. | Sign-up flow: sign up, then sign in. The same policy call must be run once on the LIVE app before the first real sign-up. |
 
-The SDK also warns that the platform contract is v15 while `@piezas/sdk` 0.5.2 was built against v11. Upgrade it (`npm install @piezas/sdk@latest`) at the start of step 2 and re-run the spike.
+Found while building step 2:
+
+| # | Question | Result | What it means for us |
+|---|---|---|---|
+| E16 | Signing up again with an existing email | "Succeeds" and returns a different, fake user id. Only one account exists, and only the original password signs in. | Piezas hides which emails are registered. Our sign-up turns the following sign-in failure into a 409 "already exists, sign in instead". |
+
+The SDK also warns that the platform contract is v15 while `@piezas/sdk` 0.5.2 was built against v11. As of 2026-11-07, 0.5.2 is the newest published version, so there is nothing to upgrade to yet; re-run the spike when a newer SDK appears.
 
 ## Design decisions from this
 
