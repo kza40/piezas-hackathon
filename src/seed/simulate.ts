@@ -56,7 +56,7 @@ const FIELD_PHYSICS: Record<FieldId, { d: number; s: number; p: number; e: numbe
   C: { d: 0.06, s: 12, p: 6.8, e: 0.5 },
   D: { d: 0.07, s: 11.8, p: 6.5, e: 0.6 },
   E: { d: 0.05, s: 14, p: 7.0, e: 1.25 },
-  F: { d: 0.09, s: 20, p: 6.6, e: 0.7 },
+  F: { d: 0.09, s: 20, p: 5.1, e: 0.7 },
 };
 
 interface SensorQuirks {
@@ -152,8 +152,9 @@ export const F: Field[] = FIELD_SEEDS.map((seed) => {
     ...fresh.flatMap((x) => x.vals.st.slice(144).filter((y, i): y is number => y != null && !x.gl.st.has(144 + i))),
   );
   const lo = seed.mi[0];
+  const [phLo, phHi] = seed.phr ?? [6, 7.2];
   const dry = fs.some((x) => lastOr0(x, 'm') < 20);
-  const needsLook = m < lo || stMax > 20 || fs.some((x) => x.age > 6) || dry || ec > 1 || ph < 6 || ph > 7.2;
+  const needsLook = m < lo || stMax > 20 || fs.some((x) => x.age > 6) || dry || ec > 1 || ph < phLo || ph > phHi;
   return {
     ...seed,
     m,
@@ -233,9 +234,9 @@ export const REC: Recommendation[] = [
     id: 4,
     f: 'F',
     p: 'wn',
-    t: 'Check sensor F-3 and soil heat in Hill Peas',
-    w: `F-3 last reported 8 hours ago, and soil peaks near ${fld('F').stMax}°C in the afternoon.`,
-    c: 'Warm soil dries out faster. Plan to water soon.',
+    t: 'Check sensor F-3 and soil heat in Blueberry Hill',
+    w: `F-3 last reported 8 hours ago, and soil peaks near ${fld('F').stMax}°C in the afternoon. Blueberry roots are shallow, so the top few inches matter most. Soil pH is ${fld('F').ph}, inside the 4.5–5.5 blueberries need.`,
+    c: 'Warm soil dries out the root zone fast. Plan a short drip cycle this evening and keep the mulch topped up.',
   },
   {
     id: 5,

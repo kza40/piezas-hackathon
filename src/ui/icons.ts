@@ -39,8 +39,8 @@ export const cropIn = (c: Crop) => {
   const k = CC[c];
   const grain = `<ellipse cx=12 cy=6 rx=2.2 ry=3.6 fill=${k} /><ellipse cx=8.4 cy=9.5 rx=2 ry=3.2 fill=${k} transform='rotate(-28 8.4 9.5)' /><ellipse cx=15.6 cy=9.5 rx=2 ry=3.2 fill=${k} transform='rotate(28 15.6 9.5)' />`;
   const dots = `<circle cx=12 cy=6 r=3 fill=${k} /><circle cx=8 cy=9.5 r=2.6 fill=${k} /><circle cx=16 cy=9.5 r=2.6 fill=${k} />`;
-  const pod = `<path d='M7 4c5 0 8 3 8 8-5 0-8-3-8-8z' fill=${k} />`;
-  const head: Record<Crop, string> = { Wheat: grain, Barley: grain, Oats: grain, Canola: dots, Alfalfa: dots, Peas: pod };
+  const berries = `<circle cx=9 cy=7 r=2.6 fill=${k} /><circle cx=14.5 cy=6 r=2.6 fill=${k} /><circle cx=12 cy=10.5 r=2.6 fill=${k} /><circle cx=14.5 cy=5.4 r=.7 fill=#c9d3f5 /><circle cx=9 cy=6.4 r=.7 fill=#c9d3f5 />`;
+  const head: Record<Crop, string> = { Wheat: grain, Barley: grain, Oats: grain, Canola: dots, Alfalfa: dots, Blueberries: berries };
   return `<path d='M12 22V10M12 18c-4 0-6-2-6-5 4 0 6 2 6 5zM12 15c4 0 6-2 6-5-4 0-6 2-6 5z' stroke=#2f6b3b stroke-width=1.6 fill=#4a9a55 stroke-linejoin=round />${head[c]}`;
 };
 

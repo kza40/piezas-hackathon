@@ -33,7 +33,7 @@ export const ws = (f: Field): WaterState => {
 };
 
 export const metric = (k: MetricKey): Metric => MET.find((m) => m.key === k) ?? MET[0];
-export const idealRange = (f: Field, m: Metric): Range => m.range ?? f.mi;
+export const idealRange = (f: Field, m: Metric): Range => (m.key === 'ph' && f.phr) || m.range || f.mi;
 export const isStation = (k: MetricKey): k is StationKey => k === 'at' || k === 'h' || k === 'l';
 export const fieldNo = (id: FieldId) => '0' + ('ABCDEF'.indexOf(id) + 1);
 

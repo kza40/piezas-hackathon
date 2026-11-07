@@ -1,5 +1,5 @@
 export type FieldId = 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
-export type Crop = 'Wheat' | 'Canola' | 'Barley' | 'Oats' | 'Alfalfa' | 'Peas';
+export type Crop = 'Wheat' | 'Canola' | 'Barley' | 'Oats' | 'Alfalfa' | 'Blueberries';
 export type Health = 'ok' | 'wn' | 'cr';
 export type Level = Health | 'in';
 export type WaterState = 'now' | 'soon' | 'rain' | 'none';
@@ -27,6 +27,8 @@ export interface FieldSeed {
   /** Current growth stage. */
   stage: string;
   soil: string;
+  /** Ideal soil pH when the crop differs from the usual 6–7.2 (blueberries want acidic soil). */
+  phr?: Range;
 }
 
 export interface Field extends FieldSeed {

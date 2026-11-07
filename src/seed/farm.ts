@@ -6,7 +6,7 @@ export const FIELD_SEEDS: FieldSeed[] = [
   { id: 'C', name: 'South Barley', crop: 'Barley', mi: [28, 42], ac: 72, stage: 'Stem elongation', soil: 'Silt loam' },
   { id: 'D', name: 'West Oats', crop: 'Oats', mi: [28, 42], ac: 58, stage: 'Tillering', soil: 'Loam' },
   { id: 'E', name: 'Creek Alfalfa', crop: 'Alfalfa', mi: [35, 50], ac: 41, stage: 'Early bud', soil: 'Sandy loam' },
-  { id: 'F', name: 'Hill Peas', crop: 'Peas', mi: [30, 45], ac: 47, stage: 'Flowering', soil: 'Clay loam' },
+  { id: 'F', name: 'Blueberry Hill', crop: 'Blueberries', mi: [35, 50], ac: 22, stage: 'Fruit set', soil: 'Sandy loam, mulched', phr: [4.5, 5.5] },
 ];
 
 export const FARM = { location: 'Wellington County, ON', station: 'Farmstead weather station' };
@@ -65,7 +65,7 @@ export const CC: Record<Crop, string> = {
   Barley: '#c4a14a',
   Oats: '#b8b070',
   Alfalfa: '#9a5fc0',
-  Peas: '#4fae4a',
+  Blueberries: '#3b4fa8',
 };
 
 export const WS: Record<WaterState, WaterLook> = {

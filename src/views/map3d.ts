@@ -52,6 +52,9 @@ interface Ctx {
   resize?: ResizeObserver;
   running: boolean;
   onPick: (id: FieldId) => void;
+  /** Field the camera last centred on, and the point it is gliding towards. */
+  sel: FieldId;
+  focus: THREE.Vector3 | null;
 }
 
 let ctx: Ctx | null = null;
@@ -190,15 +193,36 @@ function fieldNode(f: Field, labels: HTMLDivElement): FieldNode {
     const y = Math.min(...ys) + rnd() * (Math.max(...ys) - Math.min(...ys));
     if (inside(pts, x, y) && inside(pts, x + 8, y) && inside(pts, x - 8, y) && inside(pts, x, y + 8) && inside(pts, x, y - 8)) plants.push(new THREE.Vector3(wx(x), 0, wz(y)));
   }
-  const crop = new THREE.InstancedMesh(new THREE.ConeGeometry(3.2, 10, 6), new THREE.MeshStandardMaterial({ color: CC[f.crop], roughness: 0.8 }), plants.length);
   const m = new THREE.Matrix4();
-  plants.forEach((p, i) => {
-    const s = 0.75 + rnd() * 0.5;
-    m.compose(new THREE.Vector3(p.x, 5 * s, p.z), new THREE.Quaternion(), new THREE.Vector3(s, s, s));
-    crop.setMatrixAt(i, m);
-  });
-  crop.castShadow = true;
-  top.add(crop);
+  const q = new THREE.Quaternion();
+  if (f.crop === 'Blueberries') {
+    // Rounded shrubs dotted with berries, instead of grain spikes.
+    const bush = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(6, 1), new THREE.MeshStandardMaterial({ color: '#2f5a3a', roughness: 0.9, flatShading: true }), plants.length);
+    const berry = new THREE.InstancedMesh(new THREE.SphereGeometry(1.5, 8, 6), new THREE.MeshStandardMaterial({ color: CC[f.crop], roughness: 0.35 }), plants.length * 6);
+    plants.forEach((p, i) => {
+      const s = 0.8 + rnd() * 0.4;
+      m.compose(new THREE.Vector3(p.x, 5 * s, p.z), q, new THREE.Vector3(s, s * 0.85, s));
+      bush.setMatrixAt(i, m);
+      for (let b = 0; b < 6; b++) {
+        const a = rnd() * Math.PI * 2;
+        const up = 0.2 + rnd() * 0.7;
+        const r = 6 * s * Math.sqrt(1 - up * up);
+        m.makeTranslation(p.x + Math.cos(a) * r, 5 * s + up * 5.1 * s, p.z + Math.sin(a) * r);
+        berry.setMatrixAt(i * 6 + b, m);
+      }
+    });
+    bush.castShadow = true;
+    top.add(bush, berry);
+  } else {
+    const crop = new THREE.InstancedMesh(new THREE.ConeGeometry(3.2, 10, 6), new THREE.MeshStandardMaterial({ color: CC[f.crop], roughness: 0.8 }), plants.length);
+    plants.forEach((p, i) => {
+      const s = 0.75 + rnd() * 0.5;
+      m.compose(new THREE.Vector3(p.x, 5 * s, p.z), q, new THREE.Vector3(s, s, s));
+      crop.setMatrixAt(i, m);
+    });
+    crop.castShadow = true;
+    top.add(crop);
+  }
 
   const [cx, cy] = center(f.id);
   for (let i = 0; i < f.s[1]; i++) {
@@ -265,7 +289,7 @@ function create(onPick: (id: FieldId) => void): Ctx {
   const pipes = irrigation();
   scene.add(pipes);
 
-  const c: Ctx = { renderer, scene, camera, controls, labels, fields, pipes, running: false, onPick };
+  const c: Ctx = { renderer, scene, camera, controls, labels, fields, pipes, running: false, onPick, sel: S.sel, focus: null };
 
   // A click picks a field; a drag only moves the camera.
   const ray = new THREE.Raycaster();
@@ -306,6 +330,11 @@ function sync(c: Ctx) {
     n.label.setAttribute('aria-label', `${f.name}, ${valueFor(f, L)}`);
   }
   c.pipes.visible = Object.keys(S.off).length === 0;
+  if (S.sel !== c.sel) {
+    c.sel = S.sel;
+    const n = c.fields.find((x) => x.id === S.sel)!;
+    c.focus = n.anchor.clone().add(n.group.position);
+  }
 }
 
 const tmp = new THREE.Vector3();
@@ -314,6 +343,12 @@ function frame(c: Ctx) {
   if (!c.renderer.domElement.isConnected) {
     c.running = false;
     return;
+  }
+  if (c.focus) {
+    const step = c.focus.clone().sub(c.controls.target).multiplyScalar(0.1);
+    c.controls.target.add(step);
+    c.camera.position.add(step);
+    if (step.length() < 0.05) c.focus = null;
   }
   c.controls.update();
   const r = c.renderer.domElement.getBoundingClientRect();
@@ -357,5 +392,7 @@ export function zoom3D(factor: number) {
 }
 
 export function reset3D() {
-  ctx?.controls.reset();
+  if (!ctx) return;
+  ctx.focus = null;
+  ctx.controls.reset();
 }
