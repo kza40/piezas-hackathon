@@ -10,23 +10,38 @@ export const FIELD_SEEDS: FieldSeed[] = [
 ];
 
 /**
- * Gravel farm lanes in map coordinates (the 2D map's 800×520 viewBox):
- * a loop around the farm, lanes between neighbouring fields, and the barn drive.
+ * Gravel farm lanes in map coordinates (the 2D map's 800×520 viewBox).
+ * Every field has a lane on each side so equipment can get around it:
+ * a perimeter loop, lanes between neighbours, creek-side tracks, and the barn drive.
  */
 export const LANES: { from: [number, number]; to: [number, number]; w: number }[] = [
-  { from: [14, 14], to: [790, 14], w: 10 },
-  { from: [14, 14], to: [14, 506], w: 10 },
-  { from: [14, 506], to: [790, 506], w: 10 },
-  { from: [790, 14], to: [790, 506], w: 10 },
-  { from: [327, 14], to: [327, 228], w: 9 },
-  { from: [547, 14], to: [547, 228], w: 9 },
-  { from: [275, 228], to: [275, 506], w: 9 },
-  { from: [668, 228], to: [668, 420], w: 9 },
-  { from: [668, 420], to: [790, 420], w: 9 },
-  { from: [721, 228], to: [721, 290], w: 9 },
+  { from: [16, 16], to: [784, 16], w: 12 },
+  { from: [16, 16], to: [16, 508], w: 12 },
+  { from: [16, 508], to: [784, 508], w: 12 },
+  { from: [784, 16], to: [784, 508], w: 12 },
+  { from: [328, 16], to: [328, 228], w: 10 },
+  { from: [548, 16], to: [548, 228], w: 10 },
+  { from: [270, 228], to: [270, 508], w: 10 },
+  { from: [464, 228], to: [464, 508], w: 7 },
+  { from: [494, 228], to: [494, 412], w: 7 },
+  { from: [494, 412], to: [662, 412], w: 10 },
+  { from: [662, 228], to: [662, 412], w: 10 },
+  { from: [662, 412], to: [784, 412], w: 10 },
+  { from: [721, 228], to: [721, 300], w: 9 },
 ];
-/** Where the bottom lane crosses Willow Creek. */
-export const BRIDGE: [number, number] = [470, 506];
+/** Wooden decks where a lane or the concession crosses Willow Creek. */
+export const BRIDGES: [number, number][] = [
+  [478, 228],
+  [468, 508],
+];
+/** Shade trees: field corners, farmstead, and a light windbreak just outside the lanes. */
+export const TREES: [number, number][] = [
+  [28, 28], [180, 28], [400, 28], [640, 28], [772, 32],
+  [28, 120], [28, 360], [28, 494],
+  [180, 494], [400, 494], [640, 528],
+  [772, 120], [808, 300], [808, 400],
+  [690, 380], [752, 392], [768, 462], [715, 478],
+];
 
 export const FARM = { location: 'Wellington County, ON', station: 'Farmstead weather station' };
 

@@ -3,7 +3,7 @@
 // with innerHTML and a new canvas would lose its GPU context and camera.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { BRIDGE, CC, LANES } from '../seed/farm';
+import { BRIDGES, CC, LANES, TREES } from '../seed/farm';
 import { F } from '../seed/simulate';
 import { S } from '../state';
 import type { Field, FieldId, MapLayer, WaterState } from '../types';
@@ -88,17 +88,27 @@ function scenery(scene: THREE.Scene) {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  scene.add(box(1400, 1.2, 16, '#4a3a28', 0, 0.6, wz(228)));
-  for (const { from: [a, b], to: [c, d], w } of LANES) {
-    const lane = box(Math.abs(c - a) + w, 0.8, Math.abs(d - b) + w, '#d2bd8c', wx((a + c) / 2), 0.4, wz((b + d) / 2));
-    lane.castShadow = false;
-    scene.add(lane);
+  const strip = (from: [number, number], to: [number, number], w: number, color: string, y: number, h = 0.55) => {
+    const dx = to[0] - from[0];
+    const dy = to[1] - from[1];
+    const len = Math.hypot(dx, dy) || 1;
+    const m = box(len + w * 0.35, h, w, color, wx((from[0] + to[0]) / 2), y, wz((from[1] + to[1]) / 2));
+    m.rotation.y = -Math.atan2(dy, dx);
+    m.castShadow = false;
+    return m;
+  };
+  for (const { from, to, w } of LANES) {
+    scene.add(strip(from, to, w + 3, '#6e542c', 0.35, 0.4));
+    scene.add(strip(from, to, w, '#c4a36a', 0.55, 0.4));
   }
-  const bridge = new THREE.Group();
-  bridge.add(box(26, 2, 18, '#8a6a48', 0, 2, 0), box(26, 4, 1.5, '#4a3a28', 0, 4, -9), box(26, 4, 1.5, '#4a3a28', 0, 4, 9));
-  bridge.position.set(wx(BRIDGE[0]), 0, wz(BRIDGE[1]));
-  scene.add(bridge);
-  for (let x = -680; x < 700; x += 22) scene.add(box(12, 0.4, 1.6, '#e8e1c8', x, 1.4, wz(228)));
+  scene.add(box(1400, 1.4, 16, '#4a3a28', 0, 0.9, wz(228)));
+  for (let x = -680; x < 700; x += 22) scene.add(box(12, 0.4, 1.6, '#e8e1c8', x, 1.7, wz(228)));
+  for (const [bx, by] of BRIDGES) {
+    const deck = new THREE.Group();
+    deck.add(box(28, 2.2, 18, '#8a6a48', 0, 2.2, 0), box(28, 4, 1.6, '#4a3a28', 0, 4.2, -9), box(28, 4, 1.6, '#4a3a28', 0, 4.2, 9));
+    deck.position.set(wx(bx), 0, wz(by));
+    scene.add(deck);
+  }
 
   const creek = new THREE.CatmullRomCurve3([[470, 215], [492, 300], [478, 400], [468, 560]].map(([x, y]) => new THREE.Vector3(wx(x), 0, wz(y))));
   const river = new THREE.Mesh(new THREE.TubeGeometry(creek, 60, 7, 8), new THREE.MeshStandardMaterial({ color: '#5b8ec9', roughness: 0.3, metalness: 0.1 }));
@@ -141,7 +151,7 @@ function scenery(scene: THREE.Scene) {
 
   const leaf = new THREE.MeshStandardMaterial({ color: '#4f7558', roughness: 0.9 });
   const bark = new THREE.MeshStandardMaterial({ color: '#6b4f33' });
-  [[690, 380], [752, 392], [768, 462], [715, 478], [-20, 120], [820, 140], [400, 545], [-25, 400], [825, 380], [180, 548], [640, -20]].forEach(([x, y], i) => {
+  TREES.forEach(([x, y], i) => {
     const t = new THREE.Group();
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(2, 2.5, 10), bark);
     trunk.position.y = 5;
