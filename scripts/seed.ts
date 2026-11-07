@@ -59,10 +59,15 @@ export async function seed() {
   await upsert("farms", "Jordan Sample", {"name":"Jordan Sample","longitude":"Sample longitude 2"});
   await upsert("farms", "Riley Placeholder", {"name":"Riley Placeholder","longitude":"Sample longitude 3"});
 
-  // Field: name, farm, crop profile
-  await upsert("fields", "Avery Example", {"name":"Avery Example","farm":"Sample farm 1","cropProfile":"Sample crop profile 1"});
-  await upsert("fields", "Jordan Sample", {"name":"Jordan Sample","farm":"Sample farm 2","cropProfile":"Sample crop profile 2"});
-  await upsert("fields", "Riley Placeholder", {"name":"Riley Placeholder","farm":"Sample farm 3","cropProfile":"Sample crop profile 3"});
+  // Profile: name, phone
+  await upsert("profiles", "Avery Example", {"name":"Avery Example","phone":"+1 555 0110"});
+  await upsert("profiles", "Jordan Sample", {"name":"Jordan Sample","phone":"+1 555 0111"});
+  await upsert("profiles", "Riley Placeholder", {"name":"Riley Placeholder","phone":"+1 555 0112"});
+
+  // Field: name, farm, crop profile, acres, growth stage, soil type
+  await upsert("fields", "Avery Example", {"name":"Avery Example","farm":"Sample farm 1","cropProfile":"Sample crop profile 1","acres":"Sample acres 1","growthStage":"active","soilType":"Sample soil type 1"});
+  await upsert("fields", "Jordan Sample", {"name":"Jordan Sample","farm":"Sample farm 2","cropProfile":"Sample crop profile 2","acres":"Sample acres 2","growthStage":"active","soilType":"Sample soil type 2"});
+  await upsert("fields", "Riley Placeholder", {"name":"Riley Placeholder","farm":"Sample farm 3","cropProfile":"Sample crop profile 3","acres":"Sample acres 3","growthStage":"active","soilType":"Sample soil type 3"});
 
   // Sensor: name, field
   await upsert("sensors", "Avery Example", {"name":"Avery Example","field":"Sample field 1"});

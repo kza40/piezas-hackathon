@@ -2,7 +2,7 @@
   "$schema": "https://piezas.ai/schemas/piezas-manifest.schema.json",
   "schemaVersion": 1,
   "generatedBy": "piezas",
-  "appName": "piezas-hackathon",
+  "appName": "softmaxAIHackathon",
   "apiBaseUrl": "https://api.piezas.ai",
   "contractVersion": "15",
   "contractFetchedAt": "2026-11-07T01:29:35.530Z",
@@ -117,7 +117,7 @@
   "deploy": {
     "requiredEnv": [],
     "optionalEnv": [],
-    "appId": "f3fbf2a4-e33d-4db7-ba9f-2ac8c79a2000"
+    "appId": "ba20a31d-4fb5-4649-a558-950c01b1f783"
   },
   "recipes": [],
   "notes": [
@@ -126,7 +126,7 @@
   ],
   "rules": "short",
   "testApp": {
-    "appId": "49fa121c-de81-43ad-bd26-34e7a9c42a7f",
-    "appName": "piezas-hackathon (test)"
+    "appId": "6590f1c2-39f4-4493-974c-92ccedfbd415",
+    "appName": "softmaxAIHackathon (test)"
   }
 }
