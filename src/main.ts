@@ -1,12 +1,14 @@
 import './styles.css';
-import { fld } from './seed/simulate';
+import { restoreSession, signIn, signOut } from './auth';
+import { grantField, isSeedField, loadOwnedFields, revokeField } from './seed/farmers';
+import { addFieldToFarm, F, fld, removeFieldFromFarm, restoreCustomFields } from './seed/simulate';
 import { S, saveCards, saveLog, saveOffsets } from './state';
-import type { AlertFilter, CardId, FieldId, MapLayer, MetricKey, PanelId, Units } from './types';
+import type { AlertFilter, CardId, Crop, FieldId, MapLayer, MetricKey, PanelId, Units } from './types';
 import { esc, openAlerts } from './ui/helpers';
 import { IC } from './ui/icons';
 import { actionsCard, alertsCard, fieldCard, legendCard, profileCard, todayCard, topBar, weatherCard } from './views/cards';
 import { map, onMapPointerDown, onMapWheel, resetView, zoom } from './views/map';
-import { mount3D, reset3D, zoom3D } from './views/map3d';
+import { dispose3D, mount3D, reset3D, zoom3D } from './views/map3d';
 import * as pages from './views/pages';
 
 const PANELS: Record<PanelId, { title: string; icon: string; view: () => string }> = {
@@ -55,7 +57,7 @@ function render() {
   const toast = S.toast ? `<div class="toast" role="status">${esc(S.toast)}</div>` : '';
   const modal = S.wm ? pages.wateringModal(fld(S.wm)) : '';
   if (S.page === 'login') {
-    main.className = '';
+    main.className = 'auth';
     main.innerHTML = pages.login() + toast;
     return;
   }
@@ -80,10 +82,16 @@ function pickField(id: FieldId) {
 
 function go(p: string, id?: string) {
   const target = p === 'sensors' ? 'field' : p;
-  if (id) S.sel = id as FieldId;
-  if (target === 'login') {
+  if (!S.farmerId && target !== 'login') {
     S.page = 'login';
     S.panel = null;
+    location.hash = 'login';
+    return render();
+  }
+  if (id) S.sel = id as FieldId;
+  if (target === 'login') {
+    signOut();
+    dispose3D();
   } else if (isPanel(target)) {
     S.page = 'map';
     S.panel = S.panel === target && !id ? null : target;
@@ -119,6 +127,23 @@ type ActionElement = Element & { dataset: DOMStringMap };
 function act(node: ActionElement, target: Element) {
   const d = node.dataset;
   switch (d.act) {
+    case 'out':
+      signOut();
+      dispose3D();
+      location.hash = 'login';
+      return render();
+    case 'fill': {
+      const email = document.getElementById('em') as HTMLInputElement | null;
+      const pass = document.getElementById('pw') as HTMLInputElement | null;
+      S.authEmail = d.email ?? '';
+      S.authError = '';
+      if (email) email.value = d.email ?? '';
+      if (pass) pass.value = d.pass ?? '';
+      document.querySelector('[data-testid=login-error]')?.remove();
+      return;
+    }
+    case 'login':
+      return;
     case 'go':
       return go(d.p ?? 'map', d.id);
     case 'tog': {
@@ -205,13 +230,60 @@ function act(node: ActionElement, target: Element) {
       return S.d3 ? reset3D() : resetView();
     case 'lg':
       return logWater(Number(d.mm));
+    case 'af': {
+      if (!S.farmerId) return;
+      const nameEl = document.getElementById('afn') as HTMLInputElement | null;
+      const cropEl = document.getElementById('afc') as HTMLSelectElement | null;
+      const acresEl = document.getElementById('afa') as HTMLInputElement | null;
+      const name = (nameEl?.value || '').trim();
+      const crop = (cropEl?.value || 'Wheat') as Crop;
+      const acres = Number(acresEl?.value || 40);
+      if (!name) {
+        nameEl?.focus();
+        return say('Enter a field name first');
+      }
+      const field = addFieldToFarm({ name, crop, acres });
+      grantField(S.farmerId, field.id);
+      S.sel = field.id;
+      S.fd = field.id;
+      if (nameEl) nameEl.value = '';
+      dispose3D();
+      return say(`Added ${field.name} to your farm`);
+    }
+    case 'rmf': {
+      if (!S.farmerId || !d.id) return;
+      const id = d.id as FieldId;
+      const label = fld(id).name;
+      const custom = !isSeedField(id);
+      revokeField(S.farmerId, id);
+      removeFieldFromFarm(id, custom);
+      if (!F.some((f) => f.id === S.sel)) S.sel = F[0]?.id ?? id;
+      if (S.fd && !F.some((f) => f.id === S.fd)) S.fd = F[0]?.id ?? null;
+      if (S.wm === id) S.wm = null;
+      dispose3D();
+      return say(`Removed ${label} from your farm`);
+    }
   }
 }
 
 document.addEventListener('click', (e) => {
   const target = e.target as Element;
   const node = target.closest<ActionElement>('[data-act]');
-  if (node) act(node, target);
+  if (!node) return;
+  if (node.dataset.act === 'login') return;
+  act(node, target);
+});
+
+document.addEventListener('submit', (e) => {
+  const form = (e.target as Element).closest<HTMLFormElement>('form[data-act=login]');
+  if (!form) return;
+  e.preventDefault();
+  const email = (form.elements.namedItem('email') as HTMLInputElement).value;
+  const password = (form.elements.namedItem('password') as HTMLInputElement).value;
+  if (!signIn(email, password)) return render();
+  dispose3D();
+  location.hash = 'map';
+  render();
 });
 
 document.addEventListener('keydown', (e) => {
@@ -261,7 +333,16 @@ window.addEventListener('hashchange', () => {
   const h = location.hash.slice(1);
   const current = S.page === 'login' ? 'login' : (S.panel ?? 'map');
   if (h === current) return;
+  if (!S.farmerId) {
+    location.hash = 'login';
+    return render();
+  }
   if (h === 'login' || h === 'map' || isPanel(h)) go(h);
 });
 
+restoreCustomFields();
+loadOwnedFields();
+restoreSession();
+if (!S.farmerId) location.hash = 'login';
+else if (!location.hash || location.hash === '#login') location.hash = 'map';
 render();

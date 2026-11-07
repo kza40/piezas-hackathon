@@ -68,5 +68,8 @@ export const plants = (id: FieldId, c: Crop) => {
 
 export const fieldNumberLabel = (id: FieldId) => {
   const p = polyPoints(id);
-  return `<text x='${Math.min(...p.map((q) => q[0])) + 12}' y='${Math.min(...p.map((q) => q[1])) + 74}' font-size='80' font-weight='800' font-family='Fraunces,Georgia,serif' fill='#fff' fill-opacity='.3' pointer-events='none'>0${'ABCDEF'.indexOf(id) + 1}</text>`;
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const i = letters.indexOf(id);
+  const label = i >= 0 ? String(i + 1).padStart(2, '0') : id.slice(0, 2);
+  return `<text x='${Math.min(...p.map((q) => q[0])) + 12}' y='${Math.min(...p.map((q) => q[1])) + 74}' font-size='80' font-weight='800' font-family='Fraunces,Georgia,serif' fill='#fff' fill-opacity='.3' pointer-events='none'>${label}</text>`;
 };

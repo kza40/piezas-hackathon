@@ -1,5 +1,7 @@
-export type FieldId = 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
+/** Letter ids for seed parcels (A–F) plus any fields the farmer adds later. */
+export type FieldId = string;
 export type Crop = 'Wheat' | 'Canola' | 'Barley' | 'Oats' | 'Alfalfa' | 'Blueberries';
+export const CROPS: Crop[] = ['Wheat', 'Canola', 'Barley', 'Oats', 'Alfalfa', 'Blueberries'];
 export type Health = 'ok' | 'wn' | 'cr';
 export type Level = Health | 'in';
 export type WaterState = 'now' | 'soon' | 'rain' | 'none';
@@ -114,6 +116,12 @@ export interface WaterLogEntry {
 export interface AppState {
   page: Page;
   panel: PanelId | null;
+  /** Signed-in farmer id from the mock auth session. */
+  farmerId: string | null;
+  /** Login form error message. */
+  authError: string;
+  /** Email left in the login form after a failed attempt. */
+  authEmail: string;
   /** Map cards the farmer has collapsed to their header. */
   min: Partial<Record<CardId, true>>;
   /** Every card hidden so only the map shows. */

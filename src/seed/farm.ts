@@ -1,4 +1,4 @@
-import type { Crop, DayForecast, FeatureLook, FieldId, FieldSeed, Level, Metric, WaterLook, WaterState } from '../types';
+import type { Crop, DayForecast, FeatureLook, FieldId, FieldSeed, Level, Metric, Range, WaterLook, WaterState } from '../types';
 
 export const FIELD_SEEDS: FieldSeed[] = [
   { id: 'A', name: 'North Wheat', crop: 'Wheat', mi: [30, 45], ac: 86, stage: 'Tillering', soil: 'Clay loam' },
@@ -8,6 +8,42 @@ export const FIELD_SEEDS: FieldSeed[] = [
   { id: 'E', name: 'Creek Alfalfa', crop: 'Alfalfa', mi: [35, 50], ac: 41, stage: 'Early bud', soil: 'Sandy loam' },
   { id: 'F', name: 'Blueberry Hill', crop: 'Blueberries', mi: [35, 50], ac: 22, stage: 'Fruit set', soil: 'Sandy loam, mulched', phr: [4.5, 5.5] },
 ];
+
+/** Defaults used when a farmer adds a new parcel from their profile. */
+export const CROP_DEFAULTS: Record<Crop, { mi: Range; stage: string; soil: string; phr?: Range; physics: { d: number; s: number; p: number; e: number } }> = {
+  Wheat: { mi: [30, 45], stage: 'Tillering', soil: 'Clay loam', physics: { d: 0.11, s: 11.5, p: 6.3, e: 0.5 } },
+  Canola: { mi: [32, 45], stage: 'Rosette', soil: 'Loam', physics: { d: 0.08, s: 12.5, p: 6.7, e: 0.6 } },
+  Barley: { mi: [28, 42], stage: 'Stem elongation', soil: 'Silt loam', physics: { d: 0.06, s: 12, p: 6.8, e: 0.5 } },
+  Oats: { mi: [28, 42], stage: 'Tillering', soil: 'Loam', physics: { d: 0.07, s: 11.8, p: 6.5, e: 0.6 } },
+  Alfalfa: { mi: [35, 50], stage: 'Early bud', soil: 'Sandy loam', physics: { d: 0.05, s: 14, p: 7.0, e: 1.25 } },
+  Blueberries: { mi: [35, 50], stage: 'Fruit set', soil: 'Sandy loam, mulched', phr: [4.5, 5.5], physics: { d: 0.09, s: 20, p: 5.1, e: 0.7 } },
+};
+
+/** Map centres used for farmer-added parcels (away from the seed six). */
+export const CUSTOM_FIELD_SLOTS: [number, number][] = [
+  [150, 150],
+  [400, 150],
+  [650, 150],
+  [150, 370],
+  [400, 370],
+  [650, 370],
+  [250, 260],
+  [550, 260],
+];
+
+export function polyAround(cx: number, cy: number, rw = 72, rh = 56): string {
+  const pts: [number, number][] = [
+    [cx - rw, cy - rh + 10],
+    [cx - rw * 0.25, cy - rh],
+    [cx + rw * 0.35, cy - rh + 8],
+    [cx + rw, cy - rh * 0.15],
+    [cx + rw * 0.85, cy + rh * 0.65],
+    [cx + rw * 0.05, cy + rh],
+    [cx - rw * 0.8, cy + rh * 0.75],
+    [cx - rw, cy + rh * 0.05],
+  ];
+  return pts.map(([x, y]) => `${Math.round(x)},${Math.round(y)}`).join(' ');
+}
 
 /**
  * Woodland outside the crop parcels — windbreaks, creek banks, and the
@@ -54,19 +90,7 @@ export const MEADOWS: string[] = [
   '650,360 800,340 800,520 640,520',
 ];
 
-export const FARM = { location: 'Wellington County, ON', station: 'Farmstead weather station' };
-
-export const PROFILE = {
-  email: 'sam@willowcreekfarm.ca',
-  phone: '(519) 555-0142',
-  since: 2011,
-  alerts: 'Text + email for critical alerts',
-  crew: [
-    { name: 'Priya Natarajan', role: 'Farm manager', on: true },
-    { name: 'Luis Ortega', role: 'Field worker', on: true },
-    { name: 'Dale Morrison', role: 'Agronomist', on: false },
-  ],
-};
+export const FARM = { station: 'Farmstead weather station' };
 
 export const HL: Record<Level, [label: string, symbol: string]> = {
   ok: ['Healthy', '✓'],

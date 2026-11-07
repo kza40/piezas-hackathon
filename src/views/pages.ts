@@ -1,7 +1,9 @@
+import { FARMERS } from '../seed/farmers';
 import { FB, MET, NXT, W, WS } from '../seed/farm';
 import { AL, DN, F, FH, HR, MI, MN, REC, RT, SEN, fld, lastV } from '../seed/simulate';
 import { S } from '../state';
 import type { AlertFilter, Field, Level, WaterState } from '../types';
+import { CROPS } from '../types';
 import { SERIES_COLORS, chart, soil } from '../ui/charts';
 import {
   demo,
@@ -49,7 +51,43 @@ const alertItems = (n: number) =>
     .join('');
 
 export function login(): string {
-  return `<div style="max-width:440px;margin:6vh auto" class="card">${demo}<h1>Set up your farm</h1><p class="mut">You can change this later in Settings.</p><label for="fn">Farm name</label><input id="fn" data-bind="farm" value="${esc(S.farm)}"><label for="cr">Main crop</label><select id="cr"><option>Wheat</option><option>Canola</option><option>Barley</option></select><label>Sensors</label><p class="mut">We’ll show ${SEN.length} demo sensors across ${F.length} fields.</p><p><button class="btn" data-act="go" data-p="map">Open my farm</button></p></div>`;
+  const demos = FARMERS.map(
+    (f) =>
+      `<li><button type="button" class="demo-acc" data-act="fill" data-email="${esc(f.email)}" data-pass="${esc(f.password)}" data-testid="demo-${f.id}"><span class="demo-crop ${f.id}" aria-hidden="true"></span><span class="demo-copy"><b>${esc(f.name)}</b><span>${esc(f.farm)} · ${f.fields.length} fields</span><code>${esc(f.email)} · ${esc(f.password)}</code></span></button></li>`,
+  ).join('');
+  const err = S.authError ? `<p class="auth-err" role="alert" data-testid="login-error">${esc(S.authError)}</p>` : '';
+  const trees = [70, 120, 175, 470, 530, 790, 850]
+    .map((x, i) => `<g transform="translate(${x} ${268 + (i % 3) * 10})"><rect x="-3" y="8" width="6" height="30" fill="#5a4030"/><ellipse cx="0" cy="0" rx="18" ry="16" fill="#2f5a38"/><ellipse cx="-6" cy="-8" rx="10" ry="9" fill="#3d6b45"/></g>`)
+    .join('');
+  const rows = (x0: number, y0: number, w: number, n: number, color: string) =>
+    Array.from({ length: n }, (_, i) => `<path d="M${x0} ${y0 + i * 8} Q${x0 + w / 2} ${y0 + i * 8 - 4} ${x0 + w} ${y0 + i * 8}" fill="none" stroke="${color}" stroke-width="2" opacity=".45"/>`).join('');
+  const scene = `<div class="login-scene" aria-hidden="true">
+    <div class="sky"><i class="sun"></i><i class="cloud c1"></i><i class="cloud c2"></i><i class="cloud c3"></i></div>
+    <div class="login-copy"><p class="login-kicker">Fieldwise</p><p class="login-headline">Know every acre.</p><p class="login-subcopy">Moisture, weather and watering advice on one farm map.</p></div>
+    <svg class="login-land" viewBox="0 0 900 420" preserveAspectRatio="xMidYMax slice">
+      <defs>
+        <linearGradient id="hill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a9a5e"/><stop offset="1" stop-color="#4f7340"/></linearGradient>
+        <linearGradient id="soil" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c4a36a"/><stop offset="1" stop-color="#8a6a3a"/></linearGradient>
+        <linearGradient id="creek" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3d7aaa"/><stop offset="1" stop-color="#5aa0c8"/></linearGradient>
+      </defs>
+      <path d="M0 70 C140 20 260 60 400 30 S680 10 900 55 L900 420 L0 420 Z" fill="#5a6d78"/>
+      <path d="M0 110 C180 55 300 95 460 60 S720 40 900 95 L900 420 L0 420 Z" fill="url(#hill)"/>
+      <path d="M30 160 L220 125 L390 155 L365 285 L55 295 Z" fill="#8fc47a" stroke="#1b2229" stroke-width="3"/>
+      ${rows(55, 175, 280, 8, '#4f7340')}
+      <path d="M410 145 L590 110 L760 150 L735 290 L430 300 Z" fill="#e6c15a" stroke="#1b2229" stroke-width="3"/>
+      ${rows(440, 165, 270, 8, '#9a7a28')}
+      <path d="M770 160 L880 140 L895 275 L785 295 Z" fill="#6f9a7c" stroke="#1b2229" stroke-width="3"/>
+      <path d="M360 150 C420 210 430 250 420 320" fill="none" stroke="url(#creek)" stroke-width="14" stroke-linecap="round"/>
+      <path d="M0 310 C220 275 420 330 620 295 S800 280 900 310 L900 420 L0 420 Z" fill="url(#soil)"/>
+      <ellipse cx="820" cy="340" rx="52" ry="20" fill="#3d7aaa"/>
+      <ellipse cx="808" cy="334" rx="16" ry="6" fill="#fff" opacity=".25"/>
+      <g class="barn-draw"><rect x="610" y="195" width="100" height="62" fill="#8a4a32"/><path d="M598 195 L660 152 L722 195" fill="#3b2f2a"/><rect x="640" y="220" width="22" height="37" fill="#5a3020"/><rect x="720" y="205" width="24" height="52" fill="#c9c3b4"/><path d="M720 205 A12 10 0 0 1 744 205" fill="#a89f8e"/></g>
+      ${trees}
+      <g opacity=".9"><rect x="280" y="250" width="34" height="14" rx="2" fill="#c0392b"/><rect x="300" y="240" width="14" height="12" fill="#e8e1c8"/><circle cx="288" cy="266" r="7" fill="#222"/><circle cx="308" cy="266" r="6" fill="#222"/></g>
+    </svg>
+    <div class="grain"></div>
+  </div>`;
+  return `<div class="login" data-testid="login-page">${scene}<div class="login-panel"><div class="login-card"><p class="login-brand">Fieldwise</p><h1>Open the farm gate</h1><p class="mut">Sign in to see only the fields you own.</p><form data-act="login" data-testid="login-form"><label for="em">Email</label><input id="em" name="email" type="email" autocomplete="username" required data-testid="login-email" value="${esc(S.authEmail)}"><label for="pw">Password</label><input id="pw" name="password" type="password" autocomplete="current-password" required data-testid="login-password" value="">${err}<button class="btn login-go" type="submit" data-testid="login-submit">Sign in to my farm</button></form><p class="sub">Try a demo farm</p><ul class="demo-list">${demos}</ul><p class="login-note">Demo data · no real sensors connected</p></div></div></div>`;
 }
 
 export function dashboard(): string {
@@ -125,7 +163,7 @@ export function weather(): string {
 }
 
 export function recs(): string {
-  const cards = REC.map((r) => {
+  const cards = REC.filter((r) => F.some((f) => f.id === r.f)).map((r) => {
     const done = !!S.done[r.id];
     const actions = done
       ? '<span class="pill ok">✓ Marked done</span>'
@@ -139,7 +177,7 @@ const LEVEL_NAME: Record<Level, string> = { cr: 'Critical', wn: 'Warning', in: '
 const FILTERS: [AlertFilter, string][] = [['all', 'All'], ['cr', 'Critical'], ['wn', 'Warning'], ['in', 'Info']];
 
 export function alerts(): string {
-  const L = AL.filter((a) => !S.dis[a.id] && (S.flt === 'all' || a.l === S.flt));
+  const L = AL.filter((a) => !S.dis[a.id] && (S.flt === 'all' || a.l === S.flt) && (a.f === '' || F.some((f) => f.id === a.f)));
   const tabs = FILTERS.map(([k, n]) => `<button aria-pressed="${S.flt === k}" data-act="flt" data-k="${k}">${n}</button>`).join('');
   const items = L.length
     ? L.map(
@@ -163,15 +201,18 @@ export function settings(): string {
   ).join('');
   return `${demo}<h1>Settings</h1><div class="stack"><div class="card"><h3>Farm</h3><label for="fn2">Farm name</label><input id="fn2" data-bind="farm" value="${esc(S.farm)}"><label for="un">Temperature units</label><select id="un" data-bind="units"><option ${S.units === '°C' ? 'selected' : ''}>°C</option><option ${S.units === '°F' ? 'selected' : ''}>°F</option></select><p><button class="btn" data-act="say" data-t="Settings saved">Save changes</button></p></div>
 <div class="card"><h3>Notifications</h3>${notify}</div>
-<div class="card"><h3>Sensors</h3><table><tr><th>Field</th><th>Online</th><th></th></tr>${sensors}</table></div><p><button class="btn alt" data-act="go" data-p="login">Edit farm setup</button></p></div>`;
+<div class="card"><h3>Sensors</h3><table><tr><th>Field</th><th>Online</th><th></th></tr>${sensors}</table></div><p><button class="btn alt" data-act="out" data-testid="settings-sign-out">Sign out</button></p></div>`;
 }
 
 export function profile(): string {
   const roles = ['Owner', 'Farm manager', 'Field worker'].map((r) => `<option ${r === S.role ? 'selected' : ''}>${r}</option>`).join('');
   const fields = F.map(
-    (x) => `<button class=lb data-act=pkm data-id=${x.id}><span>${x.name} <span class=mut>· ${x.crop}</span></span>${pill(x.hl)}</button>`,
+    (x) =>
+      `<div class=field-row data-testid=field-row-${x.id}><button class=lb data-act=pkm data-id=${x.id}><span>${esc(x.name)} <span class=mut>· ${x.crop} · ${x.ac} ac</span></span>${pill(x.hl)}</button><button class='btn alt sm' data-act=rmf data-id=${x.id} data-testid=delete-field-${x.id} aria-label='Remove ${esc(x.name)}'>Remove</button></div>`,
   ).join('');
-  return `${demo}<h1>Your profile</h1><div class='grid g2'><div class=card><div class=row style='justify-content:flex-start;gap:16px'><div class=av>${esc(initials())}</div><div><h2>${esc(S.name)}</h2><span class=mut>${esc(S.role)} · ${esc(S.farm)}</span></div></div><label for=pn>Your name</label><input id=pn data-bind=name value="${esc(S.name)}"><label for=pf>Farm name</label><input id=pf data-bind=farm value="${esc(S.farm)}"><label for=pr>Your role</label><select id=pr data-bind=role>${roles}</select><label for=pl>Language</label><select id=pl><option>English</option><option>Español</option><option>Français</option></select><p><button class=btn data-act=say data-t='Profile saved'>Save changes</button></p></div><div class=card><h3>My fields</h3><p class=mut>Tap a field to see it on the map.</p>${fields}<p style='margin-top:14px'><button class='btn alt' data-act=go data-p=settings>Notifications and sensors</button> <button class='btn alt' data-act=go data-p=login>Edit farm setup</button></p></div></div>`;
+  const cropOpts = CROPS.map((c) => `<option value="${c}">${c}</option>`).join('');
+  const add = `<div class=add-field data-testid=add-field-form><h3>Add a field</h3><p class=mut>New parcels show on your map with demo sensors. Use Adjust farm to drag them into place.</p><label for=afn>Field name</label><input id=afn placeholder="South pasture" data-testid=add-field-name><label for=afc>Crop</label><select id=afc data-testid=add-field-crop>${cropOpts}</select><label for=afa>Acres</label><input id=afa type=number min=1 max=500 step=1 value=40 data-testid=add-field-acres><button class=btn type=button data-act=af data-testid=add-field-submit>Add field to my farm</button></div>`;
+  return `${demo}<h1>Your profile</h1><div class='grid g2'><div class=card><div class=row style='justify-content:flex-start;gap:16px'><div class=av>${esc(initials())}</div><div><h2>${esc(S.name)}</h2><span class=mut>${esc(S.role)} · ${esc(S.farm)}</span></div></div><label for=pn>Your name</label><input id=pn data-bind=name value="${esc(S.name)}"><label for=pf>Farm name</label><input id=pf data-bind=farm value="${esc(S.farm)}"><label for=pr>Your role</label><select id=pr data-bind=role>${roles}</select><label for=pl>Language</label><select id=pl><option>English</option><option>Español</option><option>Français</option></select><p><button class=btn data-act=say data-t='Profile saved'>Save changes</button></p></div><div class=card data-testid=my-fields><h3>My fields (${F.length})</h3><p class=mut>Open a field on the map, or remove it from your farm.</p><div class=field-list>${fields || '<p class=mut>No fields yet. Add one below.</p>'}</div>${add}<p style='margin-top:14px'><button class='btn alt' data-act=go data-p=settings>Notifications and sensors</button> <button class='btn alt' data-act=out>Sign out</button></p></div></div>`;
 }
 
 export function wateringModal(f: Field): string {

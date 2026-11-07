@@ -20,7 +20,14 @@ npm install
 npm run dev
 ```
 
-Open the URL Vite prints (usually `http://localhost:5173`).
+Open the URL Vite prints (usually `http://localhost:5173`). Sign in before the map:
+
+| Farmer | Email | Password | Fields |
+| --- | --- | --- | --- |
+| Sam Whitfield | `sam@willowcreekfarm.ca` | `farm123` | North Wheat, East Canola, South Barley |
+| Jordan Hale | `jordan@mapleridge.ca` | `oats456` | West Oats, Creek Alfalfa, Blueberry Hill |
+
+Auth is **mock** for the demo (local session). Piezas email/password users can replace it later.
 
 | Command | What it does |
 | --- | --- |

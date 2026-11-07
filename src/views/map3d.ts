@@ -71,7 +71,7 @@ interface Ctx {
 }
 
 let ctx: Ctx | null = null;
-const layoutKey = () => Object.values(POLY).join('|');
+const layoutKey = () => `${S.farmerId ?? ''}:${F.map((f) => f.id).join(',')}`;
 
 const prng = (seed: number) => () => {
   seed = (seed * 16807) % 2147483647;
@@ -558,4 +558,14 @@ export function reset3D() {
   if (!ctx) return;
   ctx.focus = null;
   ctx.controls.reset();
+}
+
+export function dispose3D() {
+  if (!ctx) return;
+  ctx.running = false;
+  ctx.resize?.disconnect();
+  ctx.renderer.dispose();
+  ctx.labels.remove();
+  ctx.renderer.domElement.remove();
+  ctx = null;
 }

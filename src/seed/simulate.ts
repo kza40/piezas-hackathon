@@ -1,8 +1,8 @@
 // Simulated week of sensor and weather-station readings (168 hourly samples,
 // index 167 = the current hour). Deterministic per sensor id so every load
 // shows the same farm.
-import type { Alert, Field, FieldId, Recommendation, Sensor, SensorKey, StationKey } from '../types';
-import { FIELD_SEEDS, SENSOR_XY } from './farm';
+import type { Alert, Crop, Field, FieldId, FieldSeed, Recommendation, Sensor, SensorKey, StationKey } from '../types';
+import { CROP_DEFAULTS, CUSTOM_FIELD_SLOTS, FIELD_SEEDS, POLY, polyAround, SENSOR_XY } from './farm';
 
 const HOURS = 168;
 const NOW = new Date();
@@ -50,7 +50,7 @@ const COLD = (t: number) => -5.2 * Math.exp(-((t - coldestHour) ** 2) / 72);
 const DAY_SHIFT = [0, -0.5, 1, 2.5, 1.5, 0.5, -1, 0.5];
 const DY = (t: number) => Math.floor((167 - t) / 24);
 
-const FIELD_PHYSICS: Record<FieldId, { d: number; s: number; p: number; e: number }> = {
+const FIELD_PHYSICS: Record<string, { d: number; s: number; p: number; e: number }> = {
   A: { d: 0.11, s: 11.5, p: 6.3, e: 0.5 },
   B: { d: 0.08, s: 12.5, p: 6.7, e: 0.6 },
   C: { d: 0.06, s: 12, p: 6.8, e: 0.5 },
@@ -152,7 +152,7 @@ export const sensorsOf = (id: FieldId): FieldSensor[] =>
 const lastOr0 = (s: Sensor, k: SensorKey) => lastV(s, k) ?? 0;
 const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
 
-export const F: Field[] = FIELD_SEEDS.map((seed) => {
+export const ALL_F: Field[] = FIELD_SEEDS.map((seed) => {
   const r = prng(hash('st' + seed.id));
   const ao = (r() - 0.5) * 0.8;
   const fs = SEN.filter((x) => x.f === seed.id);
@@ -194,10 +194,186 @@ export const F: Field[] = FIELD_SEEDS.map((seed) => {
   };
 });
 
-export const fld = (id: string | null | undefined): Field => F.find((f) => f.id === id) ?? F[0];
+/** Fields visible to the signed-in farmer. Empty until login. */
+export const F: Field[] = [];
+
+export function scopeToFields(ids: FieldId[]) {
+  F.splice(0, F.length, ...ALL_F.filter((f) => ids.includes(f.id)));
+}
+
+export function clearFarmScope() {
+  F.splice(0, F.length);
+}
+
+const nextFieldId = (): FieldId => {
+  const used = new Set(Object.keys(POLY));
+  for (const c of 'GHIJKLMNOPQRSTUVWXYZ') if (!used.has(c)) return c;
+  let n = 1;
+  while (used.has(`N${n}`)) n += 1;
+  return `N${n}`;
+};
+
+const makeSensor = (id: string, target: number): Sensor => {
+  const f = id.split('-')[0] as FieldId;
+  const P = FIELD_PHYSICS[f] ?? CROP_DEFAULTS.Wheat.physics;
+  const r = prng(hash(id));
+  const v: Record<SensorKey, (number | null)[]> = { m: [], st: [], ph: [], ec: [] };
+  const gl: Record<SensorKey, Set<number>> = { m: new Set(), st: new Set(), ph: new Set(), ec: new Set() };
+  const so = (r() - 0.5) * 0.8;
+  const po = (r() - 0.5) * 0.06;
+  const eo = (r() - 0.5) * 0.06;
+  const amp = 1.6;
+  const raw: number[] = [];
+  let q = 0;
+  for (let t = 0; t < HOURS; t++) {
+    if (t) {
+      const dayRate = HOD(t) >= 9 && HOD(t) <= 18 ? 1.5 : 0.6;
+      q += -P.d * dayRate * (1 + (r() - 0.5) * 0.3) + RAIN[t] * 0.9 * (0.9 + r() * 0.2);
+    }
+    raw.push(q);
+  }
+  for (let t = 0; t < HOURS; t++) {
+    const rn = t >= 62 ? Math.min(1, (t - 62) / 6) : 0;
+    const dc = Math.exp(-Math.max(0, t - 66) / 90);
+    v.m.push(+(raw[t] - raw[167] + target + (t === 167 ? 0 : (r() - 0.5) * 0.5)).toFixed(1));
+    v.st.push(+(P.s + so + amp * Math.sin((2 * Math.PI * (HOD(t) - 14)) / 24) + 0.45 * COLD(t) + DAY_SHIFT[DY(t)] * 0.2 + (r() - 0.5) * 0.2).toFixed(1));
+    v.ph.push(+(P.p + po + 0.05 * Math.sin(t / 55) - 0.07 * rn * dc + (r() - 0.5) * 0.03).toFixed(2));
+    v.ec.push(+(P.e + eo + 0.03 * Math.sin(t / 70) - 0.08 * rn * dc + (r() - 0.5) * 0.02).toFixed(2));
+  }
+  return { id, f, age: 0, vals: v, gl };
+};
+
+const fieldFromSeed = (seed: FieldSeed): Field => {
+  const r = prng(hash('st' + seed.id));
+  const ao = (r() - 0.5) * 0.8;
+  const fs = SEN.filter((x) => x.f === seed.id);
+  const fresh = fs.filter((x) => x.age <= 6);
+  const stn: Record<StationKey, number[]> = { at: [], h: [], l: [] };
+  for (let t = 0; t < HOURS; t++) {
+    const a = 9 + ao + 7.5 * Math.sin((2 * Math.PI * (HOD(t) - 9)) / 24) + DAY_SHIFT[DY(t)] + COLD(t) + (r() - 0.5) * 0.6;
+    const hd = HOD(t);
+    const daylight = hd >= 7 && hd <= 17 ? Math.sin((Math.PI * (hd - 7)) / 10) : 0;
+    const cloud = Math.abs(t - 64) < 12 ? 0.45 : [1, 0.9, 0.8, 0.6, 1, 0.95, 0.85, 0.9][DY(t)];
+    stn.at.push(+a.toFixed(1));
+    stn.h.push(Math.round(Math.max(25, Math.min(98, 68 - 1.7 * (a - 9) + (Math.abs(t - 64) < 8 ? 14 : 0) + (r() - 0.5) * 4))));
+    stn.l.push(Math.round(100 * daylight * cloud));
+  }
+  const m = Math.round(mean(fresh.map((x) => lastOr0(x, 'm'))));
+  const ph = +mean(fresh.map((x) => lastOr0(x, 'ph'))).toFixed(1);
+  const ec = +mean(fresh.map((x) => lastOr0(x, 'ec'))).toFixed(2);
+  const st = +mean(fresh.map((x) => lastOr0(x, 'st'))).toFixed(1);
+  const stMax = Math.max(...fresh.flatMap((x) => x.vals.st.slice(144).filter((y, i): y is number => y != null && !x.gl.st.has(144 + i))), st);
+  const lo = seed.mi[0];
+  const [phLo, phHi] = seed.phr ?? [6, 7.2];
+  const dry = fs.some((x) => lastOr0(x, 'm') < 20);
+  const needsLook = m < lo || stMax > 20 || fs.some((x) => x.age > 6) || dry || ec > 1 || ph < phLo || ph > phHi;
+  return {
+    ...seed,
+    m,
+    st,
+    stMax,
+    at: stn.at[167],
+    h: stn.h[167],
+    ph,
+    ec,
+    l: Math.max(...stn.l.slice(144)),
+    s: [fresh.length, fs.length],
+    hl: m < lo - 5 ? 'cr' : needsLook ? 'wn' : 'ok',
+    stn,
+  };
+};
+
+export interface NewFieldInput {
+  name: string;
+  crop: Crop;
+  acres: number;
+}
+
+/** Create a parcel for the signed-in farmer and show it on their map. */
+export function addFieldToFarm(input: NewFieldInput): Field {
+  const name = input.name.trim() || `New ${input.crop} field`;
+  const crop = input.crop;
+  const meta = CROP_DEFAULTS[crop];
+  const id = nextFieldId();
+  const slot = CUSTOM_FIELD_SLOTS[Object.keys(POLY).length % CUSTOM_FIELD_SLOTS.length];
+  POLY[id] = polyAround(slot[0] + (Object.keys(POLY).length % 5) * 6, slot[1] + (Object.keys(POLY).length % 3) * 4);
+  FIELD_PHYSICS[id] = meta.physics;
+  const seed: FieldSeed = {
+    id,
+    name,
+    crop,
+    mi: meta.mi,
+    ac: Math.max(1, Math.round(input.acres) || 40),
+    stage: meta.stage,
+    soil: meta.soil,
+    phr: meta.phr,
+  };
+  const moisture = meta.mi[0] + (meta.mi[1] - meta.mi[0]) * 0.55;
+  SEN.push(makeSensor(`${id}-1`, moisture - 2), makeSensor(`${id}-2`, moisture), makeSensor(`${id}-3`, moisture + 2));
+  const field = fieldFromSeed(seed);
+  ALL_F.push(field);
+  F.push(field);
+  persistCustom(seed);
+  return field;
+}
+
+const CUSTOM_KEY = 'fw-custom';
+
+interface StoredCustom {
+  seed: FieldSeed;
+  poly: string;
+}
+
+function persistCustom(seed: FieldSeed) {
+  try {
+    const prev = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]') as StoredCustom[];
+    prev.push({ seed, poly: POLY[seed.id] });
+    localStorage.setItem(CUSTOM_KEY, JSON.stringify(prev));
+  } catch {
+    // keep for this session
+  }
+}
+
+/** Rebuild farmer-added parcels after a refresh. */
+export function restoreCustomFields() {
+  let rows: StoredCustom[] = [];
+  try {
+    rows = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]') as StoredCustom[];
+  } catch {
+    rows = [];
+  }
+  for (const row of rows) {
+    if (POLY[row.seed.id]) continue;
+    POLY[row.seed.id] = row.poly;
+    FIELD_PHYSICS[row.seed.id] = CROP_DEFAULTS[row.seed.crop].physics;
+    const moisture = row.seed.mi[0] + (row.seed.mi[1] - row.seed.mi[0]) * 0.55;
+    SEN.push(makeSensor(`${row.seed.id}-1`, moisture - 2), makeSensor(`${row.seed.id}-2`, moisture), makeSensor(`${row.seed.id}-3`, moisture + 2));
+    ALL_F.push(fieldFromSeed(row.seed));
+  }
+}
+
+/** Drop a field from the signed-in farmer's map (and delete custom parcels fully). */
+export function removeFieldFromFarm(fieldId: FieldId, custom: boolean) {
+  const ix = F.findIndex((f) => f.id === fieldId);
+  if (ix >= 0) F.splice(ix, 1);
+  if (!custom) return;
+  const allIx = ALL_F.findIndex((f) => f.id === fieldId);
+  if (allIx >= 0) ALL_F.splice(allIx, 1);
+  for (let i = SEN.length - 1; i >= 0; i--) if (SEN[i].f === fieldId) SEN.splice(i, 1);
+  delete POLY[fieldId];
+  delete FIELD_PHYSICS[fieldId];
+  try {
+    const prev = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]') as StoredCustom[];
+    localStorage.setItem(CUSTOM_KEY, JSON.stringify(prev.filter((r) => r.seed.id !== fieldId)));
+  } catch {
+    // ignore
+  }
+}
+
+export const fld = (id: string | null | undefined): Field => F.find((f) => f.id === id) ?? ALL_F.find((f) => f.id === id) ?? ALL_F[0];
 const sensor = (id: string) => SEN.find((x) => x.id === id)!;
 
-const airA = F[0].stn.at;
+const airA = ALL_F[0].stn.at;
 export const MN = Math.min(...airA);
 export const MI = airA.indexOf(MN);
 export const FH = airA.filter((x) => x < 0).length;

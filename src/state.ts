@@ -22,8 +22,11 @@ function writeJson(key: string, value: unknown): void {
 }
 
 export const S: AppState = {
-  page: 'map',
+  page: 'login',
   panel: null,
+  farmerId: null,
+  authError: '',
+  authEmail: '',
   ...{ min: {}, bare: false, d3: true, ...readJson<Partial<Pick<AppState, 'min' | 'bare' | 'd3'>>>(CARDS_KEY, {}) },
   sel: 'A',
   done: {},
@@ -31,13 +34,13 @@ export const S: AppState = {
   flt: 'all',
   mk: 'm',
   step: 2,
-  farm: 'Willow Creek Farm',
+  farm: '',
   units: '°C',
   toast: '',
   v: { x: 0, y: 0, k: 1 },
   ly: 'water',
   off: readJson<AppState['off']>(OFFSETS_KEY, {}),
-  name: 'Sam Whitfield',
+  name: '',
   role: 'Owner',
   wm: null,
   fd: null,
