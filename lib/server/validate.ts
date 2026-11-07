@@ -20,14 +20,22 @@ export function number(label: string, v: unknown, { min, max }: { min: number; m
   return n;
 }
 
+// For optional inputs: missing, null or "" is undefined; anything else must pass check.
+export function optional<T>(v: unknown, check: (v: unknown) => T): T | undefined {
+  return v === undefined || v === null || v === '' ? undefined : check(v);
+}
+
 export function email(v: unknown): string {
   const s = text('Email', v, { max: 254 }).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) throw badRequest('Enter a valid email address.');
   return s;
 }
 
+// Must match the Piezas users policy (passwordMinLength is 10 on our apps).
+export const PASSWORD_MIN = 10;
+
 export function password(v: unknown): string {
-  if (typeof v !== 'string' || v.length < 8) throw badRequest('Password must be at least 8 characters.');
+  if (typeof v !== 'string' || v.length < PASSWORD_MIN) throw badRequest(`Password must be at least ${PASSWORD_MIN} characters.`);
   if (v.length > 200) throw badRequest('Password is too long.');
   return v;
 }

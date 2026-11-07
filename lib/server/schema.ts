@@ -18,6 +18,14 @@ export const ENTITIES = {
       frostRiskC: { type: 'number' },
     },
   },
+  profile: {
+    // the farmer's own details; the Piezas user profile cannot be edited after sign-up
+    fields: {
+      ownerId: { type: 'text', required: true },
+      name: { type: 'text' },
+      phone: { type: 'text' },
+    },
+  },
   farm: {
     fields: {
       ownerId: { type: 'text', required: true },
@@ -32,6 +40,9 @@ export const ENTITIES = {
       farmId: { type: 'text', required: true },
       name: { type: 'text' },
       cropProfileId: { type: 'text' },
+      acres: { type: 'number' },
+      stage: { type: 'text' }, // growth stage, e.g. "Fruit set"
+      soil: { type: 'text' }, // soil type, e.g. "Sandy loam"
     },
   },
   sensor: {

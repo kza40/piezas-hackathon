@@ -5,6 +5,7 @@ import { AppError, toHttp } from './errors';
 import { email, number, password, text } from './validate';
 import { withLock } from './lock';
 import { parseFarmInput, parseFieldInput } from './data/farms';
+import { parseProfileInput } from './data/profile';
 
 const status = (fn: () => unknown) => {
   try {
@@ -31,11 +32,11 @@ test('number accepts numeric strings and enforces the range', () => {
   assert.equal(status(() => number('Lat', NaN, { min: -90, max: 90 })), 400);
 });
 
-test('email is normalised and checked; password needs 8 characters', () => {
+test('email is normalised and checked; password needs 10 characters like the Piezas policy', () => {
   assert.equal(email(' Farmer@Example.TEST '), 'farmer@example.test');
   assert.equal(status(() => email('not-an-email')), 400);
-  assert.equal(password('12345678'), '12345678');
-  assert.equal(status(() => password('1234567')), 400);
+  assert.equal(password('1234567890'), '1234567890');
+  assert.equal(status(() => password('123456789')), 400);
 });
 
 test('farm input: name and a valid location are required', () => {
@@ -55,9 +56,25 @@ test('farm input ignores extra keys such as a forged ownerId', () => {
   assert.equal('ownerId' in parsed, false);
 });
 
-test('field input needs a name and a crop', () => {
-  assert.deepEqual(parseFieldInput({ name: 'North', cropProfileId: 'c1' }), { name: 'North', cropProfileId: 'c1' });
+test('field input needs a name and a crop; acres, stage and soil are optional', () => {
+  assert.deepEqual(parseFieldInput({ name: 'North', cropProfileId: 'c1' }), { name: 'North', cropProfileId: 'c1', acres: undefined, stage: undefined, soil: undefined });
+  assert.deepEqual(parseFieldInput({ name: 'N', cropProfileId: 'c1', acres: '40', stage: 'Tillering', soil: '' }), {
+    name: 'N',
+    cropProfileId: 'c1',
+    acres: 40,
+    stage: 'Tillering',
+    soil: undefined,
+  });
   assert.equal(status(() => parseFieldInput({ name: 'North' })), 400);
+  assert.equal(status(() => parseFieldInput({ name: 'N', cropProfileId: 'c1', acres: 0 })), 400);
+});
+
+test('profile input: partial, phone checked, empty phone clears it', () => {
+  assert.deepEqual(parseProfileInput({ name: ' Sam ' }), { name: 'Sam' });
+  assert.deepEqual(parseProfileInput({ phone: '(519) 555-0142' }), { phone: '(519) 555-0142' });
+  assert.deepEqual(parseProfileInput({ phone: '' }), { phone: '' });
+  assert.equal(status(() => parseProfileInput({ phone: 'call me' })), 400);
+  assert.equal(status(() => parseProfileInput({ name: '' })), 400);
 });
 
 test('toHttp maps AppError and hides unexpected errors', () => {

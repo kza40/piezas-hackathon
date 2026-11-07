@@ -2,11 +2,13 @@
 // Piezas returns the session token in the response body; routes put it in an httpOnly cookie.
 import { DEFAULT_SESSION_COOKIE } from '@piezas/sdk';
 import { piezas, errorCode } from './piezas';
-import { AppError, conflict, unauthorized } from './errors';
+import { AppError, badRequest, conflict, unauthorized } from './errors';
 import { email as checkEmail, password as checkPassword } from './validate';
 
 // Same name the SDK's "Report a problem" widget looks for, so reports are tied to the farmer.
 export const SESSION_COOKIE = DEFAULT_SESSION_COOKIE;
+// Piezas defaults to 30 minutes, which would sign farmers out mid-demo. scripts/setup-app.ts sets this.
+export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 
 export interface SessionUser {
   id: string;
@@ -29,6 +31,8 @@ export async function signUp(emailIn: unknown, passwordIn: unknown): Promise<Ses
     await piezas().users.signUp({ email, password });
   } catch (e) {
     if (errorCode(e) === 'conflict') throw conflict(EXISTS);
+    // e.g. a password rule tightened in the Piezas policy before ours was updated
+    if (errorCode(e) === 'validation_failed') throw badRequest('That email or password is not accepted. Use at least 10 characters for the password.');
     throw e;
   }
   // Sign-up returns no session (docs/backend-notes.md, E15), so sign in straight away.

@@ -1,6 +1,6 @@
-# Backend API (step 2: accounts, farms, fields)
+# Backend API (accounts, profile, farms, fields)
 
-What the backend expects from the frontend and what it returns. All bodies are JSON. Errors always look like:
+The contract between the Vite frontend and the backend on `backend/platform`. All bodies are JSON. Errors always look like:
 
 ```json
 { "error": "invalid_input", "message": "Latitude must be between -90 and 90." }
@@ -8,35 +8,66 @@ What the backend expects from the frontend and what it returns. All bodies are J
 
 `message` is written for the farmer and can be shown as-is. `error` is one of `invalid_input` (400), `unauthorized` (401), `account_pending` / `mfa_required` (403), `not_found` (404), `conflict` (409), `server_error` (500).
 
-The session is an httpOnly cookie named `piezas_session`, set by the backend. The frontend never reads or stores the token; it just sends requests with cookies (`credentials: 'include'` with `fetch`, the default for same-origin).
+## Running it
 
-The backend logic lives in `lib/server/` and is done. The HTTP routes below are the thin layer still to add once the frontend's framework setup is merged, so the paths can still change if the frontend needs something different.
+- `npm run dev:api` starts the API on http://localhost:8787 against the TEST Piezas app (needs `.env`, see below).
+- The Vite dev server must forward `/api` to it. Add this `vite.config.ts` on the frontend branch (frontend's call):
 
-## Accounts
+  ```ts
+  import { defineConfig } from 'vite';
+  export default defineConfig({ server: { proxy: { '/api': 'http://localhost:8787' } } });
+  ```
+
+- Production: `npm run build` (the frontend's Vite build into `dist/`), then `npm start`. The same server serves `dist/` and `/api`, so the frontend always calls relative paths like `/api/farms`.
+- `.env` comes from `npx piezas init` on a machine logged in to the Piezas account; it is never committed.
+
+## Session
+
+The session is an httpOnly cookie named `piezas_session` (lasts 7 days), set and cleared by the backend. The frontend never reads or stores a token and does not need localStorage for the session: `fetch` on the same origin sends the cookie by default. On load, call `GET /api/auth/me`: 200 means signed in, 401 means show the sign-in screen.
+
+## Accounts and profile
 
 | Method and path | Body | Returns |
 |---|---|---|
-| `POST /api/auth/sign-up` | `{ email, password }` (password at least 8 characters) | `{ user: { id, email } }` and sets the cookie. If the email already has an account with a different password: 409 "An account with this email already exists. Sign in instead." The same email and password just signs in. |
-| `POST /api/auth/sign-in` | `{ email, password }` | `{ user }` and sets the cookie. Wrong email or password: 401 "Email or password is incorrect." |
+| `POST /api/auth/sign-up` | `{ email, password, name? }` (password at least **10** characters) | 201 `{ user: { id, email }, profile }` and sets the cookie. Same email with a different password: 409 "An account with this email already exists. Sign in instead." Same email and password: signs in. |
+| `POST /api/auth/sign-in` | `{ email, password }` | `{ user, profile }` and sets the cookie. Wrong email or password: 401 "Email or password is incorrect." After 10 wrong tries in 15 minutes Piezas locks the account for a while (same 401). |
 | `POST /api/auth/sign-out` | none | 204 and clears the cookie |
-| `GET /api/auth/me` | none | `{ user }`, or 401 when signed out (use it to decide whether to show the sign-in page) |
+| `GET /api/auth/me` | none | `{ user, profile }`, or 401 when signed out |
+| `PATCH /api/me/profile` | `{ name?, phone? }` (only the keys sent change; `phone: ""` clears it) | `{ profile: { name, phone } }` |
 
-## Farms, fields, crops (all need a signed-in farmer)
+## Crops, farms, fields (all need a signed-in farmer)
 
 | Method and path | Body | Returns |
 |---|---|---|
-| `GET /api/crop-profiles` | none | `{ cropProfiles: [{ id, key, name, moistureMin, moistureMax, phMin, phMax, ecMax, frostRiskC }] }` |
+| `GET /api/crop-profiles` | none | `{ cropProfiles: [{ id, key, name, moistureMin, moistureMax, phMin, phMax, ecMax, frostRiskC }] }`, in the order Wheat, Canola, Barley, Oats, Alfalfa, Blueberries. `name` matches the frontend's `Crop` labels; `ecMax` may be `null`. |
 | `GET /api/farms` | none | `{ farms: [{ id, name, latitude, longitude, createdAt }] }` (empty for a new farmer) |
-| `POST /api/farms` | `{ name, latitude, longitude }` (numbers, or numeric strings) | `{ farm }` |
+| `POST /api/farms` | `{ name, latitude, longitude }` | 201 `{ farm }` |
 | `GET /api/farms/:farmId` | none | `{ farm }` |
-| `GET /api/farms/:farmId/fields` | none | `{ fields: [{ id, farmId, name, cropProfile, createdAt }] }` |
-| `POST /api/farms/:farmId/fields` | `{ name, cropProfileId }` (an `id` from `/api/crop-profiles`) | `{ field }` with the full `cropProfile`, so the moisture and pH ranges can be shown straight away (S-002) |
-| `GET /api/fields/:fieldId` | none | `{ field }` (sensors, readings and advice are added in later steps) |
+| `GET /api/farms/:farmId/fields` | none | `{ fields: [field] }` |
+| `POST /api/farms/:farmId/fields` | `{ name, cropProfileId, acres?, stage?, soil? }` | 201 `{ field }` |
+| `GET /api/fields/:fieldId` | none | `{ field }` |
+| `DELETE /api/fields/:fieldId` | none | 204 |
+
+A `field` is `{ id, farmId, name, cropProfile, acres, stage, soil, createdAt }`, with the full `cropProfile` object (so the ideal moisture and pH ranges are right there) and `stage` / `soil` as `""` when not set. Sensors, readings, advice and alerts come in later steps.
 
 Another farmer's farm or field always answers 404, exactly like one that does not exist.
 
-## What the frontend must collect
+## Demo accounts (test app)
 
-- Sign-up and sign-in: email and password.
-- New farm: a name and the farm's **latitude and longitude** (needed for the weather). An address alone is not enough: the backend does not geocode addresses.
-- New field: a name and a crop chosen from `/api/crop-profiles` (only Blueberry for now).
+`scripts/seed-demo.ts` has created the two demo farmers from `src/seed/farmers.ts` with their farms and fields:
+
+| Email | Password | Farm | Fields |
+|---|---|---|---|
+| sam@willowcreekfarm.ca | `farm123-demo` | Willow Creek Farm | North Wheat, East Canola, South Barley |
+| jordan@mapleridge.ca | `oats456-demo` | Maple Ridge Farm | West Oats, Creek Alfalfa, Blueberry Hill |
+
+## Changes the frontend needs to work with this (frontend's decision and code)
+
+1. Replace the mock sign-in and localStorage session (`src/auth.ts`) with `/api/auth/*` and `GET /api/auth/me` on load.
+2. Demo passwords: Piezas requires at least 10 characters, so `farm123` / `oats456` become `farm123-demo` / `oats456-demo`. Passwords should not stay in the bundle; the demo buttons can keep them only as a convenience for the demo.
+3. No sign-up screen exists yet; R-001 / S-001 need one (email, password, optional name).
+4. Farm location: the backend needs latitude and longitude (for weather). `location: 'Wellington County, ON'` is display text only; a new farm needs coordinates (a map pin or two number inputs).
+5. Ids: farms and fields have server ids (UUIDs), not letters `A` to `F`. Map positions keyed by field id (`fw-off`) need to use these.
+6. Add field: send `cropProfileId` (from `/api/crop-profiles`), `acres`, `stage`, `soil`; remove field: `DELETE /api/fields/:id`.
+7. Profile: name and phone are stored (`PATCH /api/me/profile`). Role, "farmer since" and alert preferences have no backend yet; say if they should.
+8. Scenario tests: rename the frontend's `S-001` to `S-005` files to the new numbers in SPEC.md: S-001 sign-in becomes **S-019**, S-002 wrong password **S-020**, S-003 own fields only **S-011**, S-004 sign-out **S-021**, S-005 add/remove field **S-022**.

@@ -10,7 +10,8 @@ import { AppError } from './errors';
 import { db, piezas } from './piezas';
 import { getSessionUser, requireUser, signIn, signOut, signUp } from './auth';
 import { ensureCropProfiles, listCropProfiles } from './data/crops';
-import { createFarm, createField, getFarm, getField, listFarms, listFields } from './data/farms';
+import { createFarm, createField, deleteField, getFarm, getField, listFarms, listFields } from './data/farms';
+import { getProfile, updateProfile } from './data/profile';
 import { listAll } from './data/records';
 
 const run = Date.now();
@@ -29,8 +30,9 @@ const statusOf = async (p: Promise<unknown>) => {
 };
 
 after(async () => {
-  const { farm, field } = await db();
+  const { farm, field, profile } = await db();
   for (const ownerId of [alice, bob]) {
+    for (const r of await listAll(profile, { ownerId })) await profile.delete(r.id);
     for (const r of await listAll(field, { ownerId })) await field.delete(r.id);
     for (const r of await listAll(farm, { ownerId })) await farm.delete(r.id);
   }
@@ -80,9 +82,10 @@ describe('auth', () => {
 });
 
 describe('crop profiles', () => {
-  test('blueberry exists exactly once, even when first requests race', async () => {
+  test('all six default crops exist exactly once, even when first requests race', async () => {
     await Promise.all([ensureCropProfiles(), ensureCropProfiles(), ensureCropProfiles()]);
     const crops = await listCropProfiles();
+    assert.deepEqual(crops.map((c) => c.key), ['wheat', 'canola', 'barley', 'oats', 'alfalfa', 'blueberry']);
     const blueberries = crops.filter((c) => c.key === 'blueberry');
     assert.equal(blueberries.length, 1);
     assert.equal(blueberries[0].phMin, 4.5);
@@ -96,7 +99,7 @@ describe('farms and fields', () => {
     const farm = await createFarm(alice, { name: 'Fraser Ridge', latitude: 49.05, longitude: -122.3 });
     const field = await createField(alice, farm.id, { name: 'North block', cropProfileId: blueberry.id });
     assert.equal(field.farmId, farm.id);
-    assert.equal(field.cropProfile?.moistureMin, 20);
+    assert.equal(field.cropProfile?.moistureMin, 35);
     assert.deepEqual(
       (await listFields(alice, farm.id)).map((f) => f.name),
       ['North block'],
@@ -134,5 +137,25 @@ describe('farms and fields', () => {
     assert.equal(await statusOf(createFarm(alice, { name: '', latitude: 1, longitude: 1 })), 400);
     const farm = await createFarm(alice, { name: 'Second', latitude: 49, longitude: -122 });
     assert.equal(await statusOf(createField(alice, farm.id, { name: 'X', cropProfileId: farm.id })), 400);
+  });
+
+  test('only the owner can delete a field', async () => {
+    const blueberry = (await listCropProfiles()).find((c) => c.key === 'blueberry')!;
+    const farm = await createFarm(alice, { name: 'Third', latitude: 49, longitude: -122 });
+    const field = await createField(alice, farm.id, { name: 'Doomed', cropProfileId: blueberry.id, acres: '12' });
+    assert.equal(field.acres, 12);
+    assert.equal(await statusOf(deleteField(bob, field.id)), 404);
+    await deleteField(alice, field.id);
+    assert.equal(await statusOf(getField(alice, field.id)), 404);
+  });
+});
+
+describe('profile', () => {
+  test('starts empty, saves partially, and a double save keeps one record', async () => {
+    assert.deepEqual(await getProfile(alice), { name: '', phone: '' });
+    await Promise.all([updateProfile(alice, { name: 'Alice' }), updateProfile(alice, { phone: '604 555 0100' })]);
+    assert.deepEqual(await getProfile(alice), { name: 'Alice', phone: '604 555 0100' });
+    const { profile } = await db();
+    assert.equal((await listAll(profile, { ownerId: alice })).length, 1);
   });
 });
