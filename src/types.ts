@@ -7,7 +7,11 @@ export type SensorKey = 'm' | 'st' | 'ph' | 'ec';
 export type StationKey = 'at' | 'h' | 'l';
 export type MetricKey = SensorKey | StationKey;
 export type Range = [min: number, max: number];
-export type Page = 'login' | 'map' | 'dashboard' | 'field' | 'weather' | 'recs' | 'alerts' | 'settings' | 'profile';
+export type Page = 'login' | 'map';
+/** A full-detail view that opens over the map. */
+export type PanelId = 'dashboard' | 'field' | 'weather' | 'recs' | 'alerts' | 'settings' | 'profile';
+/** A summary card that sits on the map. */
+export type CardId = 'today' | 'weather' | 'alerts' | 'recs';
 export type MapLayer = 'water' | 'health' | 'moisture' | 'temp';
 export type AlertFilter = Level | 'all';
 export type Units = '°C' | '°F';
@@ -102,6 +106,9 @@ export interface WaterLogEntry {
 
 export interface AppState {
   page: Page;
+  panel: PanelId | null;
+  /** Map cards the farmer has collapsed to their header. */
+  min: Partial<Record<CardId, true>>;
   sel: FieldId;
   done: Record<number, true>;
   dis: Record<number, true>;

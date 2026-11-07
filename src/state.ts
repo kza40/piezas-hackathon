@@ -22,6 +22,8 @@ function writeJson(key: string, value: unknown): void {
 
 export const S: AppState = {
   page: 'map',
+  panel: null,
+  min: {},
   sel: 'A',
   done: {},
   dis: {},

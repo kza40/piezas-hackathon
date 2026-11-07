@@ -1,69 +1,84 @@
 import './styles.css';
 import { fld } from './seed/simulate';
 import { S, saveLog, saveOffsets } from './state';
-import type { AlertFilter, FieldId, MapLayer, MetricKey, Page, Units } from './types';
-import { esc, firstName, initials, openAlerts } from './ui/helpers';
-import { can, IC } from './ui/icons';
+import type { AlertFilter, CardId, FieldId, MapLayer, MetricKey, PanelId, Units } from './types';
+import { esc, initials, openAlerts } from './ui/helpers';
+import { IC } from './ui/icons';
+import { actionsCard, alertsCard, todayCard, weatherCard } from './views/cards';
 import { map, onMapPointerDown, onMapWheel, resetView, zoom } from './views/map';
 import * as pages from './views/pages';
 
-const VIEWS: Record<Page, () => string> = {
-  login: pages.login,
-  map,
-  dashboard: pages.dashboard,
-  field: pages.field,
-  weather: pages.weather,
-  recs: pages.recs,
-  alerts: pages.alerts,
-  settings: pages.settings,
-  profile: pages.profile,
+const PANELS: Record<PanelId, { title: string; icon: string; view: () => string }> = {
+  dashboard: { title: 'Farm', icon: '⌂', view: pages.dashboard },
+  field: { title: 'Field', icon: '❀', view: pages.field },
+  weather: { title: 'Weather', icon: '☁', view: pages.weather },
+  recs: { title: 'Actions', icon: '✎', view: pages.recs },
+  alerts: { title: 'Alerts', icon: '🔔', view: pages.alerts },
+  settings: { title: 'Settings', icon: '⚙', view: pages.settings },
+  profile: { title: 'Profile', icon: '', view: pages.profile },
 };
 
-const NAV: [Page, string, string][] = [
-  ['map', 'Map', '▦'],
-  ['dashboard', 'Farm', '⌂'],
-  ['field', 'Fields', '❀'],
-  ['weather', 'Weather', '☁'],
-  ['recs', 'Actions', '✎'],
-  ['alerts', 'Alerts', '🔔'],
-  ['settings', 'Settings', '⚙'],
-];
-
 const el = (id: string) => document.getElementById(id) as HTMLElement;
-const isPage = (p: string): p is Page => p in VIEWS;
+const isPanel = (p: string): p is PanelId => p in PANELS;
 
-function renderNav() {
-  const current = (p: Page) => (S.page === p ? 'aria-current="page"' : '');
-  el('nav').innerHTML =
-    `<div class="logo" style="display:flex;align-items:center;gap:8px">${can('now', 28, '#fff')}Fieldwise</div>` +
-    NAV.map(
-      ([k, n, i]) =>
-        `<button data-act="go" data-p="${k}" data-testid="nav-${k}" ${current(k)}><span aria-hidden="true" style="display:grid">${IC[k] ?? i}</span>${n}${k === 'alerts' ? `<span class="badge">${openAlerts().length}</span>` : ''}</button>`,
-    ).join('') +
-    `<button style="margin-left:auto" data-act="go" data-p="profile" data-testid="nav-profile" ${current('profile')} aria-label="Farmer profile"><span class="pill in" aria-hidden="true">${esc(initials())}</span>${esc(firstName())}</button>`;
+function dock(): string {
+  return `<nav class=dock aria-label='Farm tools'>${(Object.keys(PANELS) as PanelId[])
+    .map((k) => {
+      const p = PANELS[k];
+      const icon = k === 'profile' ? `<span class='pill in'>${esc(initials())}</span>` : (IC[k] ?? p.icon);
+      const badge = k === 'alerts' ? `<span class=badge>${openAlerts().length}</span>` : '';
+      return `<button data-act=go data-p=${k} data-testid=dock-${k} aria-pressed=${S.panel === k}><span aria-hidden=true class=di>${icon}</span><span class=dl>${p.title}</span>${badge}</button>`;
+    })
+    .join('')}</nav>`;
+}
+
+function panel(id: PanelId): string {
+  return `<section class=panel data-testid=panel-${id} data-scroll=p role=dialog aria-label='${PANELS[id].title}'><button class='btn alt sm pclose' data-act=go data-p=map aria-label='Close and show the map'>✕ Back to map</button>${PANELS[id].view()}</section>`;
+}
+
+/** Re-rendering replaces the overlays, so keep each scrolled area where the farmer left it. */
+function keepScroll(paint: () => void) {
+  const before = new Map<string, number>();
+  document.querySelectorAll<HTMLElement>('[data-scroll]').forEach((n) => before.set(n.dataset.scroll! + (n.dataset.testid ?? ''), n.scrollTop));
+  paint();
+  document.querySelectorAll<HTMLElement>('[data-scroll]').forEach((n) => {
+    const top = before.get(n.dataset.scroll! + (n.dataset.testid ?? ''));
+    if (top) n.scrollTop = top;
+  });
 }
 
 function render() {
   const main = el('main');
-  const onLogin = S.page === 'login';
-  main.className = S.page === 'map' ? 'mp' : '';
-  el('app').style.display = onLogin ? 'block' : '';
-  el('nav').style.display = onLogin ? 'none' : '';
-  renderNav();
-  main.innerHTML =
-    VIEWS[S.page]() +
-    (S.wm ? pages.wateringModal(fld(S.wm)) : '') +
-    (S.toast ? `<div class="toast" role="status">${esc(S.toast)}</div>` : '');
+  const toast = S.toast ? `<div class="toast" role="status">${esc(S.toast)}</div>` : '';
+  const modal = S.wm ? pages.wateringModal(fld(S.wm)) : '';
+  if (S.page === 'login') {
+    main.className = '';
+    main.innerHTML = pages.login() + toast;
+    return;
+  }
+  main.className = 'mp';
+  const cards = todayCard() + weatherCard() + alertsCard() + actionsCard();
+  keepScroll(() => {
+    main.innerHTML = `<div class=board>${map(cards)}${S.panel ? panel(S.panel) : ''}${dock()}</div>${modal}${toast}`;
+  });
 }
 
 function go(p: string, id?: string) {
-  const page = p === 'sensors' ? 'field' : p;
-  if (!isPage(page)) return;
+  const target = p === 'sensors' ? 'field' : p;
   if (id) S.sel = id as FieldId;
-  S.page = page;
-  location.hash = page;
+  if (target === 'login') {
+    S.page = 'login';
+    S.panel = null;
+  } else if (isPanel(target)) {
+    S.page = 'map';
+    S.panel = S.panel === target && !id ? null : target;
+  } else {
+    S.page = 'map';
+    S.panel = null;
+  }
+  location.hash = S.page === 'login' ? 'login' : (S.panel ?? 'map');
   render();
-  scrollTo(0, 0);
+  document.querySelector('.panel')?.scrollTo(0, 0);
 }
 
 let toastTimer: number | undefined;
@@ -91,6 +106,12 @@ function act(node: ActionElement, target: Element) {
   switch (d.act) {
     case 'go':
       return go(d.p ?? 'map', d.id);
+    case 'tog': {
+      const c = d.c as CardId;
+      if (S.min[c]) delete S.min[c];
+      else S.min[c] = true;
+      return render();
+    }
     case 'sel':
       S.sel = d.id as FieldId;
       return render();
@@ -155,6 +176,13 @@ document.addEventListener('click', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (S.wm) {
+      S.wm = null;
+      render();
+    } else if (S.panel) go('map');
+    return;
+  }
   if (e.key !== 'Enter') return;
   const target = e.target as Element;
   if (target instanceof SVGElement && target.dataset.act === 'pk') act(target, target);
@@ -163,22 +191,17 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('input', (e) => {
   const input = e.target as HTMLInputElement;
   const key = input.dataset?.bind;
-  if (key === 'farm' || key === 'name') {
-    S[key] = input.value;
-    renderNav();
-  }
+  if (key === 'farm' || key === 'name') S[key] = input.value;
 });
 
 document.addEventListener('change', (e) => {
   const input = e.target as HTMLSelectElement;
   const key = input.dataset?.bind;
-  if (key === 'role') {
-    S.role = input.value;
-    renderNav();
-  } else if (key === 'units') {
-    S.units = input.value as Units;
-    render();
-  }
+  if (key === 'role') S.role = input.value;
+  else if (key === 'units') S.units = input.value as Units;
+  else if (key !== 'farm' && key !== 'name') return;
+  // Typing in a field: wait until it's committed, so the input keeps its focus.
+  render();
 });
 
 const main = el('main');
@@ -197,10 +220,9 @@ main.addEventListener(
 
 window.addEventListener('hashchange', () => {
   const h = location.hash.slice(1);
-  if (isPage(h) && h !== S.page && (h === 'login' || S.step === 2 || S.page !== 'login')) {
-    S.page = h;
-    render();
-  }
+  const current = S.page === 'login' ? 'login' : (S.panel ?? 'map');
+  if (h === current) return;
+  if (h === 'login' || h === 'map' || isPanel(h)) go(h);
 });
 
 render();
