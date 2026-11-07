@@ -3,7 +3,7 @@
 // with innerHTML and a new canvas would lose its GPU context and camera.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { CC } from '../seed/farm';
+import { BRIDGE, CC, LANES } from '../seed/farm';
 import { F } from '../seed/simulate';
 import { S } from '../state';
 import type { Field, FieldId, MapLayer, WaterState } from '../types';
@@ -89,6 +89,15 @@ function scenery(scene: THREE.Scene) {
   scene.add(ground);
 
   scene.add(box(1400, 1.2, 16, '#4a3a28', 0, 0.6, wz(228)));
+  for (const { from: [a, b], to: [c, d], w } of LANES) {
+    const lane = box(Math.abs(c - a) + w, 0.8, Math.abs(d - b) + w, '#d2bd8c', wx((a + c) / 2), 0.4, wz((b + d) / 2));
+    lane.castShadow = false;
+    scene.add(lane);
+  }
+  const bridge = new THREE.Group();
+  bridge.add(box(26, 2, 18, '#8a6a48', 0, 2, 0), box(26, 4, 1.5, '#4a3a28', 0, 4, -9), box(26, 4, 1.5, '#4a3a28', 0, 4, 9));
+  bridge.position.set(wx(BRIDGE[0]), 0, wz(BRIDGE[1]));
+  scene.add(bridge);
   for (let x = -680; x < 700; x += 22) scene.add(box(12, 0.4, 1.6, '#e8e1c8', x, 1.4, wz(228)));
 
   const creek = new THREE.CatmullRomCurve3([[470, 215], [492, 300], [478, 400], [468, 560]].map(([x, y]) => new THREE.Vector3(wx(x), 0, wz(y))));
@@ -132,7 +141,7 @@ function scenery(scene: THREE.Scene) {
 
   const leaf = new THREE.MeshStandardMaterial({ color: '#4f7558', roughness: 0.9 });
   const bark = new THREE.MeshStandardMaterial({ color: '#6b4f33' });
-  [[24, 238], [780, 240], [30, 500], [760, 500], [690, 380], [560, 500], [-20, 120], [820, 140], [400, 520]].forEach(([x, y], i) => {
+  [[690, 380], [752, 392], [768, 462], [715, 478], [-20, 120], [820, 140], [400, 545], [-25, 400], [825, 380], [180, 548], [640, -20]].forEach(([x, y], i) => {
     const t = new THREE.Group();
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(2, 2.5, 10), bark);
     trunk.position.y = 5;

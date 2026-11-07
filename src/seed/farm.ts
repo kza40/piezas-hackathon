@@ -9,6 +9,25 @@ export const FIELD_SEEDS: FieldSeed[] = [
   { id: 'F', name: 'Blueberry Hill', crop: 'Blueberries', mi: [35, 50], ac: 22, stage: 'Fruit set', soil: 'Sandy loam, mulched', phr: [4.5, 5.5] },
 ];
 
+/**
+ * Gravel farm lanes in map coordinates (the 2D map's 800×520 viewBox):
+ * a loop around the farm, lanes between neighbouring fields, and the barn drive.
+ */
+export const LANES: { from: [number, number]; to: [number, number]; w: number }[] = [
+  { from: [14, 14], to: [790, 14], w: 10 },
+  { from: [14, 14], to: [14, 506], w: 10 },
+  { from: [14, 506], to: [790, 506], w: 10 },
+  { from: [790, 14], to: [790, 506], w: 10 },
+  { from: [327, 14], to: [327, 228], w: 9 },
+  { from: [547, 14], to: [547, 228], w: 9 },
+  { from: [275, 228], to: [275, 506], w: 9 },
+  { from: [668, 228], to: [668, 420], w: 9 },
+  { from: [668, 420], to: [790, 420], w: 9 },
+  { from: [721, 228], to: [721, 290], w: 9 },
+];
+/** Where the bottom lane crosses Willow Creek. */
+export const BRIDGE: [number, number] = [470, 506];
+
 export const FARM = { location: 'Wellington County, ON', station: 'Farmstead weather station' };
 
 export const PROFILE = {

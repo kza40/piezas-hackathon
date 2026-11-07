@@ -92,7 +92,7 @@ export function legendCard(layer: MapLayer): string {
     layer === 'water'
       ? (['now', 'soon', 'rain', 'none'] as WaterState[]).map((w) => `<span class=lgi>${can(w, 22)}${WS[w].t}</span>`).join('')
       : `<span class=lgi>${LAYER_KEY[layer]}</span>`;
-  const body = `${items}<span class=lgi>● Sensor online ○ offline · ┅ irrigation line</span><span class='lgi demo-chip' data-testid=demo-note>Demo map · simulated data</span>`;
+  const body = `${items}<span class=lgi>● Sensor online ○ offline · ┅ irrigation line</span><span class=lgi><i class=lane-key></i>Farm lane · <i class=road-key></i>Concession Road 4</span><span class='lgi demo-chip' data-testid=demo-note>Demo map · simulated data</span>`;
   return mapCard('legend', 'Map key', body, { cls: 'lg' });
 }
 
