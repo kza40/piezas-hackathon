@@ -6,6 +6,7 @@ import { esc, openAlerts } from './ui/helpers';
 import { IC } from './ui/icons';
 import { actionsCard, alertsCard, fieldCard, legendCard, profileCard, todayCard, topBar, weatherCard } from './views/cards';
 import { map, onMapPointerDown, onMapWheel, resetView, zoom } from './views/map';
+import { mount3D, reset3D, zoom3D } from './views/map3d';
 import * as pages from './views/pages';
 
 const PANELS: Record<PanelId, { title: string; icon: string; view: () => string }> = {
@@ -63,6 +64,17 @@ function render() {
   keepScroll(() => {
     main.innerHTML = `<div class=board>${topBar()}<div class=stage>${map(left, right)}${S.panel ? panel(S.panel) : ''}${dock()}</div></div>${modal}${toast}`;
   });
+  const host = document.getElementById('m3');
+  if (host) mount3D(host, pickField);
+}
+
+function pickField(id: FieldId) {
+  S.sel = id;
+  if (S.min.field) {
+    delete S.min.field;
+    saveCards();
+  }
+  render();
 }
 
 function go(p: string, id?: string) {
@@ -173,16 +185,23 @@ function act(node: ActionElement, target: Element) {
       S.ly = d.k as MapLayer;
       return render();
     case 'ed':
+      // Fields are dragged into place on the flat map.
       S.edit = !S.edit;
+      if (S.edit) S.d3 = false;
+      return render();
+    case 'dim':
+      S.d3 = d.k === '3';
+      if (S.d3) S.edit = false;
+      saveCards();
       return render();
     case 'rl':
       S.off = {};
       saveOffsets();
       return render();
     case 'zm':
-      return zoom(Number(d.f));
+      return S.d3 ? zoom3D(Number(d.f)) : zoom(Number(d.f));
     case 'rs':
-      return resetView();
+      return S.d3 ? reset3D() : resetView();
     case 'lg':
       return logWater(Number(d.mm));
   }

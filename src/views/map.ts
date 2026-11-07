@@ -7,23 +7,24 @@ import { canIn, fieldNumberLabel, plants, polyPoints } from '../ui/icons';
 
 const VIEW_W = 800;
 const VIEW_H = 520;
-const SENSOR_OFFSETS: [number, number][] = [[-70, -55], [70, -55], [-70, 60], [70, 60]];
+export const SENSOR_OFFSETS: [number, number][] = [[-70, -55], [70, -55], [-70, 60], [70, 60]];
 const HEALTH_FILL: Record<Health, string> = { ok: '#8fc47a', wn: '#f0c75a', cr: '#e07a63' };
+const HEIGHT_MEANS: Record<MapLayer, string> = { water: 'needs water sooner', health: 'needs more attention', moisture: 'wetter soil', temp: 'warmer soil' };
 const LAYERS: [MapLayer, string][] = [['water', 'Watering'], ['health', 'Health'], ['moisture', 'Moisture'], ['temp', 'Temp']];
 
-const center = (id: FieldId): [number, number] => {
+export const center = (id: FieldId): [number, number] => {
   const p = polyPoints(id);
   return [p.reduce((a, q) => a + q[0], 0) / p.length, p.reduce((a, q) => a + q[1], 0) / p.length];
 };
 
-const fillFor = (x: Field, layer: MapLayer) => {
+export const fillFor = (x: Field, layer: MapLayer) => {
   if (layer === 'water') return FB[ws(x)].bg;
   if (layer === 'health') return HEALTH_FILL[x.hl];
   if (layer === 'moisture') return mix([207, 227, 238], [47, 120, 168], x.m / 55);
   return mix([246, 223, 176], [217, 130, 43], (x.st - 10) / 14);
 };
 
-const valueFor = (x: Field, layer: MapLayer) => {
+export const valueFor = (x: Field, layer: MapLayer) => {
   if (layer === 'water') return WS[ws(x)].t;
   if (layer === 'health') return HL[x.hl][0];
   if (layer === 'moisture') return x.m + '% moisture';
@@ -51,10 +52,13 @@ const PATTERNS = `<defs><pattern id=st0 width=12 height=12 patternUnits=userSpac
 /** The map with its controls, and the two columns of cards floating over it. */
 export function map(left: string, right: string): string {
   const L = S.ly;
-  const controls = `<div class=mtop><div class=mtl><div class=mpc>${LAYERS.map(([key, n]) => `<button data-act=lyr data-k=${key} aria-pressed=${L === key}>${n}</button>`).join('')}</div><div class=mpc><button aria-pressed=${S.edit} data-act=ed>${S.edit ? 'Done editing' : 'Edit layout'}</button>${S.edit ? `<button data-act=rl>Reset</button>` : ''}</div>${S.edit ? `<span class='mpc note'>Drag fields to match your farm</span>` : ''}</div><div class=mtr><div class=mpc><button aria-label='Zoom in' data-act=zm data-f=1.5>+</button><button aria-label='Zoom out' data-act=zm data-f=${1 / 1.5}>−</button><button aria-label='Reset view' data-act=rs>⟲</button></div><div class=mpc><button aria-pressed=${S.bare} data-act=bare data-testid=toggle-cards>${S.bare ? 'Show cards' : 'Hide cards'}</button></div></div></div>`;
+  const dim = `<div class=mpc><button data-act=dim data-k=3 data-testid=view-3d aria-pressed=${S.d3}>3D</button><button data-act=dim data-k=2 data-testid=view-2d aria-pressed=${!S.d3}>2D</button></div>`;
+  const hint = S.d3 ? `<span class=hint3>Drag to rotate · right-drag to pan · scroll to zoom · taller block = ${HEIGHT_MEANS[L]}</span>` : '';
+  const controls = `<div class=mtop><div class=mtl>${dim}<div class=mpc>${LAYERS.map(([key, n]) => `<button data-act=lyr data-k=${key} aria-pressed=${L === key}>${n}</button>`).join('')}</div><div class=mpc><button aria-pressed=${S.edit} data-act=ed>${S.edit ? 'Done editing' : 'Edit layout'}</button>${S.edit ? `<button data-act=rl>Reset</button>` : ''}</div>${S.edit ? `<span class='mpc note'>Drag fields to match your farm</span>` : ''}</div><div class=mtr><div class=mpc><button aria-label='Zoom in' data-act=zm data-f=1.5>+</button><button aria-label='Zoom out' data-act=zm data-f=${1 / 1.5}>−</button><button aria-label='Reset view' data-act=rs>⟲</button></div><div class=mpc><button aria-pressed=${S.bare} data-act=bare data-testid=toggle-cards>${S.bare ? 'Show cards' : 'Hide cards'}</button></div></div></div>`;
   const scale = `<div class=mscale aria-hidden=true><span class=north>▲ N</span><span class=sbar><i></i>200 m</span></div>`;
   const svg = `<svg id=fmap viewBox='0 0 ${VIEW_W} ${VIEW_H}' style='width:100%;height:100%;display:block;touch-action:none;cursor:grab' role=group aria-label='Farm map'>${PATTERNS}<g id=vp transform='translate(${S.v.x} ${S.v.y}) scale(${S.v.k})'>${BASE}${F.map((x) => fieldShape(x, L)).join('')}${Object.keys(S.off).length ? '' : PIPES}</g></svg>`;
   const cols = S.bare ? '' : `<aside class='col col-l' data-scroll=l>${left}</aside><aside class='col col-r' data-scroll=r>${right}</aside>`;
+  if (S.d3) return `<div class='mapbox m3' id=m3 data-testid=map-3d></div>${controls}${hint}${cols}`;
   return `<div class='mapbox${S.bare ? ' bare' : ''}'>${svg}</div>${controls}${scale}${cols}`;
 }
 

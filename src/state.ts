@@ -24,7 +24,7 @@ function writeJson(key: string, value: unknown): void {
 export const S: AppState = {
   page: 'map',
   panel: null,
-  ...readJson<Pick<AppState, 'min' | 'bare'>>(CARDS_KEY, { min: {}, bare: false }),
+  ...{ min: {}, bare: false, d3: true, ...readJson<Partial<Pick<AppState, 'min' | 'bare' | 'd3'>>>(CARDS_KEY, {}) },
   sel: 'A',
   done: {},
   dis: {},
@@ -48,4 +48,4 @@ export const S: AppState = {
 
 export const saveOffsets = () => writeJson(OFFSETS_KEY, S.off);
 export const saveLog = () => writeJson(LOG_KEY, S.log);
-export const saveCards = () => writeJson(CARDS_KEY, { min: S.min, bare: S.bare });
+export const saveCards = () => writeJson(CARDS_KEY, { min: S.min, bare: S.bare, d3: S.d3 });

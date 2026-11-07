@@ -116,6 +116,8 @@ export interface AppState {
   min: Partial<Record<CardId, true>>;
   /** Every card hidden so only the map shows. */
   bare: boolean;
+  /** Map shown in 3D rather than flat. */
+  d3: boolean;
   sel: FieldId;
   done: Record<number, true>;
   dis: Record<number, true>;
