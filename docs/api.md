@@ -1,12 +1,12 @@
 # Backend API (accounts, profile, farms, fields)
 
-The contract between the Vite frontend and the backend on `backend/platform`. All bodies are JSON. Errors always look like:
+The contract between the Vite frontend and the backend on `backend/platform`. Every request with a body must send it as JSON with the header `Content-Type: application/json` (otherwise 415); this is what protects sign-in and other writes from cross-site forgery. Errors always look like:
 
 ```json
 { "error": "invalid_input", "message": "Latitude must be between -90 and 90." }
 ```
 
-`message` is written for the farmer and can be shown as-is. `error` is one of `invalid_input` (400), `unauthorized` (401), `account_pending` / `mfa_required` (403), `not_found` (404), `conflict` (409), `server_error` (500).
+`message` is written for the farmer and can be shown as-is. `error` is one of `invalid_input` (400), `unauthorized` (401), `account_pending` / `mfa_required` (403), `not_found` (404), `conflict` (409), `unsupported_media_type` (415), `server_error` (500), `unavailable` (503: Piezas is busy or unreachable, worth one retry).
 
 ## Running it
 
@@ -18,22 +18,22 @@ The contract between the Vite frontend and the backend on `backend/platform`. Al
   export default defineConfig({ server: { proxy: { '/api': 'http://localhost:8787' } } });
   ```
 
-- Production: `npm run build` (the frontend's Vite build into `dist/`), then `npm start`. The same server serves `dist/` and `/api`, so the frontend always calls relative paths like `/api/farms`.
+- Production: `npm run build` (the frontend's Vite build into `dist/`; that script comes with the frontend branch), then `npm start`. The same server serves `dist/` and `/api`, so the frontend always calls relative paths like `/api/farms`.
 - `.env` comes from `npx piezas init` on a machine logged in to the Piezas account; it is never committed.
 
 ## Session
 
-The session is an httpOnly cookie named `piezas_session` (lasts 7 days), set and cleared by the backend. The frontend never reads or stores a token and does not need localStorage for the session: `fetch` on the same origin sends the cookie by default. On load, call `GET /api/auth/me`: 200 means signed in, 401 means show the sign-in screen.
+The session is an httpOnly, SameSite=Lax cookie named `piezas_session` (lasts 7 days, `Secure` whenever the site is served over https), set and cleared by the backend. The frontend never reads or stores a token and does not need localStorage for the session: `fetch` on the same origin sends the cookie by default. On load, call `GET /api/auth/me`: 200 means signed in, 401 means show the sign-in screen.
 
 ## Accounts and profile
 
 | Method and path | Body | Returns |
 |---|---|---|
-| `POST /api/auth/sign-up` | `{ email, password, name? }` (password at least **10** characters) | 201 `{ user: { id, email }, profile }` and sets the cookie. Same email with a different password: 409 "An account with this email already exists. Sign in instead." Same email and password: signs in. |
+| `POST /api/auth/sign-up` | `{ email, password, name? }` (password at least **10** characters, name up to 80; a bad name is rejected before the account is made) | 201 `{ user: { id, email }, profile }` and sets the cookie. Same email with a different password: 409 "An account with this email already exists. Sign in instead." Same email and password: signs in. |
 | `POST /api/auth/sign-in` | `{ email, password }` | `{ user, profile }` and sets the cookie. Wrong email or password: 401 "Email or password is incorrect." After 10 wrong tries in 15 minutes Piezas locks the account for a while (same 401). |
 | `POST /api/auth/sign-out` | none | 204 and clears the cookie |
 | `GET /api/auth/me` | none | `{ user, profile }`, or 401 when signed out |
-| `PATCH /api/me/profile` | `{ name?, phone? }` (only the keys sent change; `phone: ""` clears it) | `{ profile: { name, phone } }` |
+| `PATCH /api/me/profile` | `{ name?, phone? }` (only the keys sent change; `phone: ""` clears it; a phone needs at least 7 digits) | `{ profile: { name, phone } }` |
 
 ## Crops, farms, fields (all need a signed-in farmer)
 

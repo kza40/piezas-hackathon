@@ -13,7 +13,8 @@ export interface Profile {
 export function parseProfileInput(body: unknown): Partial<Profile> {
   const b = object(body);
   const phone = optional(b.phone, (v) => text('Phone', v, { max: 30 }));
-  if (phone !== undefined && !/^[0-9+()\-.\s]{7,30}$/.test(phone)) throw badRequest('Enter a valid phone number.');
+  const digits = phone?.replace(/\D/g, '').length ?? 0;
+  if (phone !== undefined && (!/^[0-9+()\-.\s]+$/.test(phone) || digits < 7)) throw badRequest('Enter a valid phone number.');
   return {
     ...(b.name !== undefined ? { name: text('Name', b.name, { max: 80 }) } : {}),
     ...(b.phone !== undefined ? { phone: phone ?? '' } : {}),

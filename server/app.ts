@@ -5,25 +5,34 @@ import { createMiddleware } from 'hono/factory';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, getSessionUser, signIn, signOut, signUp, type SessionUser } from '../lib/server/auth';
-import { badRequest, notFound, toHttp, unauthorized } from '../lib/server/errors';
+import { AppError, badRequest, notFound, toHttp, unauthorized } from '../lib/server/errors';
 import { listCropProfiles } from '../lib/server/data/crops';
 import { createFarm, createField, deleteField, getFarm, getField, listFarms, listFields } from '../lib/server/data/farms';
-import { getProfile, updateProfile } from '../lib/server/data/profile';
+import { getProfile, parseProfileInput, updateProfile } from '../lib/server/data/profile';
 import { object } from '../lib/server/validate';
 
 type Env = { Variables: { user: SessionUser } };
+
+// Secure whenever the farmer reached us over https, directly or through the host's proxy.
+const isHttps = (c: Context) => new URL(c.req.url).protocol === 'https:' || c.req.header('x-forwarded-proto') === 'https';
 
 function setSession(c: Context, token: string) {
   setCookie(c, SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'Lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: isHttps(c),
     path: '/',
     maxAge: SESSION_TTL_SECONDS, // the server still checks the session on every request
   });
 }
 
+// Request bodies must be sent as application/json. That is what stops cross-site forgery of
+// sign-in and other writes: another site can only send JSON with that header after a CORS preflight,
+// which this API never allows. (text/plain bodies would otherwise parse as JSON just fine.)
 async function body(c: Context): Promise<Record<string, unknown>> {
+  if (!/^application\/json\b/i.test(c.req.header('content-type') ?? '')) {
+    throw new AppError(415, 'unsupported_media_type', 'Send the request body as JSON (Content-Type: application/json).');
+  }
   let parsed: unknown;
   try {
     parsed = await c.req.json();
@@ -45,7 +54,7 @@ const signedIn = createMiddleware<Env>(async (c, next) => {
 export const api = new Hono<Env>().basePath('/api');
 
 // Cross-site request forgery: the cookie is SameSite=Lax, so other sites' POST/PATCH/DELETE carry no
-// session, and every body must be JSON, so a cross-site HTML form cannot even sign someone in.
+// session, and bodies must be application/json (see body()), so no other site can sign anyone in.
 api.onError((e, c) => {
   if (e instanceof HTTPException) return e.getResponse();
   const { status, body } = toHttp(e);
@@ -55,9 +64,11 @@ api.onError((e, c) => {
 // Accounts
 api.post('/auth/sign-up', async (c) => {
   const b = await body(c);
+  // Check the name before the account exists, so a bad name never leaves a half-made sign-up.
+  const profile = b.name === undefined || b.name === '' ? {} : parseProfileInput({ name: b.name });
   const s = await signUp(b.email, b.password);
   setSession(c, s.token);
-  if (typeof b.name === 'string' && b.name.trim()) await updateProfile(s.user.id, { name: b.name });
+  if (profile.name) await updateProfile(s.user.id, profile);
   return c.json({ user: s.user, profile: await getProfile(s.user.id) }, 201);
 });
 

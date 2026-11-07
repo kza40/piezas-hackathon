@@ -74,7 +74,25 @@ test('profile input: partial, phone checked, empty phone clears it', () => {
   assert.deepEqual(parseProfileInput({ phone: '(519) 555-0142' }), { phone: '(519) 555-0142' });
   assert.deepEqual(parseProfileInput({ phone: '' }), { phone: '' });
   assert.equal(status(() => parseProfileInput({ phone: 'call me' })), 400);
+  assert.equal(status(() => parseProfileInput({ phone: '-------' })), 400); // no digits
+  assert.equal(status(() => parseProfileInput({ phone: '555 01' })), 400); // too few digits
+  assert.deepEqual(parseProfileInput({ phone: '555-0142' }), { phone: '555-0142' });
   assert.equal(status(() => parseProfileInput({ name: '' })), 400);
+});
+
+test('toHttp turns Piezas outages into a 503 the farmer can act on', () => {
+  const original = console.error;
+  console.error = () => {};
+  try {
+    for (const code of ['rate_limited', 'network_error', 'server_error']) {
+      const r = toHttp(Object.assign(new Error('upstream'), { code }));
+      assert.equal(r.status, 503, code);
+      assert.equal(r.body.error, 'unavailable');
+    }
+    assert.equal(toHttp(Object.assign(new Error('x'), { code: 'validation_failed' })).status, 500);
+  } finally {
+    console.error = original;
+  }
 });
 
 test('toHttp maps AppError and hides unexpected errors', () => {

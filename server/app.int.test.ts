@@ -55,6 +55,33 @@ describe('accounts over HTTP', () => {
     assert.equal((await sam('GET', '/api/auth/me')).body.user.id, r.body.user.id);
   });
 
+  test('a bad name is rejected before any account is created', async () => {
+    const anon = browser();
+    const email = `longname-${run}@example.test`;
+    const r = await anon('POST', '/api/auth/sign-up', { email, password: 'long-enough-1', name: 'x'.repeat(81) });
+    assert.equal(r.status, 400);
+    assert.equal(r.setCookie, null);
+    assert.equal((await anon('POST', '/api/auth/sign-in', { email, password: 'long-enough-1' })).status, 401);
+  });
+
+  test('the cookie is Secure when the farmer came over https (directly or via the proxy)', async () => {
+    const creds = { email: `sam-${run}@example.test`, password: 'farm-pass-1' };
+    const viaProxy = await api.request('/api/auth/sign-in', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-proto': 'https' },
+      body: JSON.stringify(creds),
+    });
+    assert.match(viaProxy.headers.get('set-cookie') ?? '', /;\s*Secure/i);
+    const direct = await api.request('https://fieldwise.example/api/auth/sign-in', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(creds),
+    });
+    assert.match(direct.headers.get('set-cookie') ?? '', /;\s*Secure/i);
+    const local = await api.request('/api/auth/sign-in', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(creds) });
+    assert.doesNotMatch(local.headers.get('set-cookie') ?? '', /;\s*Secure/i); // plain http on localhost
+  });
+
   test('a second farmer signs up separately', async () => {
     const r = await jordan('POST', '/api/auth/sign-up', { email: `jordan-${run}@example.test`, password: 'oats-pass-1' });
     assert.equal(r.status, 201);
@@ -134,14 +161,26 @@ describe('request hygiene', () => {
     assert.equal(missing.body.error, 'not_found');
   });
 
-  test('a cross-site HTML form cannot sign anyone in', async () => {
-    const res = await api.request('/api/auth/sign-in', {
+  test('another site cannot sign anyone in: only application/json bodies are accepted', async () => {
+    // These are the content types a cross-site page may send without a CORS preflight.
+    const attempts: [string, string][] = [
+      ['application/x-www-form-urlencoded', `email=sam-${run}%40example.test&password=farm-pass-1`],
+      ['text/plain', JSON.stringify({ email: `sam-${run}@example.test`, password: 'farm-pass-1' })],
+      ['multipart/form-data; boundary=x', '--x--'],
+    ];
+    for (const [type, payload] of attempts) {
+      const res = await api.request('/api/auth/sign-in', { method: 'POST', headers: { 'content-type': type, origin: 'https://evil.example' }, body: payload });
+      assert.equal(res.status, 415, type);
+      assert.equal(res.headers.get('set-cookie'), null, type);
+    }
+    const noType = await api.request('/api/auth/sign-in', { method: 'POST', body: JSON.stringify({ email: 'a@b.co', password: 'x' }) });
+    assert.equal(noType.status, 415);
+    const withCharset = await api.request('/api/auth/sign-in', {
       method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded', origin: 'https://evil.example' },
-      body: `email=sam-${run}%40example.test&password=farm-pass-1`,
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ email: `sam-${run}@example.test`, password: 'farm-pass-1' }),
     });
-    assert.equal(res.status, 400);
-    assert.equal(res.headers.get('set-cookie'), null);
+    assert.equal(withCharset.status, 200);
   });
 
   test('sign-out clears the cookie and ends the session', async () => {

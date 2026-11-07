@@ -16,6 +16,12 @@ const { piezas } = await import('../lib/server/piezas');
 const { ensureCropProfiles, listCropProfiles } = await import('../lib/server/data/crops');
 const { SESSION_TTL_SECONDS } = await import('../lib/server/auth');
 
-await (piezas().users as any).configurePolicy({ requireEmailVerification: false, sessionTtlSeconds: SESSION_TTL_SECONDS });
+const policy = await (piezas().users as any).configurePolicy({ requireEmailVerification: false, sessionTtlSeconds: SESSION_TTL_SECONDS });
+console.log(`users policy: verification ${policy.requireEmailVerification ? 'on' : 'off'}, sessions ${policy.sessionTtlSeconds}s, passwords >= ${policy.passwordMinLength}`);
+const { PASSWORD_MIN } = await import('../lib/server/validate');
+if (policy.requireEmailVerification || policy.sessionTtlSeconds !== SESSION_TTL_SECONDS || policy.passwordMinLength !== PASSWORD_MIN) {
+  console.error('The Piezas users policy does not match lib/server (auth.ts SESSION_TTL_SECONDS, validate.ts PASSWORD_MIN).');
+  process.exit(1);
+}
 await ensureCropProfiles();
 console.log(`${live ? 'LIVE' : 'test'} app ready. Crop profiles: ${(await listCropProfiles()).map((c) => c.name).join(', ')}`);

@@ -56,7 +56,13 @@ for (const d of DEMO) {
     console.error(`${d.email}: sign-up refused: ${e?.message ?? e}`);
     continue;
   }
-  const { user } = await signIn(d.email, d.password);
+  let user;
+  try {
+    ({ user } = await signIn(d.email, d.password));
+  } catch {
+    console.error(`${d.email}: exists with a different password (or is locked); left unchanged`);
+    continue;
+  }
   await updateProfile(user.id, d.profile);
 
   const farm = (await listFarms(user.id)).find((f) => f.name === d.farm.name) ?? (await createFarm(user.id, d.farm));

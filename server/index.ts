@@ -1,11 +1,7 @@
 // Starts the app: /api/* from server/app.ts, everything else from the built frontend (dist/).
 //   development:  npm run dev:api  (uses the TEST Piezas app; the Vite dev server proxies /api here)
 //   production:   npm run build && npm start
-if (process.argv.includes('--test-app')) {
-  if (!process.env.PIEZAS_TEST_API_KEY) throw new Error('PIEZAS_TEST_API_KEY missing: run `npx piezas test --setup`');
-  process.env.PIEZAS_API_KEY = process.env.PIEZAS_TEST_API_KEY;
-}
-
+import './use-test-app'; // first: picks the test app's key when started with --test-app
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';

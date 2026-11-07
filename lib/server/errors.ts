@@ -15,8 +15,16 @@ export const unauthorized = (message = 'Please sign in.') => new AppError(401, '
 export const notFound = (what = 'Item') => new AppError(404, 'not_found', `${what} not found.`);
 export const conflict = (message: string) => new AppError(409, 'conflict', message);
 
+// Piezas error codes that mean "the platform is busy or unreachable", not "our bug".
+const UNAVAILABLE = new Set(['rate_limited', 'network_error', 'server_error']);
+
 export function toHttp(e: unknown): { status: number; body: { error: string; message: string } } {
   if (e instanceof AppError) return { status: e.status, body: { error: e.code, message: e.message } };
+  const code = typeof e === 'object' && e !== null && 'code' in e ? String((e as { code: unknown }).code) : '';
+  if (UNAVAILABLE.has(code)) {
+    console.error(e);
+    return { status: 503, body: { error: 'unavailable', message: 'The farm service is busy right now. Please try again in a moment.' } };
+  }
   console.error(e);
   return { status: 500, body: { error: 'server_error', message: 'Something went wrong. Please try again.' } };
 }
