@@ -115,8 +115,14 @@
   },
   "publicRoutes": [],
   "deploy": {
-    "requiredEnv": [],
-    "optionalEnv": [],
+    "requiredEnv": [
+      "PIEZAS_API_KEY",
+      "PIEZAS_API_URL"
+    ],
+    "optionalEnv": [
+      "PIEZAS_TEST_API_KEY",
+      "PIEZAS_HOOK_STATE_DIR"
+    ],
     "appId": "ba20a31d-4fb5-4649-a558-950c01b1f783"
   },
   "recipes": [],
