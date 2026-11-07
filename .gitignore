@@ -2,3 +2,5 @@
 .env
 node_modules/
 .next/
+.piezas/guard.json
+.piezas/quality-scan/
