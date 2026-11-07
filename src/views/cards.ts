@@ -1,8 +1,8 @@
 import { FARM, FB, PROFILE, W, WS } from '../seed/farm';
-import { AL, DN, F, REC, RT, SEN, fld } from '../seed/simulate';
+import { AL, DN, F, REC, RT, SEN, fld, sensorsOf } from '../seed/simulate';
 import { S } from '../state';
 import type { CardId, Field, MapLayer, PanelId, WaterState } from '../types';
-import { esc, fieldNo, firstName, initials, openAlerts, pill, T, ws } from '../ui/helpers';
+import { esc, fieldNo, firstName, initials, lastWatered, moistureTint, openAlerts, pill, T, ws } from '../ui/helpers';
 import { can } from '../ui/icons';
 
 const ORDER: Record<WaterState, number> = { now: 0, soon: 1, rain: 2, none: 3 };
@@ -80,10 +80,18 @@ export function fieldCard(): string {
   const d24 = Math.round((h[h.length - 1] - h[h.length - 9]) * 10) / 10;
   const trend = `<span class=trend>${d24 > 0 ? '▲' : d24 < 0 ? '▼' : '■'} ${Math.abs(d24)} pts / 24 h</span>`;
   const r = REC.find((q) => q.f === f.id);
-  const last = S.log.find((e) => e.f === f.id);
+  const posts = sensorsOf(f.id);
+  const live = posts.filter((s) => s.m != null).map((s) => s.m!);
+  const span = live.length ? `${Math.round(Math.min(...live))}–${Math.round(Math.max(...live))}%` : `${f.m}%`;
+  const zones = posts
+    .map((s) => {
+      const tone = s.m == null ? '#b8b2a2' : moistureTint(s.m);
+      return `<div class=zrow><i style='background:${tone}'></i><b>${s.id}</b><span>${s.m == null ? '—' : `${Math.round(s.m)}%`}</span><em class=mut>${s.online ? 'live' : `${s.age}h ago`}</em></div>`;
+    })
+    .join('');
   const hero = `<div class=fhero style='background:${look.bg};color:${look.fg}'><div><div class=fn style='color:${look.n}'>${f.m}<span>%</span></div><div class=fsub>Soil moisture · ${trend}</div></div><button class=cb data-act=op data-id=${f.id} aria-label='Watering details'>${can(k, 48)}</button><p class=chip style='background:${look.fg};color:${look.bg}'><i style='background:${WS[k].h}'></i>${look.c}</p></div>`;
-  const grid = `<div class='kvs g2'>${kv('Crop', `${f.crop} · ${f.stage}`)}${kv('Area', `${f.ac} ac`)}${kv('Soil', f.soil)}${kv('Soil temp', T(f.st))}${kv('pH', String(f.ph))}${kv('Salinity', `${f.ec} mS/cm`)}${kv('Sensors', `${f.s[0]} of ${f.s[1]} online`)}${kv('Last watered', last ? `${last.d} · ${last.mm} mm` : 'Not this week')}</div>`;
-  const body = `${hero}${spark(f)}${grid}<div class=nx><span class=mut>Recommended</span><br>${r ? r.t : 'Nothing to do right now'}.</div><div class=btns><button class='btn sm' data-act=go data-p=field>Log watering &amp; sensors</button><button class='btn alt sm' data-act=op data-id=${f.id}>Why this advice?</button></div>`;
+  const grid = `<div class='kvs g2'>${kv('Crop', `${f.crop} · ${f.stage}`)}${kv('Area', `${f.ac} ac`)}${kv('Soil', f.soil)}${kv('Air humidity', `${f.h}%`)}${kv('Soil temp', T(f.st))}${kv('pH', String(f.ph))}${kv('Last watered', lastWatered(f.id))}${kv('Across field', span)}</div>`;
+  const body = `${hero}${spark(f)}${grid}<p class=sub>Moisture by area</p><div class=zrows>${zones}</div><div class=nx><span class=mut>Recommended</span><br>${r ? r.t : 'Nothing to do right now'}.</div><div class=btns><button class='btn sm' data-act=go data-p=field>Log watering &amp; sensors</button><button class='btn alt sm' data-act=op data-id=${f.id}>Why this advice?</button></div>`;
   return mapCard('field', `Field ${fieldNo(f.id)} · ${f.name}`, body, { sum: `${f.m}% · ${WS[k].t}`, panel: 'field', cls: 'fcard' });
 }
 
@@ -92,7 +100,7 @@ export function legendCard(layer: MapLayer): string {
     layer === 'water'
       ? (['now', 'soon', 'rain', 'none'] as WaterState[]).map((w) => `<span class=lgi>${can(w, 22)}${WS[w].t}</span>`).join('')
       : `<span class=lgi>${LAYER_KEY[layer]}</span>`;
-  const body = `${items}<span class=lgi>● Sensor online ○ offline · ┅ irrigation line</span><span class=lgi><i class=lane-key></i>Farm lane · <i class=road-key></i>Concession Road 4</span><span class='lgi demo-chip' data-testid=demo-note>Demo map · simulated data</span>`;
+  const body = `${items}<span class=lgi>● Sensor online ○ offline · ┅ irrigation line</span><span class=lgi><span class=mlg></span> Moisture map: brown = dry, blue = wet</span><span class='lgi demo-chip' data-testid=demo-note>Demo map · simulated data</span>`;
   return mapCard('legend', 'Map key', body, { cls: 'lg' });
 }
 

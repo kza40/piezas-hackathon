@@ -2,7 +2,7 @@
 // index 167 = the current hour). Deterministic per sensor id so every load
 // shows the same farm.
 import type { Alert, Field, FieldId, Recommendation, Sensor, SensorKey, StationKey } from '../types';
-import { FIELD_SEEDS } from './farm';
+import { FIELD_SEEDS, SENSOR_XY } from './farm';
 
 const HOURS = 168;
 const NOW = new Date();
@@ -66,12 +66,13 @@ interface SensorQuirks {
 }
 
 const SENSOR_SPECS: [id: string, moisture: number, quirks?: SensorQuirks][] = [
-  ['A-1', 17.2], ['A-2', 19.4, { gap: [118, 122] }], ['A-3', 20.1, { gl: { m: [70, 99] } }], ['A-4', 19],
-  ['B-1', 17], ['B-2', 34.2, { gl: { st: [130, 85] } }], ['B-3', 36.6],
-  ['C-1', 37, { gap: [40, 42] }], ['C-2', 38.5], ['C-3', 35.8, { gl: { ec: [150, 9.9] } }], ['C-4', 36.9],
-  ['D-1', 37.2], ['D-2', 38.1], ['D-3', 36.4, { age: 72 }],
-  ['E-1', 42.3, { gl: { ph: [20, 14] } }], ['E-2', 45.1, { gap: [90, 91] }], ['E-3', 43.4],
-  ['F-1', 34.5], ['F-2', 36.2], ['F-3', 35.1, { age: 8 }],
+  // Moisture targets vary by corner so dry patches and wet spots show on the map.
+  ['A-1', 14.5], ['A-2', 18.8, { gap: [118, 122] }], ['A-3', 22.4, { gl: { m: [70, 99] } }], ['A-4', 19.6],
+  ['B-1', 15.5], ['B-2', 35.8, { gl: { st: [130, 85] } }], ['B-3', 37.2],
+  ['C-1', 34.2, { gap: [40, 42] }], ['C-2', 40.5], ['C-3', 36.1, { gl: { ec: [150, 9.9] } }], ['C-4', 38.8],
+  ['D-1', 34.5], ['D-2', 40.2], ['D-3', 36.8, { age: 72 }],
+  ['E-1', 39.5, { gl: { ph: [20, 14] } }], ['E-2', 47.2, { gap: [90, 91] }], ['E-3', 43.8],
+  ['F-1', 31.8], ['F-2', 38.4], ['F-3', 34.6, { age: 8 }],
 ];
 
 const SENSOR_KEYS: SensorKey[] = ['m', 'st', 'ph', 'ec'];
@@ -125,6 +126,28 @@ export const lastV = (s: Sensor, k: SensorKey): number | null => {
   }
   return null;
 };
+
+/** One reading post in a field, with its last good values and where it sits. */
+export interface FieldSensor {
+  id: string;
+  m: number | null;
+  st: number | null;
+  online: boolean;
+  age: number;
+  dx: number;
+  dy: number;
+}
+
+export const sensorsOf = (id: FieldId): FieldSensor[] =>
+  SEN.filter((s) => s.f === id).map((s, i) => ({
+    id: s.id,
+    m: lastV(s, 'm'),
+    st: lastV(s, 'st'),
+    online: s.age <= 6,
+    age: s.age,
+    dx: SENSOR_XY[i][0],
+    dy: SENSOR_XY[i][1],
+  }));
 
 const lastOr0 = (s: Sensor, k: SensorKey) => lastV(s, k) ?? 0;
 const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;

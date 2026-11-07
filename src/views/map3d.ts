@@ -3,13 +3,14 @@
 // with innerHTML and a new canvas would lose its GPU context and camera.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { BRIDGES, CC, LANES, TREES } from '../seed/farm';
-import { F } from '../seed/simulate';
+import { BRIDGES, LANES, TREES } from '../seed/farm';
+import { F, sensorsOf } from '../seed/simulate';
 import { S } from '../state';
 import type { Field, FieldId, MapLayer, WaterState } from '../types';
-import { ws } from '../ui/helpers';
+import { lastWatered, moistureTint, T, ws } from '../ui/helpers';
 import { can, polyPoints } from '../ui/icons';
-import { SENSOR_OFFSETS, center, fillFor, valueFor } from './map';
+import { plantField } from './crops3d';
+import { center, fillFor, valueFor } from './map';
 
 const MID_X = 400;
 const MID_Y = 260;
@@ -28,14 +29,24 @@ function heightFor(f: Field, layer: MapLayer): number {
   return 4 + Math.max(0, f.st - 5) * 2.2;
 }
 
+interface Pin {
+  el: HTMLButtonElement;
+  x: number;
+  z: number;
+}
+
 interface FieldNode {
   id: FieldId;
   group: THREE.Group;
-  /** Material 0 is the top face, coloured by layer; material 1 the soil sides. */
+  /** Material 0 is the top face; material 1 the soil sides. */
   block: THREE.Mesh<THREE.ExtrudeGeometry, THREE.MeshStandardMaterial[]>;
   edge: THREE.LineSegments<THREE.EdgesGeometry, THREE.LineBasicMaterial>;
   top: THREE.Group;
+  zones: THREE.InstancedMesh;
+  crops: THREE.Group;
   label: HTMLButtonElement;
+  hud: HTMLDivElement;
+  pins: Pin[];
   anchor: THREE.Vector3;
   h: number;
   target: number;
@@ -187,8 +198,68 @@ function irrigation(): THREE.Group {
   return g;
 }
 
+function moistureAt(x: number, y: number, f: Field, cx: number, cy: number): number {
+  const ss = sensorsOf(f.id).filter((s) => s.m != null);
+  if (!ss.length) return f.m;
+  let num = 0;
+  let den = 0;
+  for (const s of ss) {
+    const w = 1 / ((x - (cx + s.dx)) ** 2 + (y - (cy + s.dy)) ** 2 + 80);
+    num += w * s.m!;
+    den += w;
+  }
+  return num / den;
+}
+
+function zoneTiles(f: Field, pts: [number, number][], cx: number, cy: number): THREE.InstancedMesh {
+  const xs = pts.map((p) => p[0]);
+  const ys = pts.map((p) => p[1]);
+  const step = 10;
+  const cells: { x: number; y: number; m: number }[] = [];
+  for (let y = Math.min(...ys) + 7; y < Math.max(...ys) - 7; y += step) {
+    for (let x = Math.min(...xs) + 7; x < Math.max(...xs) - 7; x += step) {
+      if (inside(pts, x, y) && inside(pts, x + 4, y) && inside(pts, x - 4, y) && inside(pts, x, y + 4) && inside(pts, x, y - 4)) {
+        cells.push({ x, y, m: moistureAt(x, y, f, cx, cy) });
+      }
+    }
+  }
+  const mesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(step - 0.8, 0.7, step - 0.8),
+    new THREE.MeshStandardMaterial({ roughness: 0.92, transparent: true, opacity: 0.55 }),
+    cells.length,
+  );
+  const mat = new THREE.Matrix4();
+  const col = new THREE.Color();
+  cells.forEach((c, i) => {
+    mat.makeTranslation(wx(c.x), 0.4, wz(c.y));
+    mesh.setMatrixAt(i, mat);
+    mesh.setColorAt(i, col.set(moistureTint(c.m)));
+  });
+  mesh.instanceColor!.needsUpdate = true;
+  mesh.receiveShadow = true;
+  mesh.userData.id = f.id;
+  mesh.userData.cells = cells.length;
+  return mesh;
+}
+
+function hudHtml(f: Field): string {
+  const zones = sensorsOf(f.id);
+  const live = zones.filter((s) => s.m != null).map((s) => s.m!);
+  const lo = live.length ? Math.min(...live) : f.m;
+  const hi = live.length ? Math.max(...live) : f.m;
+  const rows = zones
+    .map((s) => {
+      const v = s.m == null ? '—' : `${Math.round(s.m)}%`;
+      const tone = s.m == null ? '#b8b2a2' : moistureTint(s.m);
+      return `<div class=z3><i style='background:${tone}'></i><b>${s.id}</b><span>${v}</span><em>${s.online ? 'live' : `${s.age}h ago`}</em></div>`;
+    })
+    .join('');
+  return `<p class=hud3-k>${f.name} · ${f.crop}</p><div class=hud3-grid><div><span>Avg moisture</span><b>${f.m}%</b></div><div><span>Air humidity</span><b>${f.h}%</b></div><div><span>Soil temp</span><b>${T(f.st)}</b></div><div><span>Last watered</span><b>${lastWatered(f.id)}</b></div></div><div class=hud3-leg aria-hidden=true><span>Dry</span><i></i><span>Wet</span><em>${Math.round(lo)}–${Math.round(hi)}% across field</em></div><p class=hud3-z>Moisture by sensor area</p>${rows}<button class='btn sm hud3-btn' data-act=go data-p=field data-id=${f.id}>Open field details</button>`;
+}
+
 function fieldNode(f: Field, labels: HTMLDivElement): FieldNode {
   const pts = polyPoints(f.id);
+  const [cx, cy] = center(f.id);
   const shape = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(wx(x), -wz(y))));
   const geo = new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false });
   const block = new THREE.Mesh(geo, [
@@ -203,69 +274,53 @@ function fieldNode(f: Field, labels: HTMLDivElement): FieldNode {
   edge.rotation.x = -Math.PI / 2;
 
   const top = new THREE.Group();
-  const rnd = prng(f.id.charCodeAt(0) * 7919);
-  const xs = pts.map((p) => p[0]);
-  const ys = pts.map((p) => p[1]);
-  const plants: THREE.Vector3[] = [];
-  for (let n = 0; plants.length < 60 && n < 600; n++) {
-    const x = Math.min(...xs) + rnd() * (Math.max(...xs) - Math.min(...xs));
-    const y = Math.min(...ys) + rnd() * (Math.max(...ys) - Math.min(...ys));
-    if (inside(pts, x, y) && inside(pts, x + 8, y) && inside(pts, x - 8, y) && inside(pts, x, y + 8) && inside(pts, x, y - 8)) plants.push(new THREE.Vector3(wx(x), 0, wz(y)));
-  }
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  if (f.crop === 'Blueberries') {
-    // Rounded shrubs dotted with berries, instead of grain spikes.
-    const bush = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(6, 1), new THREE.MeshStandardMaterial({ color: '#2f5a3a', roughness: 0.9, flatShading: true }), plants.length);
-    const berry = new THREE.InstancedMesh(new THREE.SphereGeometry(1.5, 8, 6), new THREE.MeshStandardMaterial({ color: CC[f.crop], roughness: 0.35 }), plants.length * 6);
-    plants.forEach((p, i) => {
-      const s = 0.8 + rnd() * 0.4;
-      m.compose(new THREE.Vector3(p.x, 5 * s, p.z), q, new THREE.Vector3(s, s * 0.85, s));
-      bush.setMatrixAt(i, m);
-      for (let b = 0; b < 6; b++) {
-        const a = rnd() * Math.PI * 2;
-        const up = 0.2 + rnd() * 0.7;
-        const r = 6 * s * Math.sqrt(1 - up * up);
-        m.makeTranslation(p.x + Math.cos(a) * r, 5 * s + up * 5.1 * s, p.z + Math.sin(a) * r);
-        berry.setMatrixAt(i * 6 + b, m);
-      }
-    });
-    bush.castShadow = true;
-    top.add(bush, berry);
-  } else {
-    const crop = new THREE.InstancedMesh(new THREE.ConeGeometry(3.2, 10, 6), new THREE.MeshStandardMaterial({ color: CC[f.crop], roughness: 0.8 }), plants.length);
-    plants.forEach((p, i) => {
-      const s = 0.75 + rnd() * 0.5;
-      m.compose(new THREE.Vector3(p.x, 5 * s, p.z), q, new THREE.Vector3(s, s, s));
-      crop.setMatrixAt(i, m);
-    });
-    crop.castShadow = true;
-    top.add(crop);
-  }
+  const zones = zoneTiles(f, pts, cx, cy);
+  const crops = new THREE.Group();
+  plantField(crops, f, pts, prng(f.id.charCodeAt(0) * 7919), wx, wz);
+  top.add(zones, crops);
 
-  const [cx, cy] = center(f.id);
-  for (let i = 0; i < f.s[1]; i++) {
-    const online = i < f.s[0];
-    const [dx, dy] = SENSOR_OFFSETS[i];
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 18), new THREE.MeshStandardMaterial({ color: '#2a2f33' }));
-    post.position.set(wx(cx + dx), 9, wz(cy + dy));
+  const ss = sensorsOf(f.id);
+  ss.forEach((s) => {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 16), new THREE.MeshStandardMaterial({ color: '#2a2f33' }));
+    post.position.set(wx(cx + s.dx), 8, wz(cy + s.dy));
     const head = new THREE.Mesh(
-      new THREE.SphereGeometry(4, 16, 12),
-      new THREE.MeshStandardMaterial({ color: online ? '#2f9a5a' : '#f2a33a', emissive: online ? '#0d3a1f' : '#5a2a00' }),
+      new THREE.SphereGeometry(3.6, 14, 10),
+      new THREE.MeshStandardMaterial({
+        color: s.online ? moistureTint(s.m ?? f.m) : '#f2a33a',
+        emissive: s.online ? '#0d3a1f' : '#5a2a00',
+      }),
     );
-    head.position.set(wx(cx + dx), 20, wz(cy + dy));
+    head.position.set(wx(cx + s.dx), 18, wz(cy + s.dy));
     post.castShadow = head.castShadow = true;
+    post.userData.id = head.userData.id = f.id;
     top.add(post, head);
-  }
+  });
 
   const group = new THREE.Group();
+  group.userData.id = f.id;
   group.add(block, edge, top);
+
   const label = document.createElement('button');
   label.className = 'f3';
   label.dataset.act = 'pk';
   label.dataset.id = f.id;
   labels.appendChild(label);
-  return { id: f.id, group, block, edge, top, label, anchor: new THREE.Vector3(wx(cx), 0, wz(cy)), h: 1, target: 1 };
+
+  const hud = document.createElement('div');
+  hud.className = 'hud3';
+  hud.dataset.testid = `hud-${f.id}`;
+  labels.appendChild(hud);
+
+  const pins: Pin[] = ss.map((s) => {
+    const el = document.createElement('button');
+    el.className = 'pin3';
+    el.dataset.act = 'pk';
+    el.dataset.id = f.id;
+    labels.appendChild(el);
+    return { el, x: wx(cx + s.dx), z: wz(cy + s.dy) };
+  });
+
+  return { id: f.id, group, block, edge, top, zones, crops, label, hud, pins, anchor: new THREE.Vector3(wx(cx), 0, wz(cy)), h: 1, target: 1 };
 }
 
 function create(onPick: (id: FieldId) => void): Ctx {
@@ -318,8 +373,13 @@ function create(onPick: (id: FieldId) => void): Ctx {
     if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
     const r = renderer.domElement.getBoundingClientRect();
     ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
-    const hit = ray.intersectObjects(fields.map((n) => n.block))[0];
-    if (hit) c.onPick(hit.object.userData.id as FieldId);
+    const hit = ray.intersectObjects(
+      fields.map((n) => n.group),
+      true,
+    )[0];
+    let obj: THREE.Object3D | undefined = hit?.object;
+    while (obj && !obj.userData.id) obj = obj.parent ?? undefined;
+    if (obj) c.onPick(obj.userData.id as FieldId);
   });
   return c;
 }
@@ -343,10 +403,32 @@ function sync(c: Ctx) {
     n.target = heightFor(f, L) + (sel ? 6 : 0);
     const [ox, oy] = S.off[n.id] ?? [0, 0];
     n.group.position.set(ox, 0, oy);
+    // Selected field: moisture map is loud; other fields keep a light soil wash under the crop.
+    const zm = n.zones.material as THREE.MeshStandardMaterial;
+    zm.opacity = sel ? 0.92 : 0.42;
+    n.zones.position.y = sel ? 0.35 : 0;
+    n.crops.visible = true;
+    n.crops.traverse((o) => {
+      if (o instanceof THREE.InstancedMesh) {
+        const mat = o.material as THREE.MeshStandardMaterial;
+        mat.transparent = sel;
+        mat.opacity = sel ? 0.72 : 1;
+      }
+    });
     const k = ws(f);
     n.label.innerHTML = `<span data-w=1>${can(k, 26)}</span><span><b>${f.name}</b><br>${valueFor(f, L)}</span>`;
     n.label.setAttribute('aria-pressed', String(sel));
     n.label.setAttribute('aria-label', `${f.name}, ${valueFor(f, L)}`);
+    n.hud.innerHTML = hudHtml(f);
+    n.hud.classList.toggle('on', sel);
+    const ss = sensorsOf(f.id);
+    n.pins.forEach((p, i) => {
+      const s = ss[i];
+      p.el.classList.toggle('on', sel);
+      if (!s) return;
+      p.el.innerHTML = `<b>${s.id}</b>${s.m == null ? '—' : `${Math.round(s.m)}%`}`;
+      p.el.style.borderColor = s.m == null ? '#b8b2a2' : moistureTint(s.m);
+    });
   }
   c.pipes.visible = Object.keys(S.off).length === 0;
   if (S.sel !== c.sel) {
@@ -375,17 +457,45 @@ function frame(c: Ctx) {
     n.h += (n.target - n.h) * 0.14;
     n.block.scale.z = n.edge.scale.z = n.h;
     n.top.position.y = n.h;
-    tmp.copy(n.anchor).add(n.group.position).setY(n.h + 34).project(c.camera);
-    const off = tmp.z > 1;
-    n.label.style.display = off ? 'none' : '';
-    if (!off) n.label.style.transform = `translate(-50%,-100%) translate(${((tmp.x + 1) / 2) * r.width}px,${((1 - tmp.y) / 2) * r.height}px)`;
+    const toScreen = (x: number, y: number, z: number, hideBehind: boolean) => {
+      tmp.set(x, y, z).project(c.camera);
+      const off = tmp.z > 1;
+      return { off: hideBehind && off, tx: ((tmp.x + 1) / 2) * r.width, ty: ((1 - tmp.y) / 2) * r.height };
+    };
+    const lab = toScreen(n.anchor.x + n.group.position.x, n.h + 36, n.anchor.z + n.group.position.z, true);
+    n.label.style.display = lab.off ? 'none' : '';
+    if (!lab.off) n.label.style.transform = `translate(-50%,-100%) translate(${lab.tx}px,${lab.ty}px)`;
+    const sel = S.sel === n.id;
+    n.hud.style.display = sel && !lab.off ? '' : 'none';
+    if (sel && !lab.off) n.hud.style.transform = `translate(18px,-100%) translate(${lab.tx}px,${lab.ty}px)`;
+    if (sel) {
+      n.pins.forEach((p) => {
+        const pin = toScreen(p.x + n.group.position.x, n.h + 22, p.z + n.group.position.z, true);
+        p.el.style.display = pin.off ? 'none' : '';
+        if (!pin.off) p.el.style.transform = `translate(-50%,-110%) translate(${pin.tx}px,${pin.ty}px)`;
+      });
+    } else {
+      n.pins.forEach((p) => (p.el.style.display = 'none'));
+    }
   }
   c.renderer.render(c.scene, c.camera);
   requestAnimationFrame(() => frame(c));
 }
 
 /** Puts the 3D view into a freshly rendered host and brings it up to date with the state. */
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    ctx?.renderer.dispose();
+    ctx = null;
+  });
+}
+
 export function mount3D(host: HTMLElement, onPick: (id: FieldId) => void) {
+  // Crop and moisture meshes are built once; drop the scene when the host already has a stale canvas.
+  if (ctx && !host.contains(ctx.renderer.domElement) && host.querySelector('.gl3')) {
+    ctx.renderer.dispose();
+    ctx = null;
+  }
   ctx ??= create(onPick);
   const c = ctx;
   c.onPick = onPick;
