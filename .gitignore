@@ -4,3 +4,4 @@ node_modules/
 .next/
 .piezas/guard.json
 .piezas/quality-scan/
+.piezas/deploy-link.json

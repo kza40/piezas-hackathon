@@ -49,7 +49,30 @@ async function testSignInUser() {
 
 export async function seed() {
   await testSignInUser();
+  // Crop profile: crop name, moisture min, moisture max, pH min, pH max, EC max
+  await upsert("cropProfiles", "Avery Example", {"cropName":"Avery Example","moistureMin":"Sample moisture min 1","moistureMax":"Sample moisture max 1","phMin":"Sample pH min 1","phMax":"Sample pH max 1","ecMax":"Sample EC max 1"});
+  await upsert("cropProfiles", "Jordan Sample", {"cropName":"Jordan Sample","moistureMin":"Sample moisture min 2","moistureMax":"Sample moisture max 2","phMin":"Sample pH min 2","phMax":"Sample pH max 2","ecMax":"Sample EC max 2"});
+  await upsert("cropProfiles", "Riley Placeholder", {"cropName":"Riley Placeholder","moistureMin":"Sample moisture min 3","moistureMax":"Sample moisture max 3","phMin":"Sample pH min 3","phMax":"Sample pH max 3","ecMax":"Sample EC max 3"});
 
+  // Farm: name, longitude
+  await upsert("farms", "Avery Example", {"name":"Avery Example","longitude":"Sample longitude 1"});
+  await upsert("farms", "Jordan Sample", {"name":"Jordan Sample","longitude":"Sample longitude 2"});
+  await upsert("farms", "Riley Placeholder", {"name":"Riley Placeholder","longitude":"Sample longitude 3"});
+
+  // Field: name, farm, crop profile
+  await upsert("fields", "Avery Example", {"name":"Avery Example","farm":"Sample farm 1","cropProfile":"Sample crop profile 1"});
+  await upsert("fields", "Jordan Sample", {"name":"Jordan Sample","farm":"Sample farm 2","cropProfile":"Sample crop profile 2"});
+  await upsert("fields", "Riley Placeholder", {"name":"Riley Placeholder","farm":"Sample farm 3","cropProfile":"Sample crop profile 3"});
+
+  // Sensor: name, field
+  await upsert("sensors", "Avery Example", {"name":"Avery Example","field":"Sample field 1"});
+  await upsert("sensors", "Jordan Sample", {"name":"Jordan Sample","field":"Sample field 2"});
+  await upsert("sensors", "Riley Placeholder", {"name":"Riley Placeholder","field":"Sample field 3"});
+
+  // Alert: field, message, created time
+  await upsert("alerts", "Sample field 1", {"field":"Sample field 1","message":"Made-up note 1 for testing.","createdTime":"2030-01-10T15:00:00Z"});
+  await upsert("alerts", "Sample field 2", {"field":"Sample field 2","message":"Made-up note 2 for testing.","createdTime":"2030-01-11T15:00:00Z"});
+  await upsert("alerts", "Sample field 3", {"field":"Sample field 3","message":"Made-up note 3 for testing.","createdTime":"2030-01-12T15:00:00Z"});
 }
 
 seed().then(
