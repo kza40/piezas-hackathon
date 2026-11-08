@@ -1,3 +1,4 @@
+import { DEMO_ACCOUNTS } from '../seed/farmers';
 import { FB, MET, NXT, W, WS } from '../seed/farm';
 import { AL, DN, F, FH, HR, MI, MN, ownsSeedRef, REC, RT, SEN, fld, lastV } from '../seed/simulate';
 import { S } from '../state';
@@ -85,6 +86,79 @@ function authScene(): string {
 
 export function login(): string {
   const signup = S.authMode === 'signup';
+  const demos = DEMO_ACCOUNTS.map(
+    (f) =>
+      `<li><button type="button" class="demo-acc" data-act="fill" data-email="${esc(f.email)}" data-pass="${esc(f.password)}" data-testid="demo-${f.id}"><span class="demo-crop ${f.id}" aria-hidden="true"></span><span class="demo-copy"><b>${esc(f.name)}</b><span>${esc(f.farm)} · ${f.fields} fields</span><code>${esc(f.email)}</code></span></button></li>`,
+  ).join('');
+  const err = S.authError ? `<p class="auth-err" role="alert" data-testid="login-error">${esc(S.authError)}</p>` : '';
+  const form = signup
+    ? `<form data-act="signup" data-testid="signup-form"><label for="nm">Name <span class="mut">(optional)</span></label><input id="nm" name="name" type="text" autocomplete="name" maxlength="80" data-testid="signup-name" value=""><label for="em">Email</label><input id="em" name="email" type="email" autocomplete="username" required data-testid="signup-email" value="${esc(S.authEmail)}"><label for="pw">Password</label><input id="pw" name="password" type="password" autocomplete="new-password" required minlength="10" data-testid="signup-password" value=""><p class="mut" style="margin:6px 0 0">At least 10 characters.</p>${err}<button class="btn login-go" type="submit" data-testid="signup-submit">Create my account</button></form><p class="mut" style="margin-top:14px">Already farming here? <button type="button" class="linkish" data-act="authmode" data-m="signin" data-testid="goto-signin">Sign in</button></p>`
+    : `<form data-act="login" data-testid="login-form"><label for="em">Email</label><input id="em" name="email" type="email" autocomplete="username" required data-testid="login-email" value="${esc(S.authEmail)}"><label for="pw">Password</label><input id="pw" name="password" type="password" autocomplete="current-password" required data-testid="login-password" value="">${err}<button class="btn login-go" type="submit" data-testid="login-submit">Sign in to my farm</button></form><p class="mut" style="margin-top:14px">New here? <button type="button" class="linkish" data-act="authmode" data-m="signup" data-testid="goto-signup">Create an account</button></p><p class="sub">Try a demo farm</p><ul class="demo-list">${demos}</ul><p class="login-note">Demo passwords: farm123-demo / oats456-demo · session is a cookie, not localStorage</p>`;
+  return `<div class="login" data-testid="login-page">${authScene()}<div class="login-panel"><div class="login-card"><p class="login-brand">Fieldwise</p><h1>${signup ? 'Join the farm' : 'Open the farm gate'}</h1><p class="mut">${signup ? 'Create an account to start your own farm map.' : 'Sign in to see only the fields you own.'}</p>${form}</div></div></div>`;
+}
+
+export function dashboard(): string {
+  if (!F.length) {
+    return `${demo}<p class=kick>Welcome, ${esc(firstName())}</p><h1 class=mast>No farm yet.</h1><p class=mut>Create a farm with a map pin (latitude and longitude) from your profile, then add fields.</p><p><button class=btn data-act=go data-p=profile data-testid=empty-goto-profile>Set up my farm</button></p>`;
+  }
+  const Ls = byUrgency();
+  if (!S.fd) S.fd = Ls[0].id;
+  const f = fld(S.fd);
+  const n = F.filter((x) => ws(x) === 'now').length;
+  const open = openAlerts();
+  const healthy = F.filter((x) => x.hl === 'ok').length;
+  const avg = Math.round(sum((x) => x.m) / F.length);
+  return `${demo}<p class=kick>Good morning, ${esc(firstName())} · ${esc(S.farm)}</p><h1 class=mast>${n ? `Water ${n} field${n > 1 ? 's' : ''} today.` : 'Nothing to water today.'}</h1>${feat(f)}<h2 class=sh>All fields at a glance</h2><div class=tiles>${Ls.map(tile).join('')}</div><h2 class=sh>The week ahead</h2><div class='blk cream'><div class=wk>${W.map(
+    (d) => `<div class=wc><b>${d.rain}%</b><div class=wb><i style='height:${Math.max(4, d.rain)}%'></i></div><b>${d.day}</b><span>${T(d.temp)}</span></div>`,
+  ).join('')}</div><p>Blue bars show the chance of rain. Tomorrow (6 mm) and Tuesday (14 mm) are the wet days.</p></div><div class='grid g2' style='margin-top:14px'><div class='blk orange' style='margin:0'><h2>Needs you</h2>${alertItems(3)}<button class=btn data-act=go data-p=alerts>All ${open.length} alerts</button></div><div class='blk lime row' style='margin:0;justify-content:flex-start;gap:20px'><div class=ring style='background:conic-gradient(#1b2229 0 ${(healthy / F.length) * 100}%,rgba(6,33,15,.2) 0)'><b>${healthy}/${F.length}</b></div><div><h2>Fields healthy</h2><p>${F.filter((x) => x.hl !== 'ok')
+    .map((x) => x.name)
+    .join(', ')} need a look.</p></div></div></div><h2 class=sh>Fields &amp; sensors</h2><div class=row style='justify-content:flex-start;gap:24px'><div class=fn style='font-size:clamp(4rem,10vw,7rem);color:var(--g)'>${sum((x) => x.s[0])}<span>/${sum((x) => x.s[1])}</span></div><div><p>${sum((x) => x.s[0])} of ${sum((x) => x.s[1])} sensors reporting · average soil moisture ${avg}%.</p><button class='btn alt' data-act=go data-p=field>Open fields &amp; sensors</button></div></div>`;
+}
+
+const history = (f: Field) => {
+  const k = S.mk;
+  const met = metric(k);
+  const station = isStation(k);
+  const rows = SEN.filter((x) => x.f === f.layout)
+    .map((x, j) => {
+      const a = x.age;
+      const v = isStation(k) ? f[k] : lastV(x, k);
+      const status =
+        a >= 24
+          ? `<span class='pill cr'>▲ No readings for ${Math.round(a / 24)} days</span>`
+          : a > 6
+            ? `<span class='pill wn'>! Last reading ${a} h ago</span>`
+            : (lastV(x, 'm') ?? 0) < 20
+              ? `<span class='pill wn'>! Reads dry</span>`
+              : `<span class='pill ok'>✓ Online</span>`;
+      return `<tr><td><i style='display:inline-block;width:12px;height:12px;background:${station ? '#232a33' : SERIES_COLORS[j % 4]};margin-right:6px'></i>${x.id}</td><td>${status}</td><td>${v ?? '—'}${met.unit}</td></tr>`;
+    })
+    .join('');
+  return `<div class=card><h3>${met.name}, last 7 days</h3><p class=mut>Green band is the ideal range for ${f.crop.toLowerCase()}. Blue bars are rain. Red dots are odd readings we ignored. Gaps mean no data.</p>${chart(f, k)}</div><div class=card style='margin-top:14px'><h3>Sensors in ${f.name}</h3><table><tr><th>Sensor</th><th>Status</th><th>${station ? 'Field now' : met.name}</th></tr>${rows}</table></div>`;
+};
+
+const waterLog = (f: Field) => {
+  const L = S.log.filter((x) => x.f === f.id);
+  return `<h2 class=sh>Watering log</h2><p>${[5, 10, 20].map((n) => `<button class='btn alt' data-act=lg data-mm=${n}>Log ${n} mm</button>`).join(' ')}</p><div class=card>${
+    L.length
+      ? L.map((x) => `<div class=item><b>${x.mm} mm</b><span class=mut>${esc(x.d)}</span></div>`).join('')
+      : '<p class=mut>Nothing logged for this field yet. Tap a button when you water.</p>'
+  }</div>`;
+};
+
+export function field(): string {
+  if (!F.length) {
+    return `${demo}<h1>Fields &amp; sensors</h1><p class=mut>No fields yet. Create a farm and add a field from your profile.</p><button class=btn data-act=go data-p=profile>Open profile</button>`;
+  }
+  const f = fld(S.sel);
+  const r = REC.find((x) => x.f === f.id || x.f === f.layout);
+  const tiles = MET.map((m) => {
+    const rg = idealRange(f, m);
+    const v = f[m.key];
+    const o = v < rg[0] ? 'low' : v > rg[1] ? 'high' : 'in range';
+    const temp = m.unit === '°C';
+    return `<div class='mt ${o === 'in range' ? '' : 'off'}'><div class=mv>${temp ? T(v) : v}<small>${temp ? '' : m.unit}</small></div><b>${m.name}</b>${rng(v, rg)}<span>${o}</span></div>`;
+  }).join('');
   const rec = r ? `<div class='blk orange'><h2>Recommended action</h2><p><b>${r.t}</b></p><p>${r.w}</p><p>${r.c}</p></div>` : `<div class='blk lime'><h2>Recommended action</h2><p>No action needed for this field right now.</p></div>`;
   const metricTabs = MET.map((m) => `<button aria-pressed=${m.key === S.mk} data-act=mk data-k=${m.key}>${m.name}</button>`).join('');
   return `${demo}<h1>Fields &amp; sensors</h1><p class=mut>Readings, history and watering for each parcel — in one place.</p>${fieldTabs()}${feat(f)}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>Sensor history</h2><div class=tabs>${metricTabs}</div>${history(f)}${waterLog(f)}`;
