@@ -120,7 +120,8 @@ function say(text: string) {
   clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => {
     S.toast = '';
-    render();
+    // Only remove the toast: a full render() here would wipe whatever the farmer is typing in a form.
+    document.querySelector('.toast')?.remove();
   }, 1800);
 }
 
@@ -246,8 +247,9 @@ async function act(node: ActionElement, target: Element) {
       const latEl = document.getElementById('clat') as HTMLInputElement | null;
       const lngEl = document.getElementById('clng') as HTMLInputElement | null;
       const name = (nameEl?.value || S.farm || '').trim();
-      const latitude = Number(latEl?.value);
-      const longitude = Number(lngEl?.value);
+      // Number('') is 0, so an empty box would put the farm at 0, 0.
+      const latitude = latEl?.value.trim() ? Number(latEl.value) : NaN;
+      const longitude = lngEl?.value.trim() ? Number(lngEl.value) : NaN;
       if (!name) {
         nameEl?.focus();
         return say('Enter a farm name first');
@@ -296,6 +298,7 @@ async function act(node: ActionElement, target: Element) {
       if (!S.farmerId || !d.id) return;
       const id = d.id as FieldId;
       const label = fld(id).name;
+      if (!confirm(`Remove ${label}? Its sensors and their readings are deleted too.`)) return;
       try {
         await farmApi.deleteField(id);
         await refreshFields();

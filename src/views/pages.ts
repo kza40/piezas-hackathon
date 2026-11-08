@@ -134,7 +134,7 @@ const history = (f: Field) => {
       return `<tr><td><i style='display:inline-block;width:12px;height:12px;background:${station ? '#232a33' : SERIES_COLORS[j % 4]};margin-right:6px'></i>${x.id}</td><td>${status}</td><td>${v ?? '—'}${met.unit}</td></tr>`;
     })
     .join('');
-  return `<div class=card><h3>${met.name}, last 7 days</h3><p class=mut>Green band is the ideal range for ${f.crop.toLowerCase()}. Blue bars are rain. Red dots are odd readings we ignored. Gaps mean no data.</p>${chart(f, k)}</div><div class=card style='margin-top:14px'><h3>Sensors in ${f.name}</h3><table><tr><th>Sensor</th><th>Status</th><th>${station ? 'Field now' : met.name}</th></tr>${rows}</table></div>`;
+  return `<div class=card><h3>${met.name}, last 7 days</h3><p class=mut>Green band is the ideal range for ${f.crop.toLowerCase()}. Blue bars are rain. Red dots are odd readings we ignored. Gaps mean no data.</p>${chart(f, k)}</div><div class=card style='margin-top:14px'><h3>Sensors in ${esc(f.name)}</h3><table><tr><th>Sensor</th><th>Status</th><th>${station ? 'Field now' : met.name}</th></tr>${rows}</table></div>`;
 };
 
 const waterLog = (f: Field) => {
@@ -182,7 +182,7 @@ export function recs(): string {
     const actions = done
       ? '<span class="pill ok">✓ Marked done</span>'
       : `<button class="btn" data-act="done" data-rid="${r.id}">Mark as done</button> <button class="btn alt" data-act="say" data-t="We’ll remind you in 4 hours">Remind me later</button>`;
-    return `<div class="card" style="margin-bottom:12px"><div class="row"><div style="display:flex;gap:8px;align-items:center">${can(ws(field), 34)}${pill(r.p === 'in' ? 'ok' : r.p)}</div><button class="btn alt" data-act="go" data-p="field" data-id="${field.id}">${field.name}</button></div><h2 style="margin:8px 0">${done ? '<s>' + r.t + '</s>' : r.t}</h2><p>${r.w}</p><p class="mut">${r.c}</p>${actions}</div>`;
+    return `<div class="card" style="margin-bottom:12px"><div class="row"><div style="display:flex;gap:8px;align-items:center">${can(ws(field), 34)}${pill(r.p === 'in' ? 'ok' : r.p)}</div><button class="btn alt" data-act="go" data-p="field" data-id="${field.id}">${esc(field.name)}</button></div><h2 style="margin:8px 0">${done ? '<s>' + r.t + '</s>' : r.t}</h2><p>${r.w}</p><p class="mut">${r.c}</p>${actions}</div>`;
   }).join('');
   return `${demo}<h1>Recommended actions</h1><p class="mut">Ordered by how soon each one matters.</p>${cards}`;
 }
@@ -250,5 +250,5 @@ export function wateringModal(f: Field): string {
     rain: 'Hold off. If less than 3 mm falls by tomorrow evening, water then.',
     none: 'Nothing to do. Check again on Thursday.',
   };
-  return `<div class=mdl data-act=cm><div class=sheet role=dialog aria-modal=true aria-label='Watering details' style='border-top-color:${w.h}'><div class=row><div style='display:flex;gap:12px;align-items:center'>${can(k, 60)}<div><h2>${f.name}</h2><b style='color:${w.c};font-size:1.15rem'>${w.t}</b></div></div><button class='btn alt' data-act=cm>Close</button></div><div class=item style='display:block'><div class=row><span>Soil moisture now</span><b>${f.m}%</b></div>${rng(f.m, f.mi)}<div class=mut>Recommended for ${f.crop.toLowerCase()}: ${lo}–${hi}%</div></div><p><b>Weather:</b> ${T(16)}, sunny today (10% rain). Tomorrow: 70% chance, about 6 mm.</p><p><b>Why:</b> ${why[k]}</p><div class=nx><span class=mut>Next step</span><br>${next[k]}</div><p style='margin-top:14px'><button class=btn data-act=gf data-id=${f.id}>Open field details</button></p></div></div>`;
+  return `<div class=mdl data-act=cm><div class=sheet role=dialog aria-modal=true aria-label='Watering details' style='border-top-color:${w.h}'><div class=row><div style='display:flex;gap:12px;align-items:center'>${can(k, 60)}<div><h2>${esc(f.name)}</h2><b style='color:${w.c};font-size:1.15rem'>${w.t}</b></div></div><button class='btn alt' data-act=cm>Close</button></div><div class=item style='display:block'><div class=row><span>Soil moisture now</span><b>${f.m}%</b></div>${rng(f.m, f.mi)}<div class=mut>Recommended for ${f.crop.toLowerCase()}: ${lo}–${hi}%</div></div><p><b>Weather:</b> ${T(16)}, sunny today (10% rain). Tomorrow: 70% chance, about 6 mm.</p><p><b>Why:</b> ${why[k]}</p><div class=nx><span class=mut>Next step</span><br>${next[k]}</div><p style='margin-top:14px'><button class=btn data-act=gf data-id=${f.id}>Open field details</button></p></div></div>`;
 }

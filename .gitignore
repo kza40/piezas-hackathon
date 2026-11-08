@@ -6,3 +6,4 @@ dist/
 .piezas/guard.json
 .piezas/quality-scan/
 .piezas/deploy-link.json
+.piezas/test-results/
