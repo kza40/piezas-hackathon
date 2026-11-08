@@ -42,7 +42,7 @@ const kv = (k: string, v: string) => `<div class=kv><span>${k}</span><b>${v}</b>
 // ---- farmer profile ------------------------------------------------------
 
 export function profileCard(): string {
-  const body = `<div class=prof><span class=av>${esc(initials())}</span><div><b class=pnm>${esc(S.name)}</b><div class='mut tiny'>${esc(S.role)} · ${esc(S.farm || 'No farm yet')}</div></div></div><div class='kvs g2'>${kv('Phone', S.phone || '—')}${kv('Watering logged', `${S.log.filter((x) => F.some((f) => f.id === x.f)).length} this week`)}${kv('Email', S.email || '—')}${kv('Alerts', 'Critical alerts')}</div><div class=btns><button class='btn sm' data-act=go data-p=profile>Edit profile</button><button class='btn alt sm' data-act=go data-p=settings>Settings</button><button class='btn alt sm' data-act=out data-testid=sign-out>Sign out</button></div>`;
+  const body = `<div class=prof><span class=av>${esc(initials())}</span><div><b class=pnm>${esc(S.name)}</b><div class='mut tiny'>${esc(S.role)} · ${esc(S.farm || 'No farm yet')}</div></div></div><div class='kvs g2'>${kv('Phone', S.phone || '—')}${kv('Watering logged', `${S.log.filter((x) => F.some((f) => f.id === x.f)).length} this week`)}${kv('Email', esc(S.email || '—'))}${kv('Alerts', 'Critical alerts')}</div><div class=btns><button class='btn sm' data-act=go data-p=profile>Edit profile</button><button class='btn alt sm' data-act=go data-p=settings>Settings</button><button class='btn alt sm' data-act=out data-testid=sign-out>Sign out</button></div>`;
   return mapCard('profile', 'Farmer profile', body, { sum: `${esc(S.name)} · ${esc(S.role)}`, panel: 'profile', cls: 'pcard' });
 }
 
@@ -88,9 +88,9 @@ export function fieldCard(): string {
     })
     .join('');
   const hero = `<div class=fhero style='background:${look.bg};color:${look.fg}'><div><div class=fn style='color:${look.n}'>${f.m}<span>%</span></div><div class=fsub>Soil moisture · ${trend}</div></div><button class=cb data-act=op data-id=${f.id} aria-label='Watering details'>${can(k, 48)}</button><p class=chip style='background:${look.fg};color:${look.bg}'><i style='background:${WS[k].h}'></i>${look.c}</p></div>`;
-  const grid = `<div class='kvs g2'>${kv('Crop', `${f.crop} · ${f.stage}`)}${kv('Area', `${f.ac} ac`)}${kv('Soil', f.soil)}${kv('Air humidity', `${f.h}%`)}${kv('Soil temp', T(f.st))}${kv('pH', String(f.ph))}${kv('Last watered', lastWatered(f.id))}${kv('Across field', span)}</div>`;
+  const grid = `<div class='kvs g2'>${kv('Crop', `${f.crop} · ${esc(f.stage)}`)}${kv('Area', `${f.ac} ac`)}${kv('Soil', esc(f.soil))}${kv('Air humidity', `${f.h}%`)}${kv('Soil temp', T(f.st))}${kv('pH', String(f.ph))}${kv('Last watered', lastWatered(f.id))}${kv('Across field', span)}</div>`;
   const body = `${hero}${spark(f)}${grid}<p class=sub>Moisture by area</p><div class=zrows>${zones}</div><div class=nx><span class=mut>Recommended action</span><br>${r ? r.t : 'No action needed right now'}.</div><div class=btns><button class='btn sm' data-act=go data-p=field>Open field &amp; sensors</button><button class='btn alt sm' data-act=op data-id=${f.id}>Why this advice?</button></div>`;
-  return mapCard('field', `Field ${fieldNo(f.id)} · ${f.name}`, body, { sum: `${f.m}% · ${WS[k].t}`, panel: 'field', cls: 'fcard' });
+  return mapCard('field', `Field ${fieldNo(f.id)} · ${esc(f.name)}`, body, { sum: `${f.m}% · ${WS[k].t}`, panel: 'field', cls: 'fcard' });
 }
 
 export function legendCard(layer: MapLayer): string {
@@ -114,7 +114,7 @@ export function todayCard(): string {
   const rows = list
     .map((x) => {
       const k = ws(x);
-      return `<button class=mrow data-act=pk data-id=${x.id} aria-pressed=${x.id === S.sel}>${can(k, 24)}<span class=mrn>${x.name}<span class=mut> · ${x.crop}, ${x.ac} ac</span></span><span class=mrv style='color:${WS[k].c}'>${x.m}%</span></button>`;
+      return `<button class=mrow data-act=pk data-id=${x.id} aria-pressed=${x.id === S.sel}>${can(k, 24)}<span class=mrn>${esc(x.name)}<span class=mut> · ${x.crop}, ${x.ac} ac</span></span><span class=mrv style='color:${WS[k].c}'>${x.m}%</span></button>`;
     })
     .join('');
   const body = `<p class=kick>Good morning, ${esc(firstName())}</p><div class=kpis>${kpi(String(n), n === 1 ? 'field to water' : 'fields to water', n ? 'bad' : '')}${kpi(avg + '%', 'avg moisture')}${kpi(`${on}/${total}`, 'sensors online', on < total ? 'warn' : '')}${kpi(String(crit), 'critical alerts', crit ? 'bad' : '')}</div><div class='row tiny mut thead'><span>Field</span><span>Moisture</span></div>${rows}`;
@@ -152,7 +152,7 @@ export function actionsCard(): string {
         .slice(0, 3)
         .map(
           (r) =>
-            `<div class=item>${can(ws(fieldForSeed(r.f)), 24)}<div style='flex:1'><b>${r.t}</b><div class='mut tiny'>${fieldForSeed(r.f).name} · ${r.p === 'cr' ? 'Today' : 'This week'}</div></div><button class='btn sm' data-act=done data-rid=${r.id}>Done</button></div>`,
+            `<div class=item>${can(ws(fieldForSeed(r.f)), 24)}<div style='flex:1'><b>${r.t}</b><div class='mut tiny'>${esc(fieldForSeed(r.f).name)} · ${r.p === 'cr' ? 'Today' : 'This week'}</div></div><button class='btn sm' data-act=done data-rid=${r.id}>Done</button></div>`,
         )
         .join('') + (todo.length > 3 ? `<button class='btn alt sm' data-act=go data-p=recs>See all ${todo.length}</button>` : '')
     : '<p class=mut>All caught up.</p>';

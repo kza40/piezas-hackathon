@@ -16,6 +16,11 @@ export default defineConfig({
   forbidOnly: true,
   retries: 1,
   reporter: 'list',
+  // The first 3D map render (three.js, software WebGL in headless Chrome) blocks the page for ~3 s alone and
+  // ~14 s with 4 browsers at once, so: at most 2 browsers, and 20 s per check instead of 5.
+  workers: 2,
+  timeout: 90_000, // a whole scenario redraws the 3D map several times
+  expect: { timeout: 20_000 },
   use: {
     baseURL: process.env.PW_BASE_URL || `http://localhost:${port}`,
     trace: 'on-first-retry',
@@ -24,11 +29,12 @@ export default defineConfig({
   webServer: process.env.PW_BASE_URL
     ? undefined
     : {
-        command: process.env.PIEZAS_TEST_SERVER_CMD || `npm run dev -- --port ${port}`,
+        // The real app: the built frontend and /api from one server, on the TEST copy (--test-app).
+        command: process.env.PIEZAS_TEST_SERVER_CMD || 'npm run build && npx tsx --env-file=.env server/index.ts --test-app',
         port,
         reuseExistingServer: false,
         timeout: 120_000,
-        env: { PIEZAS_API_KEY: process.env.PIEZAS_TEST_API_KEY ?? '' },
+        env: { PIEZAS_API_KEY: process.env.PIEZAS_TEST_API_KEY ?? '', PORT: String(port) },
       },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });

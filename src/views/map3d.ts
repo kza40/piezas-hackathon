@@ -287,7 +287,7 @@ function hudHtml(f: Field): string {
       return `<div class=z3><i style='background:${tone}'></i><b>${s.id}</b><span>${v}</span><em>${s.online ? 'live' : `${s.age}h ago`}</em></div>`;
     })
     .join('');
-  return `<p class=hud3-k>${f.name} · ${f.crop}</p><div class=hud3-grid><div><span>Avg moisture</span><b>${f.m}%</b></div><div><span>Air humidity</span><b>${f.h}%</b></div><div><span>Soil temp</span><b>${T(f.st)}</b></div><div><span>Last watered</span><b>${lastWatered(f.id)}</b></div></div><div class=hud3-leg aria-hidden=true><span>Dry</span><i></i><span>Wet</span><em>${Math.round(lo)}–${Math.round(hi)}% across field</em></div><p class=hud3-z>Moisture by sensor area</p>${rows}<button class='btn sm hud3-btn' data-act=go data-p=field data-id=${f.id}>Open field details</button>`;
+  return `<p class=hud3-k>${esc(f.name)} · ${f.crop}</p><div class=hud3-grid><div><span>Avg moisture</span><b>${f.m}%</b></div><div><span>Air humidity</span><b>${f.h}%</b></div><div><span>Soil temp</span><b>${T(f.st)}</b></div><div><span>Last watered</span><b>${lastWatered(f.id)}</b></div></div><div class=hud3-leg aria-hidden=true><span>Dry</span><i></i><span>Wet</span><em>${Math.round(lo)}–${Math.round(hi)}% across field</em></div><p class=hud3-z>Moisture by sensor area</p>${rows}<button class='btn sm hud3-btn' data-act=go data-p=field data-id=${f.id}>Open field details</button>`;
 }
 
 function fieldNode(f: Field, labels: HTMLDivElement): FieldNode {
@@ -451,7 +451,7 @@ function sync(c: Ctx) {
     const k = ws(f);
     n.label.innerHTML = `<span data-w=1>${can(k, 26)}</span><span><b>${esc(f.name)}</b><br>${valueFor(f, L)}</span>`;
     n.label.setAttribute('aria-pressed', String(sel));
-    n.label.setAttribute('aria-label', `${esc(f.name)}, ${valueFor(f, L)}`);
+    n.label.setAttribute('aria-label', `${f.name}, ${valueFor(f, L)}`);
     n.hud.innerHTML = hudHtml(f);
     n.hud.classList.toggle('on', sel);
     const ss = sensorsOf(f.id);
