@@ -1,0 +1,23 @@
+[
+  {
+    "id": "farm_1",
+    "name": "Fraser Ridge Berries",
+    "latitude": 49.05,
+    "longitude": -122.3,
+    "owner_id": "owner_demo_1"
+  },
+  {
+    "id": "farm_2",
+    "name": "Pitt Meadow Blueberries",
+    "latitude": 49.22,
+    "longitude": -122.69,
+    "owner_id": "owner_demo_1"
+  },
+  {
+    "id": "farm_3",
+    "name": "Riverbend Berry Co.",
+    "latitude": 49.17,
+    "longitude": -123.14,
+    "owner_id": "owner_demo_2"
+  }
+]
