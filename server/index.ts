@@ -6,6 +6,9 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { api } from './app';
+import { assertDeviceKeyConfig } from '../lib/server/device-keys';
+
+assertDeviceKeyConfig(); // refuse to start rather than fail on the first sensor
 
 const app = new Hono();
 app.route('/', api);

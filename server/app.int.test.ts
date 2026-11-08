@@ -37,9 +37,9 @@ before(async () => {
 });
 
 after(async () => {
-  const { farm, field, profile } = await db();
+  const { farm, field, profile, sensor } = await db();
   for (const ownerId of userIds) {
-    for (const client of [field, farm, profile]) for (const r of await listAll(client, { ownerId })) await client.delete(r.id);
+    for (const client of [sensor, field, farm, profile]) for (const r of await listAll(client, { ownerId })) await client.delete(r.id);
     await piezas().users.deleteUser(ownerId).catch(() => {});
   }
 });
@@ -149,6 +149,129 @@ describe('farms and fields over HTTP', () => {
     assert.equal((await sam('DELETE', `/api/fields/${fieldId}`)).status, 204);
     assert.equal((await sam('GET', `/api/fields/${fieldId}`)).status, 404);
     assert.deepEqual((await sam('GET', `/api/farms/${farmId}/fields`)).body.fields, []);
+  });
+});
+
+describe('sensors, device keys and ingest over HTTP', () => {
+  let fieldId = '';
+  let sensorId = '';
+  let deviceKey = '';
+  const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
+  const device = async (key: string | undefined, json: unknown) => {
+    const res = await api.request('/api/ingest', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(key !== undefined ? { 'x-device-key': key } : {}) },
+      body: JSON.stringify(json),
+    });
+    return { status: res.status, body: await res.json() };
+  };
+  const latest = async () => (await sam('GET', `/api/fields/${fieldId}/sensors`)).body.sensors.find((s: any) => s.id === sensorId).latest;
+
+  test('S-003: registering a sensor shows its device key once and lists it as active', async () => {
+    const farm = (await sam('POST', '/api/farms', { name: 'Sensor Farm', latitude: 49.05, longitude: -122.3 })).body.farm;
+    const crop = (await sam('GET', '/api/crop-profiles')).body.cropProfiles[5];
+    fieldId = (await sam('POST', `/api/farms/${farm.id}/fields`, { name: 'North block', cropProfileId: crop.id })).body.field.id;
+
+    const r = await sam('POST', `/api/fields/${fieldId}/sensors`, { name: 'Row 3 probe' });
+    assert.equal(r.status, 201);
+    assert.match(r.body.deviceKey, /^fwk_[A-Za-z0-9_-]{43}$/);
+    assert.deepEqual({ ...r.body.sensor, id: '', createdAt: '' }, { id: '', fieldId, name: 'Row 3 probe', keyStatus: 'active', latest: {}, createdAt: '' });
+    ({ deviceKey } = r.body);
+    sensorId = r.body.sensor.id;
+
+    const listed = await sam('GET', `/api/fields/${fieldId}/sensors`);
+    assert.deepEqual(listed.body.sensors.map((s: any) => [s.name, s.keyStatus]), [['Row 3 probe', 'active']]);
+    assert.ok(!JSON.stringify(listed.body).includes(deviceKey.slice(4)), 'the key is never shown again');
+    assert.ok(!JSON.stringify(listed.body).includes('keyHash'), 'nor its hash');
+  });
+
+  test("S-011: another farmer cannot see, add to or revoke Sam's sensors", async () => {
+    assert.equal((await jordan('GET', `/api/fields/${fieldId}/sensors`)).status, 404);
+    assert.equal((await jordan('POST', `/api/fields/${fieldId}/sensors`, { name: 'Sneaky' })).status, 404);
+    assert.equal((await jordan('POST', `/api/sensors/${sensorId}/revoke`)).status, 404);
+    assert.equal((await sam('POST', `/api/sensors/${fieldId}/revoke`)).status, 404); // a field id is not a sensor id
+  });
+
+  test('S-004: a reading with the key is saved; a wrong, missing or malformed key is rejected', async () => {
+    const reading = { type: 'soil_moisture', value: 27.4, unit: '%', time: at(60) };
+    const good = await device(deviceKey, reading);
+    assert.deepEqual([good.status, good.body], [202, { accepted: 1 }]);
+    assert.deepEqual((await latest()).soil_moisture, { value: 27.4, unit: '%', time: reading.time });
+
+    const forged = `fwk_${'A'.repeat(43)}`;
+    for (const key of [forged, undefined, 'not-a-key', deviceKey.slice(0, -1)]) {
+      const bad = await device(key, { ...reading, value: 99 });
+      assert.equal(bad.status, 401, String(key));
+      assert.equal(bad.body.error, 'unauthorized');
+    }
+    assert.equal((await latest()).soil_moisture.value, 27.4);
+  });
+
+  test('an oversized ingest body is refused before it is read', async () => {
+    const huge = { readings: [], padding: 'x'.repeat(70 * 1024) };
+    const r = await device(deviceKey, huge);
+    assert.deepEqual([r.status, r.body.error], [413, 'payload_too_large']);
+  });
+
+  test('S-012: all six types are saved in one batch; an unsupported type or wrong unit is rejected', async () => {
+    const t = at(30);
+    const six = [
+      { type: 'soil_moisture', value: 31.2, unit: '%' },
+      { type: 'soil_temperature', value: 8.5, unit: 'C' },
+      { type: 'soil_ec', value: 0.6, unit: 'dS/m' },
+      { type: 'soil_ph', value: 5.1, unit: 'pH' },
+      { type: 'air_temperature', value: 6.2, unit: 'C' },
+      { type: 'air_humidity', value: 88, unit: '%' },
+    ].map((r) => ({ ...r, time: t }));
+    assert.deepEqual((await device(deviceKey, { readings: six })).body, { accepted: 6 });
+    const l = await latest();
+    assert.deepEqual(Object.keys(l).sort(), six.map((r) => r.type).sort());
+    assert.deepEqual(l.soil_ec, { value: 0.6, unit: 'dS/m', time: t });
+
+    const light = await device(deviceKey, { type: 'light', value: 300, unit: 'lux', time: at(10) });
+    assert.equal(light.status, 400);
+    assert.match(light.body.message, /type must be one of/);
+    // All or nothing: a good reading next to a bad one is not saved either.
+    const mixed = await device(deviceKey, { readings: [{ ...six[0], value: 44, time: at(5) }, { ...six[1], unit: 'F', time: at(5) }] });
+    assert.equal(mixed.status, 400);
+    assert.equal((await latest()).soil_moisture.value, 31.2);
+  });
+
+  test('a late, older reading does not replace a newer one', async () => {
+    assert.equal((await device(deviceKey, { type: 'soil_ph', value: 6.9, unit: 'pH', time: at(600) })).status, 202);
+    assert.equal((await latest()).soil_ph.value, 5.1);
+  });
+
+  test('parallel batches from one device are all kept (the per-sensor lock)', async () => {
+    const t = at(1);
+    const types = [
+      ['soil_moisture', '%'],
+      ['soil_temperature', 'C'],
+      ['air_temperature', 'C'],
+      ['air_humidity', '%'],
+    ];
+    const res = await Promise.all(types.map(([type, unit], i) => device(deviceKey, { type, unit, value: 20 + i, time: t })));
+    assert.deepEqual(res.map((r) => r.status), [202, 202, 202, 202]);
+    const l = await latest();
+    assert.deepEqual(types.map(([type]) => l[type].value), [20, 21, 22, 23]);
+  });
+
+  test('S-005: after the farmer revokes the key, readings are rejected', async () => {
+    const r = await sam('POST', `/api/sensors/${sensorId}/revoke`);
+    assert.equal(r.status, 200);
+    assert.equal(r.body.sensor.keyStatus, 'revoked');
+    const after = await device(deviceKey, { type: 'soil_moisture', value: 30, unit: '%', time: at(0) });
+    assert.equal(after.status, 401);
+    assert.match(after.body.message, /revoked/);
+    assert.equal((await latest()).soil_moisture.value, 20);
+  });
+
+  test('removing a field removes its sensors, and their keys stop working', async () => {
+    const r = await sam('POST', `/api/fields/${fieldId}/sensors`, { name: 'Second probe' });
+    await sam('DELETE', `/api/fields/${fieldId}`);
+    const { sensor } = await db();
+    assert.deepEqual(await listAll(sensor, { fieldId }), []);
+    assert.equal((await device(r.body.deviceKey, { type: 'soil_moisture', value: 30, unit: '%', time: at(0) })).status, 401);
   });
 });
 

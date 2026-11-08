@@ -117,7 +117,8 @@
   "deploy": {
     "requiredEnv": [
       "PIEZAS_API_KEY",
-      "PIEZAS_API_URL"
+      "PIEZAS_API_URL",
+      "DEVICE_KEY_PEPPER"
     ],
     "optionalEnv": [
       "PIEZAS_TEST_API_KEY",
