@@ -6,6 +6,7 @@ import { number, object, optional, text } from '../validate';
 import { getCropProfile, type CropProfile } from './crops';
 import { getOwned, listAll, num, str } from './records';
 import { deleteFieldSensors } from './sensors';
+import { deleteFieldAlerts, withFieldAlertsLock } from './alerts';
 
 export interface Farm {
   id: string;
@@ -124,11 +125,15 @@ export async function getField(ownerId: string, fieldId: string): Promise<Field>
   return (await withCrops([await getOwned(field, fieldId, ownerId, 'Field')]))[0];
 }
 
-// Children first, so a failure part-way leaves the field in place and a retry finishes the job.
-// TODO(steps 4, 5): also delete the field's stored readings and alerts once those exist.
+// Children first (sensors with their history, then alerts), so a failure part-way leaves the field
+// in place and a retry finishes the job. The field itself goes last, inside the alerts lock, so the
+// advice rule cannot open an alert between the alerts being removed and the field being removed.
 export async function deleteField(ownerId: string, fieldId: string): Promise<void> {
   const { field } = await db();
   await getOwned(field, fieldId, ownerId, 'Field'); // 404 if missing or someone else's
   await deleteFieldSensors(ownerId, fieldId);
-  await field.delete(fieldId);
+  await withFieldAlertsLock(fieldId, async () => {
+    await deleteFieldAlerts(ownerId, fieldId);
+    await field.delete(fieldId);
+  });
 }

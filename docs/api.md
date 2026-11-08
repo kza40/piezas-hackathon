@@ -105,6 +105,21 @@ It is `{}` until the first reading arrives.
 
 `time` is ISO 8601 with a time zone (`Z` or `-08:00`), at most 10 minutes in the future. Replies: 202 `{ accepted: n }`; 400 when any reading is invalid (nothing in that batch is saved; the message says which reading, e.g. "Reading 2: soil_temperature must be sent in C."); 401 for a missing, wrong or revoked key; 429 above 120 requests a minute from one key. A reading older than the one already shown for that type is accepted but does not replace it.
 
+## Alerts (signed-in farmer)
+
+| Method and path | Body | Returns |
+|---|---|---|
+| `GET /api/alerts?status=open` | none | `{ alerts: [alert] }`, newest first. `status` is `open`, `done`, or left out for all. |
+| `POST /api/alerts/:alertId/done` | none | `{ alert }` with `status: "done"`; marking it again keeps the first `doneAt` |
+
+An `alert` is `{ id, fieldId, message, status, createdAt, doneAt }` (`doneAt` is `null` while open). Removing a field removes its alerts.
+
+Farmers do not create alerts; the advice rule does, on the server, with `openAlert(ownerId, fieldId, message)` from `lib/server/data/alerts.ts`:
+
+- It returns the field's open alert if there is one (never a second one, even for parallel page views; S-018), otherwise creates it.
+- It returns `null` when the farmer already marked that field's alert done today (UTC), so "done" is not undone by the next page view. The next day it can open again.
+- The message is fixed when the alert opens; the field page shows the live reason.
+
 ## Demo accounts (test app)
 
 `scripts/seed-demo.ts` has created the two demo farmers with their farms and fields, two sensors per field ("North probe", "South probe") and 14 days of simulated readings. Run it again right before a demo so the readings end at "now":
