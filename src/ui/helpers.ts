@@ -1,5 +1,5 @@
 import { HL, MET } from '../seed/farm';
-import { AL, F } from '../seed/simulate';
+import { AL, F, ownsSeedRef } from '../seed/simulate';
 import { S } from '../state';
 import type { Field, FieldId, Level, Metric, MetricKey, Range, StationKey, WaterState } from '../types';
 
@@ -36,10 +36,15 @@ export const metric = (k: MetricKey): Metric => MET.find((m) => m.key === k) ?? 
 export const idealRange = (f: Field, m: Metric): Range => (m.key === 'ph' && f.phr) || m.range || f.mi;
 export const isStation = (k: MetricKey): k is StationKey => k === 'at' || k === 'h' || k === 'l';
 export const fieldNo = (id: FieldId) => {
-  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const i = letters.indexOf(id);
-  if (i >= 0) return String(i + 1).padStart(2, '0');
-  return id.length <= 3 ? id : id.slice(0, 3);
+  const ix = F.findIndex((f) => f.id === id);
+  if (ix >= 0) return String(ix + 1).padStart(2, '0');
+  const field = F.find((f) => f.id === id);
+  if (field) {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const i = letters.indexOf(field.layout);
+    if (i >= 0) return String(i + 1).padStart(2, '0');
+  }
+  return id.length <= 3 ? id : String(Math.max(1, ix + 1)).padStart(2, '0');
 };
 
 export const lastWatered = (id: FieldId) => {
@@ -51,7 +56,7 @@ export const lastWatered = (id: FieldId) => {
 export const moistureTint = (m: number) => mix([176, 86, 42], [55, 118, 168], Math.max(0, Math.min(1, (m - 14) / 34)));
 
 /** Alerts for this farmer's fields, plus farm-wide weather notices. */
-export const openAlerts = () => AL.filter((a) => !S.dis[a.id] && a.l !== 'in' && (a.f === '' || F.some((f) => f.id === a.f)));
+export const openAlerts = () => AL.filter((a) => !S.dis[a.id] && a.l !== 'in' && ownsSeedRef(a.f));
 
 export const firstName = () => S.name.split(' ')[0] ?? '';
 export const initials = () =>

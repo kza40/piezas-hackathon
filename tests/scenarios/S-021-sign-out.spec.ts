@@ -1,9 +1,7 @@
-// piezas-scenario: S-004 v=1
+// piezas-scenario: S-021 v=1
 import { expect, test } from '@playwright/test';
 
-test('S-004 sign out leaves the farm', async ({ page }) => {
-  await page.goto('/');
-  await page.evaluate(() => localStorage.clear());
+test('S-021 sign out leaves the farm', async ({ page }) => {
   await page.goto('/#login');
   await page.getByTestId('demo-sam').click();
   await page.getByTestId('login-submit').click();

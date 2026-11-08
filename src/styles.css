@@ -218,6 +218,7 @@ main.auth{padding:0;max-width:none;width:100%;min-height:100vh}
 .login-go:hover{filter:brightness(1.05)}
 .login-note{margin:16px 0 0;font-size:.75rem;color:#8a9480;line-height:1.35}
 .auth-err{background:rgba(156,47,30,.25);color:#f4a393;border:1px solid rgba(244,163,147,.35);padding:8px 12px;font-weight:700;font-size:.9rem}
+.linkish{background:none;border:0;padding:0;color:#f0d6a0;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer}
 .demo-list{list-style:none;padding:0;margin:0;display:grid;gap:6px}
 .demo-acc{width:100%;display:flex;gap:12px;align-items:center;text-align:left;border:0;border-bottom:1px solid rgba(234,240,224,.12);background:transparent;padding:12px 0;transition:color .15s ease,background .15s ease}
 .demo-acc:hover{background:rgba(240,214,160,.06)}

@@ -1,6 +1,6 @@
-import { FARMERS } from '../seed/farmers';
+import { DEMO_ACCOUNTS } from '../seed/farmers';
 import { FB, MET, NXT, W, WS } from '../seed/farm';
-import { AL, DN, F, FH, HR, MI, MN, REC, RT, SEN, fld, lastV } from '../seed/simulate';
+import { AL, DN, F, FH, HR, MI, MN, ownsSeedRef, REC, RT, SEN, fld, lastV } from '../seed/simulate';
 import { S } from '../state';
 import type { AlertFilter, Field, Level, WaterState } from '../types';
 import { CROPS } from '../types';
@@ -50,18 +50,13 @@ const alertItems = (n: number) =>
     .map((a) => `<div class=item>${pill(a.l)}<div><b>${a.t}</b><div class=mut>${a.d}</div></div></div>`)
     .join('');
 
-export function login(): string {
-  const demos = FARMERS.map(
-    (f) =>
-      `<li><button type="button" class="demo-acc" data-act="fill" data-email="${esc(f.email)}" data-pass="${esc(f.password)}" data-testid="demo-${f.id}"><span class="demo-crop ${f.id}" aria-hidden="true"></span><span class="demo-copy"><b>${esc(f.name)}</b><span>${esc(f.farm)} · ${f.fields.length} fields</span><code>${esc(f.email)} · ${esc(f.password)}</code></span></button></li>`,
-  ).join('');
-  const err = S.authError ? `<p class="auth-err" role="alert" data-testid="login-error">${esc(S.authError)}</p>` : '';
+function authScene(): string {
   const trees = [70, 120, 175, 470, 530, 790, 850]
     .map((x, i) => `<g transform="translate(${x} ${268 + (i % 3) * 10})"><rect x="-3" y="8" width="6" height="30" fill="#5a4030"/><ellipse cx="0" cy="0" rx="18" ry="16" fill="#2f5a38"/><ellipse cx="-6" cy="-8" rx="10" ry="9" fill="#3d6b45"/></g>`)
     .join('');
   const rows = (x0: number, y0: number, w: number, n: number, color: string) =>
     Array.from({ length: n }, (_, i) => `<path d="M${x0} ${y0 + i * 8} Q${x0 + w / 2} ${y0 + i * 8 - 4} ${x0 + w} ${y0 + i * 8}" fill="none" stroke="${color}" stroke-width="2" opacity=".45"/>`).join('');
-  const scene = `<div class="login-scene" aria-hidden="true">
+  return `<div class="login-scene" aria-hidden="true">
     <div class="sky"><i class="sun"></i><i class="cloud c1"></i><i class="cloud c2"></i><i class="cloud c3"></i></div>
     <div class="login-copy"><p class="login-kicker">Fieldwise</p><p class="login-headline">Know every acre.</p><p class="login-subcopy">Moisture, weather and watering advice on one farm map.</p></div>
     <svg class="login-land" viewBox="0 0 900 420" preserveAspectRatio="xMidYMax slice">
@@ -87,10 +82,25 @@ export function login(): string {
     </svg>
     <div class="grain"></div>
   </div>`;
-  return `<div class="login" data-testid="login-page">${scene}<div class="login-panel"><div class="login-card"><p class="login-brand">Fieldwise</p><h1>Open the farm gate</h1><p class="mut">Sign in to see only the fields you own.</p><form data-act="login" data-testid="login-form"><label for="em">Email</label><input id="em" name="email" type="email" autocomplete="username" required data-testid="login-email" value="${esc(S.authEmail)}"><label for="pw">Password</label><input id="pw" name="password" type="password" autocomplete="current-password" required data-testid="login-password" value="">${err}<button class="btn login-go" type="submit" data-testid="login-submit">Sign in to my farm</button></form><p class="sub">Try a demo farm</p><ul class="demo-list">${demos}</ul><p class="login-note">Demo data · no real sensors connected</p></div></div></div>`;
+}
+
+export function login(): string {
+  const signup = S.authMode === 'signup';
+  const demos = DEMO_ACCOUNTS.map(
+    (f) =>
+      `<li><button type="button" class="demo-acc" data-act="fill" data-email="${esc(f.email)}" data-pass="${esc(f.password)}" data-testid="demo-${f.id}"><span class="demo-crop ${f.id}" aria-hidden="true"></span><span class="demo-copy"><b>${esc(f.name)}</b><span>${esc(f.farm)} · ${f.fields} fields</span><code>${esc(f.email)}</code></span></button></li>`,
+  ).join('');
+  const err = S.authError ? `<p class="auth-err" role="alert" data-testid="login-error">${esc(S.authError)}</p>` : '';
+  const form = signup
+    ? `<form data-act="signup" data-testid="signup-form"><label for="nm">Name <span class="mut">(optional)</span></label><input id="nm" name="name" type="text" autocomplete="name" maxlength="80" data-testid="signup-name" value=""><label for="em">Email</label><input id="em" name="email" type="email" autocomplete="username" required data-testid="signup-email" value="${esc(S.authEmail)}"><label for="pw">Password</label><input id="pw" name="password" type="password" autocomplete="new-password" required minlength="10" data-testid="signup-password" value=""><p class="mut" style="margin:6px 0 0">At least 10 characters.</p>${err}<button class="btn login-go" type="submit" data-testid="signup-submit">Create my account</button></form><p class="mut" style="margin-top:14px">Already farming here? <button type="button" class="linkish" data-act="authmode" data-m="signin" data-testid="goto-signin">Sign in</button></p>`
+    : `<form data-act="login" data-testid="login-form"><label for="em">Email</label><input id="em" name="email" type="email" autocomplete="username" required data-testid="login-email" value="${esc(S.authEmail)}"><label for="pw">Password</label><input id="pw" name="password" type="password" autocomplete="current-password" required data-testid="login-password" value="">${err}<button class="btn login-go" type="submit" data-testid="login-submit">Sign in to my farm</button></form><p class="mut" style="margin-top:14px">New here? <button type="button" class="linkish" data-act="authmode" data-m="signup" data-testid="goto-signup">Create an account</button></p><p class="sub">Try a demo farm</p><ul class="demo-list">${demos}</ul><p class="login-note">Demo passwords: farm123-demo / oats456-demo · session is a cookie, not localStorage</p>`;
+  return `<div class="login" data-testid="login-page">${authScene()}<div class="login-panel"><div class="login-card"><p class="login-brand">Fieldwise</p><h1>${signup ? 'Join the farm' : 'Open the farm gate'}</h1><p class="mut">${signup ? 'Create an account to start your own farm map.' : 'Sign in to see only the fields you own.'}</p>${form}</div></div></div>`;
 }
 
 export function dashboard(): string {
+  if (!F.length) {
+    return `${demo}<p class=kick>Welcome, ${esc(firstName())}</p><h1 class=mast>No farm yet.</h1><p class=mut>Create a farm with a map pin (latitude and longitude) from your profile, then add fields.</p><p><button class=btn data-act=go data-p=profile data-testid=empty-goto-profile>Set up my farm</button></p>`;
+  }
   const Ls = byUrgency();
   if (!S.fd) S.fd = Ls[0].id;
   const f = fld(S.fd);
@@ -109,7 +119,7 @@ const history = (f: Field) => {
   const k = S.mk;
   const met = metric(k);
   const station = isStation(k);
-  const rows = SEN.filter((x) => x.f === f.id)
+  const rows = SEN.filter((x) => x.f === f.layout)
     .map((x, j) => {
       const a = x.age;
       const v = isStation(k) ? f[k] : lastV(x, k);
@@ -137,8 +147,11 @@ const waterLog = (f: Field) => {
 };
 
 export function field(): string {
+  if (!F.length) {
+    return `${demo}<h1>Fields &amp; sensors</h1><p class=mut>No fields yet. Create a farm and add a field from your profile.</p><button class=btn data-act=go data-p=profile>Open profile</button>`;
+  }
   const f = fld(S.sel);
-  const r = REC.find((x) => x.f === f.id);
+  const r = REC.find((x) => x.f === f.id || x.f === f.layout);
   const tiles = MET.map((m) => {
     const rg = idealRange(f, m);
     const v = f[m.key];
@@ -163,12 +176,13 @@ export function weather(): string {
 }
 
 export function recs(): string {
-  const cards = REC.filter((r) => F.some((f) => f.id === r.f)).map((r) => {
+  const cards = REC.filter((r) => ownsSeedRef(r.f)).map((r) => {
+    const field = F.find((f) => f.id === r.f || f.layout === r.f) ?? fld(r.f);
     const done = !!S.done[r.id];
     const actions = done
       ? '<span class="pill ok">✓ Marked done</span>'
       : `<button class="btn" data-act="done" data-rid="${r.id}">Mark as done</button> <button class="btn alt" data-act="say" data-t="We’ll remind you in 4 hours">Remind me later</button>`;
-    return `<div class="card" style="margin-bottom:12px"><div class="row"><div style="display:flex;gap:8px;align-items:center">${can(ws(fld(r.f)), 34)}${pill(r.p === 'in' ? 'ok' : r.p)}</div><button class="btn alt" data-act="go" data-p="field" data-id="${r.f}">${fld(r.f).name}</button></div><h2 style="margin:8px 0">${done ? '<s>' + r.t + '</s>' : r.t}</h2><p>${r.w}</p><p class="mut">${r.c}</p>${actions}</div>`;
+    return `<div class="card" style="margin-bottom:12px"><div class="row"><div style="display:flex;gap:8px;align-items:center">${can(ws(field), 34)}${pill(r.p === 'in' ? 'ok' : r.p)}</div><button class="btn alt" data-act="go" data-p="field" data-id="${field.id}">${field.name}</button></div><h2 style="margin:8px 0">${done ? '<s>' + r.t + '</s>' : r.t}</h2><p>${r.w}</p><p class="mut">${r.c}</p>${actions}</div>`;
   }).join('');
   return `${demo}<h1>Recommended actions</h1><p class="mut">Ordered by how soon each one matters.</p>${cards}`;
 }
@@ -177,13 +191,13 @@ const LEVEL_NAME: Record<Level, string> = { cr: 'Critical', wn: 'Warning', in: '
 const FILTERS: [AlertFilter, string][] = [['all', 'All'], ['cr', 'Critical'], ['wn', 'Warning'], ['in', 'Info']];
 
 export function alerts(): string {
-  const L = AL.filter((a) => !S.dis[a.id] && (S.flt === 'all' || a.l === S.flt) && (a.f === '' || F.some((f) => f.id === a.f)));
+  const L = AL.filter((a) => !S.dis[a.id] && (S.flt === 'all' || a.l === S.flt) && ownsSeedRef(a.f));
   const tabs = FILTERS.map(([k, n]) => `<button aria-pressed="${S.flt === k}" data-act="flt" data-k="${k}">${n}</button>`).join('');
   const items = L.length
-    ? L.map(
-        (a) =>
-          `<div class="item"><span class="pill ${a.l}">${LEVEL_NAME[a.l]}</span><div style="flex:1"><b>${a.t}</b><div>${a.d}</div><div class="mut">${a.ago}</div></div>${a.f ? `<button class="btn alt" data-act="go" data-p="field" data-id="${a.f}">View</button>` : ''}<button class="btn alt" data-act="dis" data-aid="${a.id}">Dismiss</button></div>`,
-      ).join('')
+    ? L.map((a) => {
+        const field = a.f ? F.find((f) => f.id === a.f || f.layout === a.f) : null;
+        return `<div class="item"><span class="pill ${a.l}">${LEVEL_NAME[a.l]}</span><div style="flex:1"><b>${a.t}</b><div>${a.d}</div><div class="mut">${a.ago}</div></div>${field ? `<button class="btn alt" data-act="go" data-p="field" data-id="${field.id}">View</button>` : ''}<button class="btn alt" data-act="dis" data-aid="${a.id}">Dismiss</button></div>`;
+      }).join('')
     : '<p>No alerts here. Nothing needs your attention.</p>';
   return `${demo}<h1>Alerts</h1><div class="tabs">${tabs}</div><div class="card">${items}</div>`;
 }
@@ -206,13 +220,18 @@ export function settings(): string {
 
 export function profile(): string {
   const roles = ['Owner', 'Farm manager', 'Field worker'].map((r) => `<option ${r === S.role ? 'selected' : ''}>${r}</option>`).join('');
-  const fields = F.map(
-    (x) =>
-      `<div class=field-row data-testid=field-row-${x.id}><button class=lb data-act=pkm data-id=${x.id}><span>${esc(x.name)} <span class=mut>· ${x.crop} · ${x.ac} ac</span></span>${pill(x.hl)}</button><button class='btn alt sm' data-act=rmf data-id=${x.id} data-testid=delete-field-${x.id} aria-label='Remove ${esc(x.name)}'>Remove</button></div>`,
-  ).join('');
+  const fields = F.map((x) => {
+    const slug = x.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || x.id.slice(0, 8);
+    return `<div class=field-row data-testid=field-row-${slug}><button class=lb data-act=pkm data-id=${x.id}><span>${esc(x.name)} <span class=mut>· ${x.crop} · ${x.ac} ac</span></span>${pill(x.hl)}</button><button class='btn alt sm' data-act=rmf data-id=${x.id} data-testid=delete-field-${slug} aria-label='Remove ${esc(x.name)}'>Remove</button></div>`;
+  }).join('');
   const cropOpts = CROPS.map((c) => `<option value="${c}">${c}</option>`).join('');
-  const add = `<div class=add-field data-testid=add-field-form><h3>Add a field</h3><p class=mut>New parcels show on your map with demo sensors. Use Adjust farm to drag them into place.</p><label for=afn>Field name</label><input id=afn placeholder="South pasture" data-testid=add-field-name><label for=afc>Crop</label><select id=afc data-testid=add-field-crop>${cropOpts}</select><label for=afa>Acres</label><input id=afa type=number min=1 max=500 step=1 value=40 data-testid=add-field-acres><button class=btn type=button data-act=af data-testid=add-field-submit>Add field to my farm</button></div>`;
-  return `${demo}<h1>Your profile</h1><div class='grid g2'><div class=card><div class=row style='justify-content:flex-start;gap:16px'><div class=av>${esc(initials())}</div><div><h2>${esc(S.name)}</h2><span class=mut>${esc(S.role)} · ${esc(S.farm)}</span></div></div><label for=pn>Your name</label><input id=pn data-bind=name value="${esc(S.name)}"><label for=pf>Farm name</label><input id=pf data-bind=farm value="${esc(S.farm)}"><label for=pr>Your role</label><select id=pr data-bind=role>${roles}</select><label for=pl>Language</label><select id=pl><option>English</option><option>Español</option><option>Français</option></select><p><button class=btn data-act=say data-t='Profile saved'>Save changes</button></p></div><div class=card data-testid=my-fields><h3>My fields (${F.length})</h3><p class=mut>Open a field on the map, or remove it from your farm.</p><div class=field-list>${fields || '<p class=mut>No fields yet. Add one below.</p>'}</div>${add}<p style='margin-top:14px'><button class='btn alt' data-act=go data-p=settings>Notifications and sensors</button> <button class='btn alt' data-act=out>Sign out</button></p></div></div>`;
+  const farmForm = S.farmId
+    ? `<p class=mut>Farm location for weather: ${S.farmLat ?? '—'}, ${S.farmLng ?? '—'}</p>`
+    : `<div class=add-field data-testid=create-farm-form><h3>Create your farm</h3><p class=mut>Weather needs a map pin. Use approximate county coordinates if you are unsure.</p><label for=cfn>Farm name</label><input id=cfn placeholder="Willow Creek Farm" data-testid=create-farm-name value="${esc(S.farm)}"><label for=clat>Latitude</label><input id=clat type=number step=0.0001 value="43.7" data-testid=create-farm-lat><label for=clng>Longitude</label><input id=clng type=number step=0.0001 value="-80.37" data-testid=create-farm-lng><button class=btn type=button data-act=cf data-testid=create-farm-submit>Create farm</button></div>`;
+  const add = S.farmId
+    ? `<div class=add-field data-testid=add-field-form><h3>Add a field</h3><p class=mut>Saved on the server. New parcels show on your map with demo sensors until real ones are wired.</p><label for=afn>Field name</label><input id=afn placeholder="South pasture" data-testid=add-field-name><label for=afc>Crop</label><select id=afc data-testid=add-field-crop>${cropOpts}</select><label for=afa>Acres</label><input id=afa type=number min=1 max=500 step=1 value=40 data-testid=add-field-acres><button class=btn type=button data-act=af data-testid=add-field-submit>Add field to my farm</button></div>`
+    : '';
+  return `${demo}<h1>Your profile</h1><div class='grid g2'><div class=card><div class=row style='justify-content:flex-start;gap:16px'><div class=av>${esc(initials())}</div><div><h2>${esc(S.name)}</h2><span class=mut>${esc(S.role)} · ${esc(S.farm || 'No farm yet')}</span></div></div><label for=pn>Your name</label><input id=pn data-bind=name value="${esc(S.name)}"><label for=pp>Phone</label><input id=pp data-bind=phone value="${esc(S.phone)}" data-testid=profile-phone><label for=pf>Farm name</label><input id=pf data-bind=farm value="${esc(S.farm)}" ${S.farmId ? 'disabled' : ''}><label for=pr>Your role</label><select id=pr data-bind=role>${roles}</select>${farmForm}<p><button class=btn data-act=savep data-testid=save-profile>Save profile</button></p></div><div class=card data-testid=my-fields><h3>My fields (${F.length})</h3><p class=mut>Open a field on the map, or remove it from your farm.</p><div class=field-list>${fields || '<p class=mut>No fields yet. Add one below.</p>'}</div>${add}<p style='margin-top:14px'><button class='btn alt' data-act=go data-p=settings>Notifications and sensors</button> <button class='btn alt' data-act=out>Sign out</button></p></div></div>`;
 }
 
 export function wateringModal(f: Field): string {

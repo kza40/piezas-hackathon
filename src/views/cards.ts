@@ -1,13 +1,13 @@
-import { currentFarmer } from '../auth';
 import { FARM, FB, W, WS } from '../seed/farm';
-import { DN, F, REC, RT, SEN, fld, sensorsOf } from '../seed/simulate';
+import { DN, F, ownsSeedRef, REC, RT, SEN, fld, sensorsOf } from '../seed/simulate';
 import { S } from '../state';
 import type { CardId, Field, MapLayer, PanelId, WaterState } from '../types';
 import { esc, fieldNo, firstName, initials, lastWatered, moistureTint, openAlerts, pill, T, ws } from '../ui/helpers';
 import { can } from '../ui/icons';
 
-const mine = <T extends { f: string }>(rows: T[]) => rows.filter((r) => F.some((f) => f.id === r.f));
-const farmer = () => currentFarmer();
+const mine = <T extends { f: string }>(rows: T[]) => rows.filter((r) => ownsSeedRef(r.f));
+const recFor = (f: Field) => mine(REC).find((q) => q.f === f.id || q.f === f.layout);
+const fieldForSeed = (ref: string) => F.find((f) => f.id === ref || f.layout === ref) ?? fld(ref);
 
 const ORDER: Record<WaterState, number> = { now: 0, soon: 1, rain: 2, none: 3 };
 const LAYER_KEY: Record<Exclude<MapLayer, 'water'>, string> = {
@@ -42,8 +42,7 @@ const kv = (k: string, v: string) => `<div class=kv><span>${k}</span><b>${v}</b>
 // ---- farmer profile ------------------------------------------------------
 
 export function profileCard(): string {
-  const me = farmer();
-  const body = `<div class=prof><span class=av>${esc(initials())}</span><div><b class=pnm>${esc(S.name)}</b><div class='mut tiny'>${esc(S.role)} · ${esc(S.farm)}${me ? ` · farming since ${me.since}` : ''}</div></div></div><div class='kvs g2'>${kv('Phone', me?.phone ?? '—')}${kv('Watering logged', `${S.log.filter((x) => F.some((f) => f.id === x.f)).length} this week`)}${kv('Email', me?.email ?? '—')}${kv('Alerts', me?.alerts ?? '—')}</div><div class=btns><button class='btn sm' data-act=go data-p=profile>Edit profile</button><button class='btn alt sm' data-act=go data-p=settings>Settings</button><button class='btn alt sm' data-act=out data-testid=sign-out>Sign out</button></div>`;
+  const body = `<div class=prof><span class=av>${esc(initials())}</span><div><b class=pnm>${esc(S.name)}</b><div class='mut tiny'>${esc(S.role)} · ${esc(S.farm || 'No farm yet')}</div></div></div><div class='kvs g2'>${kv('Phone', S.phone || '—')}${kv('Watering logged', `${S.log.filter((x) => F.some((f) => f.id === x.f)).length} this week`)}${kv('Email', S.email || '—')}${kv('Alerts', 'Critical alerts')}</div><div class=btns><button class='btn sm' data-act=go data-p=profile>Edit profile</button><button class='btn alt sm' data-act=go data-p=settings>Settings</button><button class='btn alt sm' data-act=out data-testid=sign-out>Sign out</button></div>`;
   return mapCard('profile', 'Farmer profile', body, { sum: `${esc(S.name)} · ${esc(S.role)}`, panel: 'profile', cls: 'pcard' });
 }
 
@@ -51,7 +50,7 @@ export function profileCard(): string {
 
 /** Field average of the sensors that are still reporting, one point every 3 hours. */
 function moistureHistory(f: Field): number[] {
-  const live = SEN.filter((s) => s.f === f.id && s.age <= 6);
+  const live = SEN.filter((s) => s.f === f.layout && s.age <= 6);
   const out: number[] = [];
   for (let t = 0; t < 168; t += 3) {
     const v = live.map((s) => s.vals.m[t]).filter((x, i): x is number => x != null && !live[i].gl.m.has(t));
@@ -78,7 +77,7 @@ export function fieldCard(): string {
   const h = moistureHistory(f);
   const d24 = Math.round((h[h.length - 1] - h[h.length - 9]) * 10) / 10;
   const trend = `<span class=trend>${d24 > 0 ? '▲' : d24 < 0 ? '▼' : '■'} ${Math.abs(d24)} pts / 24 h</span>`;
-  const r = mine(REC).find((q) => q.f === f.id);
+  const r = recFor(f);
   const posts = sensorsOf(f.id);
   const live = posts.filter((s) => s.m != null).map((s) => s.m!);
   const span = live.length ? `${Math.round(Math.min(...live))}–${Math.round(Math.max(...live))}%` : `${f.m}%`;
@@ -136,7 +135,8 @@ export function alertsCard(): string {
     ? open
         .slice(0, 3)
         .map((a) => {
-          const where = a.f ? `<button class=lnk data-act=pk data-id=${a.f}>${fld(a.f).name}</button> · ` : '';
+          const field = a.f ? fieldForSeed(a.f) : null;
+          const where = field?.id ? `<button class=lnk data-act=pk data-id=${field.id}>${field.name}</button> · ` : '';
           return `<div class=item><div style='flex:1'>${pill(a.l)} <b>${a.t}</b><div class='mut tiny'>${where}${a.ago}</div><div class=mut>${a.d}</div></div><button class='btn alt sm' data-act=dis data-aid=${a.id} aria-label='Dismiss ${a.t}'>✕</button></div>`;
         })
         .join('') + (open.length > 3 ? `<button class='btn alt sm' data-act=go data-p=alerts>See all ${open.length}</button>` : '')
@@ -152,7 +152,7 @@ export function actionsCard(): string {
         .slice(0, 3)
         .map(
           (r) =>
-            `<div class=item>${can(ws(fld(r.f)), 24)}<div style='flex:1'><b>${r.t}</b><div class='mut tiny'>${fld(r.f).name} · ${r.p === 'cr' ? 'Today' : 'This week'}</div></div><button class='btn sm' data-act=done data-rid=${r.id}>Done</button></div>`,
+            `<div class=item>${can(ws(fieldForSeed(r.f)), 24)}<div style='flex:1'><b>${r.t}</b><div class='mut tiny'>${fieldForSeed(r.f).name} · ${r.p === 'cr' ? 'Today' : 'This week'}</div></div><button class='btn sm' data-act=done data-rid=${r.id}>Done</button></div>`,
         )
         .join('') + (todo.length > 3 ? `<button class='btn alt sm' data-act=go data-p=recs>See all ${todo.length}</button>` : '')
     : '<p class=mut>All caught up.</p>';
@@ -166,6 +166,7 @@ export function topBar(): string {
   const date = new Date().toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' });
   const open = openAlerts().length;
   const crit = openAlerts().some((a) => a.l === 'cr');
-  const place = farmer()?.location ?? '';
-  return `<header class=topbar data-testid=topbar><div class=tb-brand>${can('now', 18, '#fff')}<span>Fieldwise</span></div><div class=tb-farm><b>${esc(S.farm)}</b><span>${esc(place)} · ${F.length} fields · ${totalAcres()} ac</span></div><div class=tb-wx><span><b>${T(16)}</b> Sunny</span><span>Wind 12 km/h</span><span>Humidity 58%</span><span>Rain tmrw ${W[1].rain}%</span></div><div class=tb-right><span class=tb-date>${date}</span><span class=tb-sync title='Simulated data'><i></i>${on}/${total} sensors · synced 2 min ago</span><button class='tb-btn${crit ? ' hot' : ''}' data-act=go data-p=alerts data-testid=top-alerts aria-label='${open} open alerts'>🔔<span class=badge>${open}</span></button><button class=tb-user data-act=me data-testid=top-profile aria-label='Farmer profile'><span class='av sm'>${esc(initials())}</span><span class=tb-un><b>${esc(S.name)}</b><span>${esc(S.role)}</span></span></button></div></header>`;
+  const place =
+    S.farmLat != null && S.farmLng != null ? `${S.farmLat.toFixed(2)}°, ${S.farmLng.toFixed(2)}°` : S.farm ? 'Your farm' : 'No farm yet';
+  return `<header class=topbar data-testid=topbar><div class=tb-brand>${can('now', 18, '#fff')}<span>Fieldwise</span></div><div class=tb-farm><b>${esc(S.farm || 'No farm yet')}</b><span>${esc(place)} · ${F.length} fields · ${totalAcres()} ac</span></div><div class=tb-wx><span><b>${T(16)}</b> Sunny</span><span>Wind 12 km/h</span><span>Humidity 58%</span><span>Rain tmrw ${W[1].rain}%</span></div><div class=tb-right><span class=tb-date>${date}</span><span class=tb-sync title='Simulated data'><i></i>${on}/${total} sensors · synced 2 min ago</span><button class='tb-btn${crit ? ' hot' : ''}' data-act=go data-p=alerts data-testid=top-alerts aria-label='${open} open alerts'>🔔<span class=badge>${open}</span></button><button class=tb-user data-act=me data-testid=top-profile aria-label='Farmer profile'><span class='av sm'>${esc(initials())}</span><span class=tb-un><b>${esc(S.name)}</b><span>${esc(S.role)}</span></span></button></div></header>`;
 }

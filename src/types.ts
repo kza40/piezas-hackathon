@@ -1,4 +1,4 @@
-/** Letter ids for seed parcels (A–F) plus any fields the farmer adds later. */
+/** Server field ids (UUIDs) or legacy seed letters used only for map layout. */
 export type FieldId = string;
 export type Crop = 'Wheat' | 'Canola' | 'Barley' | 'Oats' | 'Alfalfa' | 'Blueberries';
 export const CROPS: Crop[] = ['Wheat', 'Canola', 'Barley', 'Oats', 'Alfalfa', 'Blueberries'];
@@ -10,6 +10,7 @@ export type StationKey = 'at' | 'h' | 'l';
 export type MetricKey = SensorKey | StationKey;
 export type Range = [min: number, max: number];
 export type Page = 'login' | 'map';
+export type AuthMode = 'signin' | 'signup';
 /** A full-detail view that opens over the map. */
 export type PanelId = 'dashboard' | 'field' | 'weather' | 'recs' | 'alerts' | 'settings' | 'profile';
 /** A summary card that sits on the map. */
@@ -34,6 +35,8 @@ export interface FieldSeed {
 }
 
 export interface Field extends FieldSeed {
+  /** Key into POLY / seed sensors (letter A–F for demo parcels, or the field id for new ones). */
+  layout: FieldId;
   m: number;
   st: number;
   stMax: number;
@@ -116,9 +119,16 @@ export interface WaterLogEntry {
 export interface AppState {
   page: Page;
   panel: PanelId | null;
-  /** Signed-in farmer id from the mock auth session. */
+  /** Signed-in farmer id from GET /api/auth/me (cookie session). */
   farmerId: string | null;
-  /** Login form error message. */
+  email: string;
+  phone: string;
+  /** Active farm from GET /api/farms (empty after a fresh sign-up). */
+  farmId: string | null;
+  farmLat: number | null;
+  farmLng: number | null;
+  authMode: AuthMode;
+  /** Login / sign-up form error message. */
   authError: string;
   /** Email left in the login form after a failed attempt. */
   authEmail: string;
@@ -147,4 +157,6 @@ export interface AppState {
   edit: boolean;
   moved: boolean;
   log: WaterLogEntry[];
+  /** Crop profiles from the API (id → profile), loaded after sign-in. */
+  cropByName: Partial<Record<Crop, string>>;
 }

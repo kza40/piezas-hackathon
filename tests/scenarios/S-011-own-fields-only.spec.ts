@@ -1,9 +1,7 @@
-// piezas-scenario: S-003 v=1
+// piezas-scenario: S-011 v=1
 import { expect, test } from '@playwright/test';
 
-test('S-003 each farmer only sees their own fields', async ({ page }) => {
-  await page.goto('/');
-  await page.evaluate(() => localStorage.clear());
+test('S-011 farmers cannot see each other data', async ({ page }) => {
   await page.goto('/#login');
   await page.getByTestId('demo-sam').click();
   await page.getByTestId('login-submit').click();

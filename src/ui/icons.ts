@@ -1,8 +1,16 @@
 import { CC, POLY, WS } from '../seed/farm';
+import { F } from '../seed/simulate';
 import type { Crop, FieldId, WaterState } from '../types';
 
+/** Map outline key: server field id → seed layout letter when present. */
+export const polyKey = (id: FieldId): FieldId => {
+  const f = F.find((x) => x.id === id);
+  const key = f?.layout ?? id;
+  return POLY[key] ? key : id;
+};
+
 export const polyPoints = (id: FieldId): [number, number][] =>
-  POLY[id].split(' ').map((s) => s.split(',').map(Number) as [number, number]);
+  (POLY[polyKey(id)] || '0,0 1,0 1,1').split(' ').map((s) => s.split(',').map(Number) as [number, number]);
 
 const CAN_GLYPH: Record<WaterState, string> = {
   now: `<path d='M22 17.5c1.4 1.8 2.2 2.8 2.2 3.8a2.2 2.2 0 0 1-4.4 0c0-1 .8-2 2.2-3.8z' fill='#fff'/>`,

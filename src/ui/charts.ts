@@ -18,7 +18,7 @@ export function chart(f: Field, k: MetricKey): string {
   const rg = idealRange(f, met);
   const lines: Line[] = isStation(k)
     ? [{ id: 'Station', v: f.stn[k], gl: new Set(), age: 0 }]
-    : SEN.filter((x) => x.f === f.id).map((x) => ({ id: x.id, v: x.vals[k], gl: x.gl[k], age: x.age }));
+    : SEN.filter((x) => x.f === f.layout).map((x) => ({ id: x.id, v: x.vals[k], gl: x.gl[k], age: x.age }));
   const all = lines.flatMap((l) => l.v.filter((x, i): x is number => x != null && !l.gl.has(i)));
   let lo = Math.min(...all, rg[0]);
   let hi = Math.max(...all, rg[1]);

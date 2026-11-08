@@ -25,10 +25,16 @@ export const S: AppState = {
   page: 'login',
   panel: null,
   farmerId: null,
+  email: '',
+  phone: '',
+  farmId: null,
+  farmLat: null,
+  farmLng: null,
+  authMode: 'signin',
   authError: '',
   authEmail: '',
   ...{ min: {}, bare: false, d3: true, ...readJson<Partial<Pick<AppState, 'min' | 'bare' | 'd3'>>>(CARDS_KEY, {}) },
-  sel: 'A',
+  sel: '',
   done: {},
   dis: {},
   flt: 'all',
@@ -46,7 +52,8 @@ export const S: AppState = {
   fd: null,
   edit: false,
   moved: false,
-  log: readJson<WaterLogEntry[] | null>(LOG_KEY, null) ?? [{ f: 'D', d: 'Yesterday, 6:10 pm', mm: 8 }],
+  log: readJson<WaterLogEntry[] | null>(LOG_KEY, null) ?? [],
+  cropByName: {},
 };
 
 export const saveOffsets = () => writeJson(OFFSETS_KEY, S.off);
