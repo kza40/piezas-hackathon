@@ -1,12 +1,12 @@
-# Backend API (accounts, profile, farms, fields)
+# Backend API (accounts, profile, farms, fields, sensors, ingest)
 
-The contract between the Vite frontend and the backend on `backend/platform`. Every request with a body must send it as JSON with the header `Content-Type: application/json` (otherwise 415); this is what protects sign-in and other writes from cross-site forgery. Errors always look like:
+The contract between the Vite frontend (and sensor devices) and the backend. Every request with a body must send it as JSON with the header `Content-Type: application/json` (otherwise 415); this is what protects sign-in and other writes from cross-site forgery. Errors always look like:
 
 ```json
 { "error": "invalid_input", "message": "Latitude must be between -90 and 90." }
 ```
 
-`message` is written for the farmer and can be shown as-is. `error` is one of `invalid_input` (400), `unauthorized` (401), `account_pending` / `mfa_required` (403), `not_found` (404), `conflict` (409), `unsupported_media_type` (415), `server_error` (500), `unavailable` (503: Piezas is busy or unreachable, worth one retry).
+`message` is written for the farmer and can be shown as-is. `error` is one of `invalid_input` (400), `unauthorized` (401), `account_pending` / `mfa_required` (403), `not_found` (404), `conflict` (409), `unsupported_media_type` (415), `payload_too_large` (413, ingest only), `rate_limited` (429, ingest only), `server_error` (500), `unavailable` (503: Piezas is busy or unreachable, worth one retry).
 
 ## Running it
 
@@ -19,7 +19,8 @@ The contract between the Vite frontend and the backend on `backend/platform`. Ev
   ```
 
 - Production: `npm run build` (the frontend's Vite build into `dist/`; that script comes with the frontend branch), then `npm start`. The same server serves `dist/` and `/api`, so the frontend always calls relative paths like `/api/farms`.
-- `.env` comes from `npx piezas init` on a machine logged in to the Piezas account; it is never committed.
+- `.env` holds your own Piezas keys (`PIEZAS_API_KEY`, `PIEZAS_TEST_API_KEY`, `PIEZAS_API_URL`); it is never committed.
+- `.env` also needs `DEVICE_KEY_PEPPER` (at least 32 random characters), used to hash device keys. Device keys only work on a server with the same pepper that made them, so everyone running against the shared test app should use the same test pepper (ask whoever set up the test app; share it privately, never in the repo), and the live app gets its own, set once in the hosting settings and never changed.
 
 ## Session
 
@@ -48,9 +49,46 @@ The session is an httpOnly, SameSite=Lax cookie named `piezas_session` (lasts 7 
 | `GET /api/fields/:fieldId` | none | `{ field }` |
 | `DELETE /api/fields/:fieldId` | none | 204 |
 
-A `field` is `{ id, farmId, name, cropProfile, acres, stage, soil, createdAt }`, with the full `cropProfile` object (so the ideal moisture and pH ranges are right there) and `stage` / `soil` as `""` when not set. Sensors, readings, advice and alerts come in later steps.
+A `field` is `{ id, farmId, name, cropProfile, acres, stage, soil, createdAt }`, with the full `cropProfile` object (so the ideal moisture and pH ranges are right there) and `stage` / `soil` as `""` when not set. Removing a field also removes its sensors. Reading history, weather, advice and alerts come in later steps.
 
-Another farmer's farm or field always answers 404, exactly like one that does not exist.
+Another farmer's farm, field or sensor always answers 404, exactly like one that does not exist.
+
+## Sensors (signed-in farmer)
+
+| Method and path | Body | Returns |
+|---|---|---|
+| `GET /api/fields/:fieldId/sensors` | none | `{ sensors: [sensor] }`, oldest first |
+| `POST /api/fields/:fieldId/sensors` | `{ name }` (up to 60 characters) | 201 `{ sensor, deviceKey }`. **`deviceKey` is shown this once** (only a hash is stored): show it with a copy button and say it will not be shown again. |
+| `POST /api/sensors/:sensorId/revoke` | none | `{ sensor }` with `keyStatus: "revoked"`; that device's readings are refused from now on |
+
+A `sensor` is `{ id, fieldId, name, keyStatus, latest, createdAt }`. `keyStatus` is `"active"` or `"revoked"`. `latest` has the newest reading of each type the sensor has sent, so a sensor shows whatever it measures:
+
+```json
+{ "soil_moisture": { "value": 31.2, "unit": "%", "time": "2026-11-07T17:00:00.000Z" },
+  "soil_ph": { "value": 5.1, "unit": "pH", "time": "2026-11-07T17:00:00.000Z" } }
+```
+
+It is `{}` until the first reading arrives. The 7-day history comes with step 4.
+
+## Ingest (devices, no farmer session)
+
+`POST /api/ingest` with headers `Content-Type: application/json` and `x-device-key: fwk_...`. The body is one reading, or a batch of up to 50:
+
+```json
+{ "type": "soil_moisture", "value": 27.4, "unit": "%", "time": "2026-11-07T17:00:00Z" }
+{ "readings": [ { "type": "soil_moisture", ... }, { "type": "soil_ph", ... } ] }
+```
+
+| type | unit | accepted values |
+|---|---|---|
+| `soil_moisture` | `%` | 0 to 100 |
+| `soil_temperature` | `C` | -40 to 80 |
+| `soil_ec` | `dS/m` | 0 to 20 |
+| `soil_ph` | `pH` | 0 to 14 |
+| `air_temperature` | `C` | -60 to 60 |
+| `air_humidity` | `%` | 0 to 100 |
+
+`time` is ISO 8601 with a time zone (`Z` or `-08:00`), at most 10 minutes in the future. Replies: 202 `{ accepted: n }`; 400 when any reading is invalid (nothing in that batch is saved; the message says which reading, e.g. "Reading 2: soil_temperature must be sent in C."); 401 for a missing, wrong or revoked key; 429 above 120 requests a minute from one key. A reading older than the one already shown for that type is accepted but does not replace it.
 
 ## Demo accounts (test app)
 
@@ -71,3 +109,4 @@ Another farmer's farm or field always answers 404, exactly like one that does no
 6. Add field: send `cropProfileId` (from `/api/crop-profiles`), `acres`, `stage`, `soil`; remove field: `DELETE /api/fields/:id`.
 7. Profile: name and phone are stored (`PATCH /api/me/profile`). Role, "farmer since" and alert preferences have no backend yet; say if they should.
 8. Scenario tests: rename the frontend's `S-001` to `S-005` files to the new numbers in SPEC.md: S-001 sign-in becomes **S-019**, S-002 wrong password **S-020**, S-003 own fields only **S-011**, S-004 sign-out **S-021**, S-005 add/remove field **S-022**.
+9. Sensors: register (show the device key once with a copy button), list with each sensor's `latest` values, revoke. The frontend's light reading is not one of the six types yet; adding it is a one-line backend change if the team wants it.

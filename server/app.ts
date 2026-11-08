@@ -2,6 +2,7 @@
 // See docs/api.md for the contract with the frontend.
 import { Hono, type Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
+import { bodyLimit } from 'hono/body-limit';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, getSessionUser, signIn, signOut, signUp, type SessionUser } from '../lib/server/auth';
@@ -9,6 +10,7 @@ import { AppError, badRequest, notFound, toHttp, unauthorized } from '../lib/ser
 import { listCropProfiles } from '../lib/server/data/crops';
 import { createFarm, createField, deleteField, getFarm, getField, listFarms, listFields } from '../lib/server/data/farms';
 import { getProfile, parseProfileInput, updateProfile } from '../lib/server/data/profile';
+import { createSensor, ingest, listSensors, revokeSensor } from '../lib/server/data/sensors';
 import { object } from '../lib/server/validate';
 
 type Env = { Variables: { user: SessionUser } };
@@ -106,6 +108,19 @@ api.delete('/fields/:fieldId', signedIn, async (c) => {
   await deleteField(c.var.user.id, c.req.param('fieldId'));
   return c.body(null, 204);
 });
+
+// Sensors and device keys
+api.get('/fields/:fieldId/sensors', signedIn, async (c) => c.json({ sensors: await listSensors(c.var.user.id, c.req.param('fieldId')) }));
+api.post('/fields/:fieldId/sensors', signedIn, async (c) => c.json(await createSensor(c.var.user.id, c.req.param('fieldId'), await body(c)), 201));
+api.post('/sensors/:sensorId/revoke', signedIn, async (c) => c.json({ sensor: await revokeSensor(c.var.user.id, c.req.param('sensorId')) }));
+
+// Devices send readings here. No farmer session: the x-device-key header is the credential.
+// Public, so the body is capped before it is read: 50 readings fit in a few KB.
+const ingestLimit = bodyLimit({
+  maxSize: 64 * 1024,
+  onError: (c) => c.json({ error: 'payload_too_large', message: 'Send at most 50 readings at a time.' }, 413),
+});
+api.post('/ingest', ingestLimit, async (c) => c.json(await ingest(c.req.header('x-device-key'), await body(c)), 202));
 
 // Anything else under /api is a JSON 404, never the frontend's index.html.
 api.all('/*', () => {
