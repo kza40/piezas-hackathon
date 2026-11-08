@@ -1,4 +1,4 @@
-// piezas-scenario: S-007 v=1
+// piezas-scenario: S-007 v=2
 import { expect, test } from '@playwright/test';
 import { signIn } from './helpers';
 
@@ -9,3 +9,4 @@ test('S-007: dry soil and no rain gives Water today', async ({ page }) => {
   await expect(page.getByTestId('watering-reason')).toContainText('Row 3 probe');
   await expect(page.getByTestId('watering-reason')).toContainText('rain');
 });
+
