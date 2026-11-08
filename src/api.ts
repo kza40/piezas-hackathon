@@ -1,5 +1,10 @@
 /** Relative `/api` calls (Vite proxies to localhost:8787 in dev). Cookie session. */
 
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(fn: () => void) {
+  onUnauthorized = fn;
+}
+
 export interface ApiErrorBody {
   error: string;
   message: string;
@@ -77,8 +82,10 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers,
     credentials: 'same-origin',
   });
-  if (res.status === 204) return undefined as T;
-  if (!res.ok) throw await parseError(res);
+  if (!res.ok) {
+    if (res.status === 401) onUnauthorized?.();
+    throw await parseError(res);
+  }
   if (res.status === 204 || res.headers.get('content-length') === '0') return undefined as T;
   const text = await res.text();
   if (!text) return undefined as T;

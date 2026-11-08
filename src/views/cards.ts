@@ -136,7 +136,7 @@ export function alertsCard(): string {
         .slice(0, 3)
         .map((a) => {
           const field = a.f ? fieldForSeed(a.f) : null;
-          const where = field?.id ? `<button class=lnk data-act=pk data-id=${field.id}>${field.name}</button> · ` : '';
+          const where = field?.id ? `<button class=lnk data-act=pk data-id=${field.id}>${esc(field.name)}</button> · ` : '';
           return `<div class=item><div style='flex:1'>${pill(a.l)} <b>${a.t}</b><div class='mut tiny'>${where}${a.ago}</div><div class=mut>${a.d}</div></div><button class='btn alt sm' data-act=dis data-aid=${a.id} aria-label='Dismiss ${a.t}'>✕</button></div>`;
         })
         .join('') + (open.length > 3 ? `<button class='btn alt sm' data-act=go data-p=alerts>See all ${open.length}</button>` : '')

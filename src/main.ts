@@ -1,7 +1,7 @@
 import './styles.css';
-import { ApiError, farmApi, profileApi } from './api';
+import { ApiError, farmApi, profileApi, setUnauthorizedHandler } from './api';
 import { refreshFields, restoreSession, signIn, signOut, signUp } from './auth';
-import { F, fld, removeFieldFromFarm } from './seed/simulate';
+import { F, fld } from './seed/simulate';
 import { S, saveCards, saveLog, saveOffsets } from './state';
 import type { AlertFilter, CardId, Crop, FieldId, MapLayer, MetricKey, PanelId, Units } from './types';
 import { esc, openAlerts } from './ui/helpers';
@@ -51,6 +51,11 @@ function keepScroll(paint: () => void) {
     if (top) n.scrollTop = top;
   });
 }
+
+setUnauthorizedHandler(() => {
+  if (S.page === 'login') return;
+  void signOut().then(() => render());
+});
 
 function render() {
   const main = el('main');

@@ -28,7 +28,7 @@ const sum = (fn: (f: Field) => number) => F.reduce((a, f) => a + fn(f), 0);
 
 const fieldTabs = () =>
   `<div class=tabs role=group aria-label='Choose field'>${F.map(
-    (x) => `<button aria-pressed=${x.id === S.sel} data-act=sel data-id=${x.id}>${x.id}. ${x.name}</button>`,
+    (x) => `<button aria-pressed=${x.id === S.sel} data-act=sel data-id=${x.id}>${x.id}. ${esc(x.name)}</button>`,
   ).join('')}</div>`;
 
 const feat = (f: Field) => {
@@ -41,7 +41,7 @@ const tile = (f: Field) => {
   const k = ws(f);
   const b = FB[k];
   const outline = S.fd === f.id ? 'outline:4px solid #f0d6a0;outline-offset:3px' : '';
-  return `<button class=tile data-act=sf data-id=${f.id} style='background:${b.bg};color:${b.fg};${outline}'><span class=ti>${fieldNo(f.id)}</span>${cropG(f.crop, 34)}<span class=tn style='color:${b.n}'>${f.m}%</span><span class=tl>${f.name}</span><span class=ts>${can(k, 30, b.fg)}${WS[k].t}</span></button>`;
+  return `<button class=tile data-act=sf data-id=${f.id} style='background:${b.bg};color:${b.fg};${outline}'><span class=ti>${fieldNo(f.id)}</span>${cropG(f.crop, 34)}<span class=tn style='color:${b.n}'>${f.m}%</span><span class=tl>${esc(f.name)}</span><span class=ts>${can(k, 30, b.fg)}${WS[k].t}</span></button>`;
 };
 
 const alertItems = (n: number) =>
@@ -211,7 +211,7 @@ export function settings(): string {
     .join('');
   const sensors = F.map(
     (f) =>
-      `<tr><td>${f.name}</td><td>${f.s[0]} of ${f.s[1]}</td><td><button class="btn alt" data-act="say" data-t="Pairing is not available in this demo">Add sensor</button></td></tr>`,
+      `<tr><td>${esc(f.name)}</td><td>${f.s[0]} of ${f.s[1]}</td><td><button class="btn alt" data-act="say" data-t="Pairing is not available in this demo">Add sensor</button></td></tr>`,
   ).join('');
   return `${demo}<h1>Settings</h1><div class="stack"><div class="card"><h3>Farm</h3><label for="fn2">Farm name</label><input id="fn2" data-bind="farm" value="${esc(S.farm)}"><label for="un">Temperature units</label><select id="un" data-bind="units"><option ${S.units === '°C' ? 'selected' : ''}>°C</option><option ${S.units === '°F' ? 'selected' : ''}>°F</option></select><p><button class="btn" data-act="say" data-t="Settings saved">Save changes</button></p></div>
 <div class="card"><h3>Notifications</h3>${notify}</div>
@@ -227,7 +227,7 @@ export function profile(): string {
   const cropOpts = CROPS.map((c) => `<option value="${c}">${c}</option>`).join('');
   const farmForm = S.farmId
     ? `<p class=mut>Farm location for weather: ${S.farmLat ?? '—'}, ${S.farmLng ?? '—'}</p>`
-    : `<div class=add-field data-testid=create-farm-form><h3>Create your farm</h3><p class=mut>Weather needs a map pin. Use approximate county coordinates if you are unsure.</p><label for=cfn>Farm name</label><input id=cfn placeholder="Willow Creek Farm" data-testid=create-farm-name value="${esc(S.farm)}"><label for=clat>Latitude</label><input id=clat type=number step=0.0001 value="43.7" data-testid=create-farm-lat><label for=clng>Longitude</label><input id=clng type=number step=0.0001 value="-80.37" data-testid=create-farm-lng><button class=btn type=button data-act=cf data-testid=create-farm-submit>Create farm</button></div>`;
+    : `<div class=add-field data-testid=create-farm-form><h3>Create your farm</h3><p class=mut>Weather needs a map pin. Use approximate county coordinates if you are unsure.</p><label for=cfn>Farm name</label><input id=cfn placeholder="Willow Creek Farm" data-testid=create-farm-name value="${esc(S.farm)}"><label for=clat>Latitude</label><input id=clat type=number step=0.0001 placeholder="e.g. 49.05" required data-testid=create-farm-lat><label for=clng>Longitude</label><input id=clng type=number step=0.0001 placeholder="e.g. -122.30" required data-testid=create-farm-lng><button class=btn type=button data-act=cf data-testid=create-farm-submit>Create farm</button></div>`;
   const add = S.farmId
     ? `<div class=add-field data-testid=add-field-form><h3>Add a field</h3><p class=mut>Saved on the server. New parcels show on your map with demo sensors until real ones are wired.</p><label for=afn>Field name</label><input id=afn placeholder="South pasture" data-testid=add-field-name><label for=afc>Crop</label><select id=afc data-testid=add-field-crop>${cropOpts}</select><label for=afa>Acres</label><input id=afa type=number min=1 max=500 step=1 value=40 data-testid=add-field-acres><button class=btn type=button data-act=af data-testid=add-field-submit>Add field to my farm</button></div>`
     : '';

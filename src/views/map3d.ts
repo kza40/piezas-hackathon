@@ -7,7 +7,7 @@ import { POLY, RIDGES, TREES } from '../seed/farm';
 import { F, sensorsOf } from '../seed/simulate';
 import { S } from '../state';
 import type { Field, FieldId, MapLayer, WaterState } from '../types';
-import { lastWatered, moistureTint, T, ws } from '../ui/helpers';
+import { esc, lastWatered, moistureTint, T, ws } from '../ui/helpers';
 import { can, polyPoints } from '../ui/icons';
 import { plantField } from './crops3d';
 import { center, fillFor, valueFor } from './map';
@@ -449,9 +449,9 @@ function sync(c: Ctx) {
       }
     });
     const k = ws(f);
-    n.label.innerHTML = `<span data-w=1>${can(k, 26)}</span><span><b>${f.name}</b><br>${valueFor(f, L)}</span>`;
+    n.label.innerHTML = `<span data-w=1>${can(k, 26)}</span><span><b>${esc(f.name)}</b><br>${valueFor(f, L)}</span>`;
     n.label.setAttribute('aria-pressed', String(sel));
-    n.label.setAttribute('aria-label', `${f.name}, ${valueFor(f, L)}`);
+    n.label.setAttribute('aria-label', `${esc(f.name)}, ${valueFor(f, L)}`);
     n.hud.innerHTML = hudHtml(f);
     n.hud.classList.toggle('on', sel);
     const ss = sensorsOf(f.id);
