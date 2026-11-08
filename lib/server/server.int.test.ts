@@ -89,7 +89,7 @@ describe('crop profiles', () => {
     const blueberries = crops.filter((c) => c.key === 'blueberry');
     assert.equal(blueberries.length, 1);
     assert.equal(blueberries[0].phMin, 4.5);
-    assert.equal(blueberries[0].phMax, 5.5);
+    assert.equal(blueberries[0].phMax, 5.2);
   });
 });
 
@@ -99,7 +99,9 @@ describe('farms and fields', () => {
     const farm = await createFarm(alice, { name: 'Fraser Ridge', latitude: 49.05, longitude: -122.3 });
     const field = await createField(alice, farm.id, { name: 'North block', cropProfileId: blueberry.id });
     assert.equal(field.farmId, farm.id);
-    assert.equal(field.cropProfile?.moistureMin, 35);
+    assert.equal(field.cropProfile?.moistureMin, null);
+    assert.equal(field.cropProfile?.phMin, 4.5);
+    assert.equal(field.cropProfile?.phMax, 5.2);
     assert.deepEqual(
       (await listFields(alice, farm.id)).map((f) => f.name),
       ['North block'],
