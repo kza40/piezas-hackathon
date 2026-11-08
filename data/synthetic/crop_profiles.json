@@ -1,0 +1,8 @@
+[
+  {
+    "id": "crop_blueberry",
+    "crop_name": "Blueberry",
+    "ph_min": 4.5,
+    "ph_max": 5.2
+  }
+]

@@ -37,6 +37,7 @@ Found while building step 2:
 | E17 | `null` in a declared field | Rejected: a declared `number` field with `null` fails validation ("got null, want number"). | Leave unknown values out of the record instead of writing `null`. |
 | E18 | Users policy defaults | Passwords need at least 10 characters; sessions last 30 minutes (1800 s); 10 wrong passwords in 15 minutes locks sign-in; cookie name `piezas_session`. | Our password check is 10 characters too; `scripts/setup-app.ts` sets 7-day sessions; the frontend's 7-character demo passwords had to change. |
 | E16 | Signing up again with an existing email | "Succeeds" and returns a different, fake user id. Only one account exists, and only the original password signs in. | Piezas hides which emails are registered. Our sign-up turns the following sign-in failure into a 409 "already exists, sign in instead". |
+| E19 | `createdAt` precision | Whole seconds (`2026-11-08T03:56:39Z`). Two records made in the same second tie. | Lists sort by `createdAt` then id (`oldestFirst` in `lib/server/data/records.ts`), so the order never flips between requests. Alerts keep their own millisecond `openedAt` for "newest first". |
 
 The SDK also warns that the platform contract is v15 while `@piezas/sdk` 0.5.2 was built against v11. As of 2026-11-07, 0.5.2 is the newest published version, so there is nothing to upgrade to yet; re-run the spike when a newer SDK appears.
 

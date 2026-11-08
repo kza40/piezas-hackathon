@@ -1,0 +1,176 @@
+[
+  {
+    "id": "sensor_1a1",
+    "field_id": "field_1a",
+    "name": "Row 3 soil probe",
+    "reports": [
+      "soil_moisture",
+      "soil_temperature",
+      "soil_ec",
+      "soil_ph"
+    ],
+    "owner_id": "owner_demo_1"
+  },
+  {
+    "id": "sensor_1a2",
+    "field_id": "field_1a",
+    "name": "Row 6 soil probe",
+    "reports": [
+      "soil_moisture",
+      "soil_temperature",
+      "soil_ec",
+      "soil_ph"
+    ],
+    "owner_id": "owner_demo_1"
+  },
+  {
+    "id": "sensor_1b1",
+    "field_id": "field_1b",
+    "name": "Row 3 soil probe",
+    "reports": [
+      "soil_moisture",
+      "soil_temperature",
+      "soil_ec",
+      "soil_ph"
+    ],
+    "owner_id": "owner_demo_1"
+  },
+  {
+    "id": "sensor_1b2",
+    "field_id": "field_1b",
+    "name": "Row 6 soil probe",
+    "reports": [
+      "soil_moisture",
+      "soil_temperature",
+      "soil_ec",
+      "soil_ph"
+    ],
+    "owner_id": "owner_demo_1"
+  },
+  {
+    "id": "sensor_2a1",
+    "field_id": "field_2a",
+    "name": "Row 3 soil probe",
+    "reports": [
+      "soil_moisture",
+      "soil_temperature",
+      "soil_ec",
+      "soil_ph"
+    ],
+    "owner_id": "owner_demo_1"
+  },
+  {
+    "id": "sensor_2a2",
+    "field_id": "field_2a",
+    "name": "Row 6 soil probe",
+    "reports": [
+      "soil_moisture",
+      "soil_temperature",
+      "soil_ec",
+      "soil_ph"
+    ],
+    "owner_id": "owner_demo_1"
+  },
+  {
+    "id": "sensor_2b1",
+    "field_id": "field_2b",
+    "name": "Row 3 soil probe",
+    "reports": [
+      "soil_moisture",
+      "soil_temperature",
+      "soil_ec",
+      "soil_ph"
+    ],
+    "owner_id": "owner_demo_1"
+  },
+  {
+    "id": "sensor_2b2",
+    "field_id": "field_2b",
+    "name": "Row 6 soil probe",
+    "reports": [
+      "soil_moisture",
+      "soil_temperature",
+      "soil_ec",
+      "soil_ph"
+    ],
+    "owner_id": "owner_demo_1"
+  },
+  {
+    "id": "sensor_3a1",
+    "field_id": "field_3a",
+    "name": "Row 3 soil probe",
+    "reports": [
+      "soil_moisture",
+      "soil_temperature",
+      "soil_ec",
+      "soil_ph"
+    ],
+    "owner_id": "owner_demo_2"
+  },
+  {
+    "id": "sensor_3a2",
+    "field_id": "field_3a",
+    "name": "Row 6 soil probe",
+    "reports": [
+      "soil_moisture",
+      "soil_temperature",
+      "soil_ec",
+      "soil_ph"
+    ],
+    "owner_id": "owner_demo_2"
+  },
+  {
+    "id": "sensor_3b1",
+    "field_id": "field_3b",
+    "name": "Row 3 soil probe",
+    "reports": [
+      "soil_moisture",
+      "soil_temperature",
+      "soil_ec",
+      "soil_ph"
+    ],
+    "owner_id": "owner_demo_2"
+  },
+  {
+    "id": "sensor_3b2",
+    "field_id": "field_3b",
+    "name": "Row 6 soil probe",
+    "reports": [
+      "soil_moisture",
+      "soil_temperature",
+      "soil_ec",
+      "soil_ph"
+    ],
+    "owner_id": "owner_demo_2"
+  },
+  {
+    "id": "sensor_1air",
+    "field_id": "field_1a",
+    "name": "Weather mast",
+    "reports": [
+      "air_temperature",
+      "air_humidity"
+    ],
+    "owner_id": "owner_demo_1"
+  },
+  {
+    "id": "sensor_2air",
+    "field_id": "field_2a",
+    "name": "Weather mast",
+    "reports": [
+      "air_temperature",
+      "air_humidity"
+    ],
+    "owner_id": "owner_demo_1"
+  },
+  {
+    "id": "sensor_3air",
+    "field_id": "field_3a",
+    "name": "Weather mast",
+    "reports": [
+      "air_temperature",
+      "air_humidity"
+    ],
+    "owner_id": "owner_demo_2"
+  }
+]

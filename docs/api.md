@@ -40,7 +40,7 @@ The session is an httpOnly, SameSite=Lax cookie named `piezas_session` (lasts 7 
 
 | Method and path | Body | Returns |
 |---|---|---|
-| `GET /api/crop-profiles` | none | `{ cropProfiles: [{ id, key, name, moistureMin, moistureMax, phMin, phMax, ecMax, frostRiskC }] }`, in the order Wheat, Canola, Barley, Oats, Alfalfa, Blueberries. `name` matches the frontend's `Crop` labels; `ecMax` may be `null`. |
+| `GET /api/crop-profiles` | none | `{ cropProfiles: [{ id, key, name, moistureMin, moistureMax, phMin, phMax, ecMax, frostRiskC }] }`, in the order Wheat, Canola, Barley, Oats, Alfalfa, Blueberries. `name` matches the frontend's `Crop` labels; any unsupported threshold is `null`. See `docs/crop-guidance.md` for published values and their limits. |
 | `GET /api/farms` | none | `{ farms: [{ id, name, latitude, longitude, createdAt }] }` (empty for a new farmer) |
 | `POST /api/farms` | `{ name, latitude, longitude }` | 201 `{ farm }` |
 | `GET /api/farms/:farmId` | none | `{ farm }` |
@@ -49,7 +49,7 @@ The session is an httpOnly, SameSite=Lax cookie named `piezas_session` (lasts 7 
 | `GET /api/fields/:fieldId` | none | `{ field }` |
 | `DELETE /api/fields/:fieldId` | none | 204 |
 
-A `field` is `{ id, farmId, name, cropProfile, acres, stage, soil, createdAt }`, with the full `cropProfile` object (so the ideal moisture and pH ranges are right there) and `stage` / `soil` as `""` when not set. Removing a field also removes its sensors. Reading history, weather, advice and alerts come in later steps.
+A `field` is `{ id, farmId, name, cropProfile, acres, stage, soil, createdAt }`, with the full `cropProfile` object (including any available sourced pH guidance) and `stage` / `soil` as `""` when not set. An unset threshold is `null` and must not be treated as a recommendation. Removing a field also removes its sensors. Reading history, weather, advice and alerts come in later steps.
 
 Another farmer's farm, field or sensor always answers 404, exactly like one that does not exist.
 
@@ -68,7 +68,22 @@ A `sensor` is `{ id, fieldId, name, keyStatus, latest, createdAt }`. `keyStatus`
   "soil_ph": { "value": 5.1, "unit": "pH", "time": "2026-11-07T17:00:00.000Z" } }
 ```
 
-It is `{}` until the first reading arrives. The 7-day history comes with step 4.
+It is `{}` until the first reading arrives.
+
+## Reading history and the simulator (signed-in farmer)
+
+| Method and path | Body | Returns |
+|---|---|---|
+| `GET /api/fields/:fieldId/readings?days=7` | none | `{ days, sensors: [{ sensorId, simulated, series }] }` for the last `days` days (whole number 1 to 14, default 7) |
+| `POST /api/fields/:fieldId/simulate` | none | `{ sensors: [sensor] }`. Fills every sensor on the field with 14 days of hourly simulated readings of all six types, ending now, and sets their `latest`. **Replaces** those sensors' stored history (a demo tool). 400 if the field has no sensors. |
+
+`series` has one list per reading type, oldest first, for drawing the 7-day trends:
+
+```json
+{ "soil_moisture": [ { "time": "2026-11-01T18:00:00.000Z", "value": 41.2 }, ... ], "soil_ph": [ ... ] }
+```
+
+`simulated` is `true` when any point shown came from the simulator, so the page can say the data is simulated. History is kept for 14 days; a reading older than that is accepted by ingest but not stored.
 
 ## Ingest (devices, no farmer session)
 
@@ -90,9 +105,24 @@ It is `{}` until the first reading arrives. The 7-day history comes with step 4.
 
 `time` is ISO 8601 with a time zone (`Z` or `-08:00`), at most 10 minutes in the future. Replies: 202 `{ accepted: n }`; 400 when any reading is invalid (nothing in that batch is saved; the message says which reading, e.g. "Reading 2: soil_temperature must be sent in C."); 401 for a missing, wrong or revoked key; 429 above 120 requests a minute from one key. A reading older than the one already shown for that type is accepted but does not replace it.
 
+## Alerts (signed-in farmer)
+
+| Method and path | Body | Returns |
+|---|---|---|
+| `GET /api/alerts?status=open` | none | `{ alerts: [alert] }`, newest first. `status` is `open`, `done`, or left out for all. |
+| `POST /api/alerts/:alertId/done` | none | `{ alert }` with `status: "done"`; marking it again keeps the first `doneAt` |
+
+An `alert` is `{ id, fieldId, message, status, createdAt, doneAt }` (`doneAt` is `null` while open). Removing a field removes its alerts.
+
+Farmers do not create alerts; the advice rule does, on the server, with `openAlert(ownerId, fieldId, message)` from `lib/server/data/alerts.ts`:
+
+- It returns the field's open alert if there is one (never a second one, even for parallel page views; S-018), otherwise creates it.
+- It returns `null` for 12 hours after the farmer marks that field's alert done, so "done" is not undone by the next page view. After that it can open again.
+- The message is fixed when the alert opens; the field page shows the live reason.
+
 ## Demo accounts (test app)
 
-`scripts/seed-demo.ts` has created the two demo farmers from `src/seed/farmers.ts` with their farms and fields:
+`scripts/seed-demo.ts` has created the two demo farmers with their farms and fields, two sensors per field ("North probe", "South probe") and 14 days of simulated readings. Run it again right before a demo so the readings end at "now":
 
 | Email | Password | Farm | Fields |
 |---|---|---|---|

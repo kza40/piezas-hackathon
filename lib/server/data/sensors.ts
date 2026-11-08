@@ -3,12 +3,15 @@
 import type { EntityRecord } from '@piezas/sdk';
 import { db, errorCode } from '../piezas';
 import { withLock } from '../lock';
-import { AppError, unauthorized } from '../errors';
-import { object, text } from '../validate';
+import { AppError, badRequest, unauthorized } from '../errors';
+import { number, object, text } from '../validate';
 import { deviceKeyHash, newDeviceKey } from '../device-keys';
 import { rateLimiter } from '../rate-limit';
 import { READING_TYPES, parseIngestBody, type Reading, type ReadingType } from '../readings';
-import { getOwned, listAll, str } from './records';
+import { getOwned, listAll, num, oldestFirst, str } from './records';
+import { getCropProfile } from './crops';
+import { appendHistory, deleteSensorHistory, replaceHistory, RETENTION_DAYS, sensorHistory, type Series } from './history';
+import { simulateSensor } from '../simulate';
 
 export interface LatestReading {
   value: number;
@@ -71,7 +74,7 @@ export async function createSensor(ownerId: string, fieldId: string, body: unkno
 export async function listSensors(ownerId: string, fieldId: string): Promise<Sensor[]> {
   await ownedField(ownerId, fieldId);
   const { sensor } = await db();
-  return (await listAll(sensor, { ownerId, fieldId })).map(toSensor).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return (await listAll(sensor, { ownerId, fieldId })).map(toSensor).sort(oldestFirst);
 }
 
 // No lock needed: this writes only keyStatus, and Piezas merges top-level keys, so it cannot clash
@@ -82,10 +85,61 @@ export async function revokeSensor(ownerId: string, sensorId: string): Promise<S
   return toSensor(await sensor.update(sensorId, { data: { keyStatus: 'revoked' } }));
 }
 
-// Used when a field is removed. (Step 4 adds the sensors' stored readings here.)
+// Used when a field is removed. History first, then the sensor, so a failure part-way can be retried;
+// under the device lock, so a batch already past its key check cannot write history after it is gone.
 export async function deleteFieldSensors(ownerId: string, fieldId: string): Promise<void> {
   const { sensor } = await db();
-  for (const r of await listAll(sensor, { ownerId, fieldId })) await sensor.delete(r.id);
+  for (const r of await listAll(sensor, { ownerId, fieldId })) {
+    await withLock(`device:${str(r.data.keyHash)}`, async () => {
+      await deleteSensorHistory(ownerId, r.id);
+      await sensor.delete(r.id);
+    });
+  }
+}
+
+// POST /api/fields/:id/simulate (S-006): replaces each sensor's history with 14 days of simulated readings
+// for this field's crop, ending now, and sets its latest values. A demo tool: real history is overwritten.
+export async function simulateField(ownerId: string, fieldId: string, now = new Date()): Promise<Sensor[]> {
+  const { field, farm, sensor } = await db();
+  const f = await getOwned(field, fieldId, ownerId, 'Field');
+  const sensors = await listAll(sensor, { ownerId, fieldId });
+  if (!sensors.length) throw badRequest('Register a sensor on this field first.');
+  // A deleted crop profile simulates with generic ranges; any other failure is a real error.
+  const crop = await getCropProfile(str(f.data.cropProfileId)).catch((e) => {
+    if (e instanceof AppError && e.status === 404) return null;
+    throw e;
+  });
+  const farmRec = await getOwned(farm, str(f.data.farmId), ownerId, 'Farm');
+  const longitude = num(farmRec.data.longitude) ?? 0;
+  const out: Sensor[] = [];
+  for (const s of sensors) {
+    out.push(
+      await withLock(`device:${str(s.data.keyHash)}`, async () => {
+        const readings = simulateSensor(s.id, crop ?? { moistureMin: null, moistureMax: null, phMin: null, phMax: null, ecMax: null }, longitude, now, RETENTION_DAYS);
+        await replaceHistory(ownerId, s.id, readings, 'simulated', now);
+        return toSensor(await sensor.update(s.id, { data: { latest: mergeLatest({}, readings).latest } }));
+      }),
+    );
+  }
+  return out.sort(oldestFirst);
+}
+
+export interface SensorReadings {
+  sensorId: string;
+  simulated: boolean; // true when any point shown came from the simulator
+  series: Series;
+}
+
+// GET /api/fields/:id/readings?days=7 (R-007): each sensor's points per type for the last `days` days.
+export async function fieldReadings(ownerId: string, fieldId: string, daysParam: unknown, now = new Date()): Promise<{ days: number; sensors: SensorReadings[] }> {
+  const days = daysParam === undefined ? 7 : number('days', daysParam, { min: 1, max: RETENTION_DAYS });
+  if (!Number.isInteger(days)) throw badRequest('days must be a whole number.');
+  const sensors = await listSensors(ownerId, fieldId); // 404 if the field is not this farmer's
+  const since = new Date(now.getTime() - days * 86_400_000).toISOString();
+  return {
+    days,
+    sensors: await Promise.all(sensors.map(async (s) => ({ sensorId: s.id, ...(await sensorHistory(ownerId, s.id, since)) }))),
+  };
 }
 
 // The newest value of each type wins; a late, older reading never replaces a newer one.
@@ -120,6 +174,8 @@ export async function ingest(deviceKey: unknown, body: unknown): Promise<{ accep
     const r = (await sensor.list({ filter: { keyHash: hash }, limit: 1 })).data[0];
     if (!r) throw unauthorized(BAD_KEY);
     if (r.data.keyStatus !== 'active') throw unauthorized('This device key has been revoked.');
+    // History first: if it fails, the device retries, and the same times simply overwrite (no duplicates).
+    await appendHistory(str(r.data.ownerId), r.id, readings, 'real');
     const { latest, changed } = mergeLatest(storedLatest(r.data.latest), readings);
     if (changed) {
       await sensor.update(r.id, { data: { latest } }).catch((e) => {

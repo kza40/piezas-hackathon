@@ -1,0 +1,44 @@
+[
+  {
+    "id": "field_1a",
+    "farm_id": "farm_1",
+    "name": "North Block",
+    "crop_profile_id": "crop_blueberry",
+    "owner_id": "owner_demo_1"
+  },
+  {
+    "id": "field_1b",
+    "farm_id": "farm_1",
+    "name": "Creekside",
+    "crop_profile_id": "crop_blueberry",
+    "owner_id": "owner_demo_1"
+  },
+  {
+    "id": "field_2a",
+    "farm_id": "farm_2",
+    "name": "East Rows",
+    "crop_profile_id": "crop_blueberry",
+    "owner_id": "owner_demo_1"
+  },
+  {
+    "id": "field_2b",
+    "farm_id": "farm_2",
+    "name": "Lower Meadow",
+    "crop_profile_id": "crop_blueberry",
+    "owner_id": "owner_demo_1"
+  },
+  {
+    "id": "field_3a",
+    "farm_id": "farm_3",
+    "name": "Orchard Edge",
+    "crop_profile_id": "crop_blueberry",
+    "owner_id": "owner_demo_2"
+  },
+  {
+    "id": "field_3b",
+    "farm_id": "farm_3",
+    "name": "West Slope",
+    "crop_profile_id": "crop_blueberry",
+    "owner_id": "owner_demo_2"
+  }
+]
