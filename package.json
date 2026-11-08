@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc",
     "test:unit": "tsx --test \"lib/**/*.unit.test.ts\"",
     "test:int": "tsx --env-file=.env --test --test-concurrency=1 \"lib/**/*.int.test.ts\" \"server/**/*.int.test.ts\"",
     "dev:api": "tsx watch --env-file=.env server/index.ts --test-app",
@@ -12,13 +16,16 @@
   "devDependencies": {
     "@playwright/test": "^1.47.0",
     "@types/node": "^22.20.5",
+    "@types/three": "^0.187.0",
     "piezas": "^0.7.7",
     "tsx": "^4.23.15",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vite": "^8.3.6"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.6",
     "@piezas/sdk": "^0.5.2",
-    "hono": "^4.13.17"
+    "hono": "^4.13.17",
+    "three": "^0.187.0"
   }
 }
