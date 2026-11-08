@@ -49,7 +49,7 @@ The session is an httpOnly, SameSite=Lax cookie named `piezas_session` (lasts 7 
 | `GET /api/fields/:fieldId` | none | `{ field }` |
 | `DELETE /api/fields/:fieldId` | none | 204 |
 
-A `field` is `{ id, farmId, name, cropProfile, acres, stage, soil, createdAt }`, with the full `cropProfile` object (so the ideal moisture and pH ranges are right there) and `stage` / `soil` as `""` when not set. Removing a field also removes its sensors. Reading history, weather, advice and alerts come in later steps.
+A `field` is `{ id, farmId, name, cropProfile, acres, stage, soil, createdAt }`, with the full `cropProfile` object (so the ideal moisture and pH ranges are right there) and `stage` / `soil` as `""` when not set. Removing a field also removes its sensors. Weather and advice endpoints are documented below.
 
 Another farmer's farm, field or sensor always answers 404, exactly like one that does not exist.
 
@@ -120,6 +120,14 @@ Farmers do not create alerts; the advice rule does, on the server, with `openAle
 - It returns `null` for 12 hours after the farmer marks that field's alert done, so "done" is not undone by the next page view. After that it can open again.
 - The message is fixed when the alert opens; the field page shows the live reason.
 
+## Weather and advice (signed-in farmer)
+| Method and path | Returns |
+|---|---|
+| `GET /api/farms/:farmId/weather` | `{ rainNext48hMm, overnightLowC, hours }` |
+| `GET /api/fields/:fieldId/advice` | `{ watering, soilWarning, frostWarning, weather, alert }` — may create one open watering alert when status is Water today |
+| `GET /api/fields/:fieldId/planting` | `{ weeks: [{ week, reason, score }] }` recommendation only; no planting date is stored |
+`watering.label` is `Water today`, `Wait`, or `No recent reading`. `soilWarning` and `frostWarning` are strings or `null`. The farm must have latitude and longitude or these return 400.
+Set `WEATHER_STUB_DIR=data/weather` (and optional `WEATHER_STUB_FORECAST` / `WEATHER_STUB_HISTORY`) to use fixed forecast files instead of Open-Meteo. Planting history currently needs the stub `history.json` (live Open-Meteo history is nowired yet).
 ## Demo accounts (test app)
 
 `scripts/seed-demo.ts` has created the two demo farmers with their farms and fields, two sensors per field ("North probe", "South probe") and 14 days of simulated readings. Run it again right before a demo so the readings end at "now":

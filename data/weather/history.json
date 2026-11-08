@@ -1,0 +1,366 @@
+[
+  {
+    "week": 1,
+    "avg_temp_c": -4.4,
+    "avg_low_c": -7.5,
+    "frost_chance_pct": 50,
+    "avg_rain_mm": 20
+  },
+  {
+    "week": 2,
+    "avg_temp_c": -3.9,
+    "avg_low_c": -7.1,
+    "frost_chance_pct": 49,
+    "avg_rain_mm": 21
+  },
+  {
+    "week": 3,
+    "avg_temp_c": -3.2,
+    "avg_low_c": -6.6,
+    "frost_chance_pct": 48,
+    "avg_rain_mm": 22
+  },
+  {
+    "week": 4,
+    "avg_temp_c": -2.5,
+    "avg_low_c": -6,
+    "frost_chance_pct": 47,
+    "avg_rain_mm": 23
+  },
+  {
+    "week": 5,
+    "avg_temp_c": -1.6,
+    "avg_low_c": -5.3,
+    "frost_chance_pct": 46,
+    "avg_rain_mm": 24
+  },
+  {
+    "week": 6,
+    "avg_temp_c": -0.7,
+    "avg_low_c": -4.5,
+    "frost_chance_pct": 45,
+    "avg_rain_mm": 25
+  },
+  {
+    "week": 7,
+    "avg_temp_c": 0.4,
+    "avg_low_c": -3.7,
+    "frost_chance_pct": 44,
+    "avg_rain_mm": 26
+  },
+  {
+    "week": 8,
+    "avg_temp_c": 1.5,
+    "avg_low_c": -2.8,
+    "frost_chance_pct": 43,
+    "avg_rain_mm": 20
+  },
+  {
+    "week": 9,
+    "avg_temp_c": 2.6,
+    "avg_low_c": -1.9,
+    "frost_chance_pct": 42,
+    "avg_rain_mm": 21
+  },
+  {
+    "week": 10,
+    "avg_temp_c": 3.8,
+    "avg_low_c": -1,
+    "frost_chance_pct": 41,
+    "avg_rain_mm": 22
+  },
+  {
+    "week": 11,
+    "avg_temp_c": 5,
+    "avg_low_c": 0,
+    "frost_chance_pct": 40,
+    "avg_rain_mm": 23
+  },
+  {
+    "week": 12,
+    "avg_temp_c": 6.2,
+    "avg_low_c": 1,
+    "frost_chance_pct": 39,
+    "avg_rain_mm": 24
+  },
+  {
+    "week": 13,
+    "avg_temp_c": 7.4,
+    "avg_low_c": 1.9,
+    "frost_chance_pct": 38,
+    "avg_rain_mm": 25
+  },
+  {
+    "week": 14,
+    "avg_temp_c": 8.5,
+    "avg_low_c": 2.8,
+    "frost_chance_pct": 37,
+    "avg_rain_mm": 26
+  },
+  {
+    "week": 15,
+    "avg_temp_c": 9.6,
+    "avg_low_c": 3.7,
+    "frost_chance_pct": 36,
+    "avg_rain_mm": 20
+  },
+  {
+    "week": 16,
+    "avg_temp_c": 10.7,
+    "avg_low_c": 4.5,
+    "frost_chance_pct": 35,
+    "avg_rain_mm": 21
+  },
+  {
+    "week": 17,
+    "avg_temp_c": 11.6,
+    "avg_low_c": 5.3,
+    "frost_chance_pct": 34,
+    "avg_rain_mm": 22
+  },
+  {
+    "week": 18,
+    "avg_temp_c": 12.5,
+    "avg_low_c": 6,
+    "frost_chance_pct": 33,
+    "avg_rain_mm": 23
+  },
+  {
+    "week": 19,
+    "avg_temp_c": 13.2,
+    "avg_low_c": 6.6,
+    "frost_chance_pct": 32,
+    "avg_rain_mm": 24
+  },
+  {
+    "week": 20,
+    "avg_temp_c": 13.9,
+    "avg_low_c": 7.1,
+    "frost_chance_pct": 31,
+    "avg_rain_mm": 25
+  },
+  {
+    "week": 21,
+    "avg_temp_c": 14.4,
+    "avg_low_c": 7.5,
+    "frost_chance_pct": 30,
+    "avg_rain_mm": 26
+  },
+  {
+    "week": 22,
+    "avg_temp_c": 14.7,
+    "avg_low_c": 7.8,
+    "frost_chance_pct": 29,
+    "avg_rain_mm": 20
+  },
+  {
+    "week": 23,
+    "avg_temp_c": 14.9,
+    "avg_low_c": 7.9,
+    "frost_chance_pct": 28,
+    "avg_rain_mm": 21
+  },
+  {
+    "week": 24,
+    "avg_temp_c": 15,
+    "avg_low_c": 8,
+    "frost_chance_pct": 27,
+    "avg_rain_mm": 22
+  },
+  {
+    "week": 25,
+    "avg_temp_c": 14.9,
+    "avg_low_c": 7.9,
+    "frost_chance_pct": 26,
+    "avg_rain_mm": 23
+  },
+  {
+    "week": 26,
+    "avg_temp_c": 14.7,
+    "avg_low_c": 7.8,
+    "frost_chance_pct": 25,
+    "avg_rain_mm": 24
+  },
+  {
+    "week": 27,
+    "avg_temp_c": 14.4,
+    "avg_low_c": 7.5,
+    "frost_chance_pct": 24,
+    "avg_rain_mm": 25
+  },
+  {
+    "week": 28,
+    "avg_temp_c": 13.9,
+    "avg_low_c": 7.1,
+    "frost_chance_pct": 23,
+    "avg_rain_mm": 26
+  },
+  {
+    "week": 29,
+    "avg_temp_c": 13.2,
+    "avg_low_c": 6.6,
+    "frost_chance_pct": 22,
+    "avg_rain_mm": 20
+  },
+  {
+    "week": 30,
+    "avg_temp_c": 12.5,
+    "avg_low_c": 6,
+    "frost_chance_pct": 21,
+    "avg_rain_mm": 21
+  },
+  {
+    "week": 31,
+    "avg_temp_c": 11.6,
+    "avg_low_c": 5.3,
+    "frost_chance_pct": 20,
+    "avg_rain_mm": 22
+  },
+  {
+    "week": 32,
+    "avg_temp_c": 10.7,
+    "avg_low_c": 4.5,
+    "frost_chance_pct": 19,
+    "avg_rain_mm": 23
+  },
+  {
+    "week": 33,
+    "avg_temp_c": 9.6,
+    "avg_low_c": 3.7,
+    "frost_chance_pct": 18,
+    "avg_rain_mm": 24
+  },
+  {
+    "week": 34,
+    "avg_temp_c": 8.5,
+    "avg_low_c": 2.8,
+    "frost_chance_pct": 17,
+    "avg_rain_mm": 25
+  },
+  {
+    "week": 35,
+    "avg_temp_c": 7.4,
+    "avg_low_c": 1.9,
+    "frost_chance_pct": 16,
+    "avg_rain_mm": 26
+  },
+  {
+    "week": 36,
+    "avg_temp_c": 6.2,
+    "avg_low_c": 1,
+    "frost_chance_pct": 15,
+    "avg_rain_mm": 20
+  },
+  {
+    "week": 37,
+    "avg_temp_c": 5,
+    "avg_low_c": 0,
+    "frost_chance_pct": 14,
+    "avg_rain_mm": 21
+  },
+  {
+    "week": 38,
+    "avg_temp_c": 3.8,
+    "avg_low_c": -1,
+    "frost_chance_pct": 13,
+    "avg_rain_mm": 22
+  },
+  {
+    "week": 39,
+    "avg_temp_c": 2.6,
+    "avg_low_c": -1.9,
+    "frost_chance_pct": 12,
+    "avg_rain_mm": 23
+  },
+  {
+    "week": 40,
+    "avg_temp_c": 1.5,
+    "avg_low_c": -2.8,
+    "frost_chance_pct": 11,
+    "avg_rain_mm": 24
+  },
+  {
+    "week": 41,
+    "avg_temp_c": 0.4,
+    "avg_low_c": -3.7,
+    "frost_chance_pct": 10,
+    "avg_rain_mm": 25
+  },
+  {
+    "week": 42,
+    "avg_temp_c": -0.7,
+    "avg_low_c": -4.5,
+    "frost_chance_pct": 9,
+    "avg_rain_mm": 26
+  },
+  {
+    "week": 43,
+    "avg_temp_c": -1.6,
+    "avg_low_c": -5.3,
+    "frost_chance_pct": 8,
+    "avg_rain_mm": 20
+  },
+  {
+    "week": 44,
+    "avg_temp_c": -2.5,
+    "avg_low_c": -6,
+    "frost_chance_pct": 7,
+    "avg_rain_mm": 21
+  },
+  {
+    "week": 45,
+    "avg_temp_c": -3.2,
+    "avg_low_c": -6.6,
+    "frost_chance_pct": 6,
+    "avg_rain_mm": 22
+  },
+  {
+    "week": 46,
+    "avg_temp_c": -3.9,
+    "avg_low_c": -7.1,
+    "frost_chance_pct": 5,
+    "avg_rain_mm": 23
+  },
+  {
+    "week": 47,
+    "avg_temp_c": -4.4,
+    "avg_low_c": -7.5,
+    "frost_chance_pct": 4,
+    "avg_rain_mm": 24
+  },
+  {
+    "week": 48,
+    "avg_temp_c": -4.7,
+    "avg_low_c": -7.8,
+    "frost_chance_pct": 3,
+    "avg_rain_mm": 25
+  },
+  {
+    "week": 49,
+    "avg_temp_c": -4.9,
+    "avg_low_c": -7.9,
+    "frost_chance_pct": 2,
+    "avg_rain_mm": 26
+  },
+  {
+    "week": 50,
+    "avg_temp_c": -5,
+    "avg_low_c": -8,
+    "frost_chance_pct": 1,
+    "avg_rain_mm": 20
+  },
+  {
+    "week": 51,
+    "avg_temp_c": -4.9,
+    "avg_low_c": -7.9,
+    "frost_chance_pct": 0,
+    "avg_rain_mm": 21
+  },
+  {
+    "week": 52,
+    "avg_temp_c": -4.7,
+    "avg_low_c": -7.8,
+    "frost_chance_pct": 0,
+    "avg_rain_mm": 22
+  }
+]
