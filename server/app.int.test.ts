@@ -294,6 +294,8 @@ describe('reading history and the simulator over HTTP', () => {
     const farm = (await sam('POST', '/api/farms', { name: 'History Farm', latitude: 49.05, longitude: -122.3 })).body.farm;
     const crop = (await sam('GET', '/api/crop-profiles')).body.cropProfiles.find((c: any) => c.key === 'blueberry');
     fieldId = (await sam('POST', `/api/farms/${farm.id}/fields`, { name: 'East block', cropProfileId: crop.id })).body.field.id;
+    const none = await sam('POST', `/api/fields/${fieldId}/simulate`);
+    assert.deepEqual([none.status, none.body.message], [400, 'Register a sensor on this field first.']);
     for (const name of ['Row 1 probe', 'Row 9 probe']) {
       const r = (await sam('POST', `/api/fields/${fieldId}/sensors`, { name })).body;
       sensors.push({ id: r.sensor.id, key: r.deviceKey });
@@ -313,7 +315,15 @@ describe('reading history and the simulator over HTTP', () => {
       { time: t2, value: 31.5 },
     ]);
     assert.equal(s0.simulated, false);
-    assert.deepEqual(body.sensors.find((s: any) => s.sensorId === sensors[1].id).series, {});
+    assert.equal(body.sensors.find((s: any) => s.sensorId === sensors[1].id).series.soil_moisture, undefined);
+  });
+
+  test('parallel batches from one device keep every history point (the day record is read-modify-write)', async () => {
+    const times = [50, 40, 30, 20, 10].map(at);
+    const res = await Promise.all(times.map((time, i) => device(sensors[1].key, { type: 'soil_ph', value: 5 + i / 10, unit: 'pH', time })));
+    assert.deepEqual(res.map((r) => r.status), [202, 202, 202, 202, 202]);
+    const s1 = (await readings('?days=1')).sensors.find((s: any) => s.sensorId === sensors[1].id);
+    assert.deepEqual(s1.series.soil_ph.map((p: any) => p.time), [...times].sort());
   });
 
   test('days must be a whole number from 1 to 14; another farmer gets 404', async () => {

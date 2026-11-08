@@ -16,7 +16,9 @@ export interface Point {
 
 const DAY_MS = 86_400_000;
 export const dayOf = (iso: string) => iso.slice(0, 10); // ISO times are normalised UTC, so this is the UTC day
-export const cutoffDay = (now: Date, days = RETENTION_DAYS) => dayOf(new Date(now.getTime() - (days - 1) * DAY_MS).toISOString());
+// The oldest UTC day kept: whole days back to `days` x 24 hours ago, so a full 14-day window is always stored
+// (the simulator's 14 x 24 hours and ?days=14 both fit).
+export const cutoffDay = (now: Date, days = RETENTION_DAYS) => dayOf(new Date(now.getTime() - days * DAY_MS).toISOString());
 
 // Same time twice: the newer write wins (a device resending a reading). Sorted by time.
 export function mergePoints(existing: Point[], added: Point[]): Point[] {

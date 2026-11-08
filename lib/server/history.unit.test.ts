@@ -7,6 +7,7 @@ import { parseReading, READING_TYPES, type Reading } from './readings';
 import { simulateSensor } from './simulate';
 
 const now = new Date('2026-11-07T18:30:00Z');
+const blueberry = { moistureMin: 35, moistureMax: 50, phMin: 4.5, phMax: 5.5, ecMax: 1 };
 
 test('points merge by time: a resent time is replaced, the result is sorted', () => {
   const a = { t: '2026-11-07T10:00:00.000Z', v: 30, src: 'real' as const };
@@ -15,11 +16,15 @@ test('points merge by time: a resent time is replaced, the result is sorted', ()
   assert.deepEqual(merged.map((p) => [p.t.slice(11, 13), p.v]), [['09', 31], ['10', 29]]);
 });
 
-test('14 days are kept counting today; older readings are accepted but not stored', () => {
-  assert.equal(cutoffDay(now), '2026-10-25');
+test('a full 14 x 24 hours is kept; older readings are accepted but not stored', () => {
+  assert.equal(cutoffDay(now), '2026-10-24'); // 14 days before 2026-11-07T18:30Z is 2026-10-24T18:30Z
   const r = (time: string): Reading => ({ type: 'soil_ph', value: 5, time });
-  const groups = groupByDay([r('2026-11-07T01:00:00.000Z'), r('2026-11-06T23:00:00.000Z'), r('2026-10-24T12:00:00.000Z')], 'real', now);
-  assert.deepEqual([...groups.keys()].sort(), ['soil_ph|2026-11-06', 'soil_ph|2026-11-07']);
+  const groups = groupByDay([r('2026-11-07T01:00:00.000Z'), r('2026-10-24T19:00:00.000Z'), r('2026-10-23T23:00:00.000Z')], 'real', now);
+  assert.deepEqual([...groups.keys()].sort(), ['soil_ph|2026-10-24', 'soil_ph|2026-11-07']);
+  // Everything the simulator writes is kept: its first hour is inside the window.
+  const sim = simulateSensor('sensor-a', blueberry, -122.3, now);
+  const kept = [...groupByDay(sim, 'simulated', now).values()].reduce((n, pts) => n + pts.length, 0);
+  assert.equal(kept, sim.length);
 });
 
 test('series read back oldest first from `since`, and flag simulated points', () => {
@@ -43,8 +48,6 @@ test('series read back oldest first from `since`, and flag simulated points', ()
   assert.equal(simulated, false, 'the simulated point is before `since`');
   assert.equal(seriesFrom(records, '2026-11-01T00:00:00.000Z').simulated, true);
 });
-
-const blueberry = { moistureMin: 35, moistureMax: 50, phMin: 4.5, phMax: 5.5, ecMax: 1 };
 
 test('the simulator gives 14 days of hourly readings of all six types, each one a valid device reading', () => {
   const rs = simulateSensor('sensor-a', blueberry, -122.3, now);
@@ -71,7 +74,7 @@ test('simulated weather and soil behave like a real field', () => {
   assert.ok(avgAt('air_humidity', 2, 6) > avgAt('air_humidity', 13, 17), 'humidity is highest when it is coldest');
 
   const ph = of('soil_ph').map((r) => r.value);
-  for (let i = 24; i < ph.length; i += 24) assert.ok(Math.abs(ph[i] - ph[i - 24]) <= 0.1, 'pH changes slowly');
+  for (let i = 24; i < ph.length; i += 24) assert.ok(Math.abs(ph[i] - ph[i - 24]) <= 0.06, 'pH changes about 0.05 a day at most');
   const moisture = of('soil_moisture').map((r) => r.value);
   assert.ok(moisture.some((v, i) => i > 0 && v - moisture[i - 1] > 4), 'moisture jumps after rain or irrigation');
   assert.ok(moisture.some((v, i) => i > 0 && v < moisture[i - 1]), 'and dries in between');
@@ -79,4 +82,12 @@ test('simulated weather and soil behave like a real field', () => {
   const soil = of('soil_temperature').map((r) => r.value);
   const swing = (v: number[]) => Math.max(...v.slice(-24)) - Math.min(...v.slice(-24));
   assert.ok(swing(soil) < swing(air), 'soil temperature is smoother than air temperature');
+});
+
+test('across many spots the simulator gives some dry fields and mostly healthy ones (the demo needs both)', () => {
+  const ends = Array.from({ length: 60 }, (_, i) => simulateSensor(`spot-${i}`, blueberry, -122.3, now).filter((r) => r.type === 'soil_moisture').at(-1)!.value);
+  const dry = ends.filter((v) => v < 35).length;
+  const inRange = ends.filter((v) => v >= 35 && v <= 50).length;
+  assert.ok(dry >= 6 && dry <= 30, `about a quarter dry, got ${dry} of 60`);
+  assert.ok(inRange >= 30, `most in range, got ${inRange} of 60`);
 });
