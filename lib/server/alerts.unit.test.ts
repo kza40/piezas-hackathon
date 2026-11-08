@@ -2,23 +2,32 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { AppError } from './errors';
-import { mayOpen, parseStatusFilter, withFieldAlertsLock, type Alert } from './data/alerts';
+import { mayOpen, parseStatusFilter, type Alert } from './data/alerts';
+import { oldestFirst } from './data/records';
 
-const now = new Date('2026-11-07T18:00:00Z');
+const now = new Date('2026-11-08T01:00:00Z'); // 5 pm in BC, already "tomorrow" in UTC
 const alert = (status: 'open' | 'done', doneAt: string | null = null): Alert => ({
   id: 'a',
   fieldId: 'f',
   message: 'Water North block today',
   status,
-  createdAt: '2026-11-07T08:00:00Z',
+  createdAt: '2026-11-07T16:00:00Z',
   doneAt,
 });
 
-test('a new alert opens only when none is open and none was marked done today (UTC)', () => {
+test('a new alert opens only when none is open and none was marked done in the last 12 hours', () => {
   assert.equal(mayOpen([], now), true);
   assert.equal(mayOpen([alert('open')], now), false, 'S-018: never a second open alert');
-  assert.equal(mayOpen([alert('done', '2026-11-07T09:00:00Z')], now), false, 'done stays done for the rest of the day');
-  assert.equal(mayOpen([alert('done', '2026-11-06T23:59:00Z')], now), true, 'a new day can raise it again');
+  assert.equal(mayOpen([alert('done', '2026-11-07T23:30:00Z')], now), false, 'done 90 minutes ago, even though the UTC day changed');
+  assert.equal(mayOpen([alert('done', '2026-11-07T13:00:00Z')], now), true, 'exactly 12 hours later it can open again');
+  assert.equal(mayOpen([alert('done', '2026-11-07T13:00:00Z'), alert('done', '2026-11-08T00:30:00Z')], now), false, 'the latest done counts');
+});
+
+test('records made in the same second keep one order (Piezas createdAt is whole seconds)', () => {
+  const r = (id: string, createdAt: string) => ({ id, createdAt });
+  const a = [r('b', '2026-11-07T10:00:00Z'), r('c', '2026-11-07T09:00:00Z'), r('a', '2026-11-07T10:00:00Z')];
+  assert.deepEqual([...a].sort(oldestFirst).map((x) => x.id), ['c', 'a', 'b']);
+  assert.deepEqual([...a].reverse().sort(oldestFirst).map((x) => x.id), ['c', 'a', 'b'], 'same order whatever order Piezas returns');
 });
 
 test('the status filter is open, done or nothing', () => {
@@ -27,16 +36,4 @@ test('the status filter is open, done or nothing', () => {
   assert.equal(parseStatusFilter('open'), 'open');
   assert.equal(parseStatusFilter('done'), 'done');
   assert.throws(() => parseStatusFilter('closed'), (e: unknown) => e instanceof AppError && e.status === 400);
-});
-
-test('the per-field alerts lock runs one at a time per field, and fields do not wait on each other', async () => {
-  const order: string[] = [];
-  const slow = (name: string, ms: number) => async () => {
-    order.push(`${name}:start`);
-    await new Promise((r) => setTimeout(r, ms));
-    order.push(`${name}:end`);
-  };
-  await Promise.all([withFieldAlertsLock('f1', slow('a', 20)), withFieldAlertsLock('f1', slow('b', 1)), withFieldAlertsLock('f2', slow('c', 1))]);
-  assert.ok(order.indexOf('b:start') > order.indexOf('a:end'), 'same field waits');
-  assert.ok(order.indexOf('c:end') < order.indexOf('a:end'), 'another field does not');
 });

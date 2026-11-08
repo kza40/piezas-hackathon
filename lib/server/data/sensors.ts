@@ -8,7 +8,7 @@ import { number, object, text } from '../validate';
 import { deviceKeyHash, newDeviceKey } from '../device-keys';
 import { rateLimiter } from '../rate-limit';
 import { READING_TYPES, parseIngestBody, type Reading, type ReadingType } from '../readings';
-import { getOwned, listAll, num, str } from './records';
+import { getOwned, listAll, num, oldestFirst, str } from './records';
 import { getCropProfile } from './crops';
 import { appendHistory, deleteSensorHistory, replaceHistory, RETENTION_DAYS, sensorHistory, type Series } from './history';
 import { simulateSensor } from '../simulate';
@@ -74,7 +74,7 @@ export async function createSensor(ownerId: string, fieldId: string, body: unkno
 export async function listSensors(ownerId: string, fieldId: string): Promise<Sensor[]> {
   await ownedField(ownerId, fieldId);
   const { sensor } = await db();
-  return (await listAll(sensor, { ownerId, fieldId })).map(toSensor).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return (await listAll(sensor, { ownerId, fieldId })).map(toSensor).sort(oldestFirst);
 }
 
 // No lock needed: this writes only keyStatus, and Piezas merges top-level keys, so it cannot clash
@@ -121,7 +121,7 @@ export async function simulateField(ownerId: string, fieldId: string, now = new 
       }),
     );
   }
-  return out.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return out.sort(oldestFirst);
 }
 
 export interface SensorReadings {

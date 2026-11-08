@@ -1,11 +1,11 @@
 // In-app alerts (SPEC R-011). The advice rule calls openAlert when a field needs water; the farmer lists
 // alerts and marks them done. One open alert per field (S-018), and once the farmer marks it done, no new
-// one opens for that field until the next UTC day, so "done" is not undone by the next page view.
+// one opens for that field for 12 hours, so "done" is not undone by the next page view.
 import type { EntityRecord } from '@piezas/sdk';
 import { db } from '../piezas';
 import { withLock } from '../lock';
 import { badRequest } from '../errors';
-import { getOwned, listAll, str } from './records';
+import { getOwned, listAll, oldestFirst, str } from './records';
 
 export type AlertStatus = 'open' | 'done';
 export interface Alert {
@@ -22,20 +22,22 @@ const toAlert = (r: EntityRecord): Alert => ({
   fieldId: str(r.data.fieldId),
   message: str(r.data.message),
   status: r.data.status === 'done' ? 'done' : 'open',
-  createdAt: r.createdAt,
+  // Our own millisecond time: Piezas's createdAt is whole seconds (E19), too coarse for "newest first".
+  createdAt: typeof r.data.openedAt === 'string' ? r.data.openedAt : r.createdAt,
   doneAt: typeof r.data.doneAt === 'string' ? r.data.doneAt : null,
 });
 
-const utcDay = (iso: string) => iso.slice(0, 10);
+// After the farmer marks a field's alert done, the advice rule may not raise a new one for this long.
+// A fixed window, not "the rest of the day": a UTC day ends mid-afternoon in BC, and farmers are in many zones.
+export const QUIET_AFTER_DONE_MS = 12 * 3_600_000;
 
 // Whether a new alert may open for a field, given that field's alerts. Pure, so the rule is unit-tested.
 export function mayOpen(alerts: Alert[], now: Date): boolean {
-  const today = utcDay(now.toISOString());
-  return !alerts.some((a) => a.status === 'open' || (a.doneAt !== null && utcDay(a.doneAt) === today));
+  return !alerts.some((a) => a.status === 'open' || (a.doneAt !== null && now.getTime() - Date.parse(a.doneAt) < QUIET_AFTER_DONE_MS));
 }
 
 // For the advice rule (not an HTTP route). Returns the field's open alert, creating it if allowed;
-// null when the farmer already dealt with today's. Locked per field, so parallel page views make one alert.
+// null within 12 hours of the farmer marking it done. Locked per field, so parallel page views make one alert.
 export function openAlert(ownerId: string, fieldId: string, message: string, now = new Date()): Promise<Alert | null> {
   return withFieldAlertsLock(fieldId, async () => {
     const { alert, field } = await db();
@@ -44,7 +46,7 @@ export function openAlert(ownerId: string, fieldId: string, message: string, now
     const open = existing.find((a) => a.status === 'open');
     if (open) return open;
     if (!mayOpen(existing, now)) return null;
-    return toAlert(await alert.create({ title: message, data: { ownerId, fieldId, message, status: 'open' } }));
+    return toAlert(await alert.create({ title: message, data: { ownerId, fieldId, message, status: 'open', openedAt: now.toISOString() } }));
   });
 }
 
@@ -59,7 +61,7 @@ export async function listAlerts(ownerId: string, statusParam?: unknown): Promis
   const status = parseStatusFilter(statusParam);
   const { alert } = await db();
   const all = (await listAll(alert, status ? { ownerId, status } : { ownerId })).map(toAlert);
-  return all.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return all.sort((a, b) => oldestFirst(b, a));
 }
 
 // POST /api/alerts/:id/done (S-010). Marking an alert done twice is fine and keeps the first time.

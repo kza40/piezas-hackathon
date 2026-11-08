@@ -4,7 +4,7 @@ import { db } from '../piezas';
 import { AppError, badRequest } from '../errors';
 import { number, object, optional, text } from '../validate';
 import { getCropProfile, type CropProfile } from './crops';
-import { getOwned, listAll, num, str } from './records';
+import { getOwned, listAll, num, oldestFirst, str } from './records';
 import { deleteFieldSensors } from './sensors';
 import { deleteFieldAlerts, withFieldAlertsLock } from './alerts';
 
@@ -51,7 +51,7 @@ export async function createFarm(ownerId: string, body: unknown): Promise<Farm> 
 
 export async function listFarms(ownerId: string): Promise<Farm[]> {
   const { farm } = await db();
-  return (await listAll(farm, { ownerId })).map(toFarm).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return (await listAll(farm, { ownerId })).map(toFarm).sort(oldestFirst);
 }
 
 export async function getFarm(ownerId: string, farmId: string): Promise<Farm> {
@@ -117,7 +117,7 @@ export async function listFields(ownerId: string, farmId: string): Promise<Field
   await getFarm(ownerId, farmId);
   const { field } = await db();
   const records = await listAll(field, { ownerId, farmId });
-  return (await withCrops(records)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return (await withCrops(records)).sort(oldestFirst);
 }
 
 export async function getField(ownerId: string, fieldId: string): Promise<Field> {

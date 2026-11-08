@@ -117,7 +117,7 @@ An `alert` is `{ id, fieldId, message, status, createdAt, doneAt }` (`doneAt` is
 Farmers do not create alerts; the advice rule does, on the server, with `openAlert(ownerId, fieldId, message)` from `lib/server/data/alerts.ts`:
 
 - It returns the field's open alert if there is one (never a second one, even for parallel page views; S-018), otherwise creates it.
-- It returns `null` when the farmer already marked that field's alert done today (UTC), so "done" is not undone by the next page view. The next day it can open again.
+- It returns `null` for 12 hours after the farmer marks that field's alert done, so "done" is not undone by the next page view. After that it can open again.
 - The message is fixed when the alert opens; the field page shows the live reason.
 
 ## Demo accounts (test app)

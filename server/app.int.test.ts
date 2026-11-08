@@ -423,13 +423,27 @@ describe('alerts over HTTP', () => {
     assert.equal((await sam('POST', `/api/alerts/${alertId}/done`)).body.alert.doneAt, r.body.alert.doneAt);
   });
 
-  test('done stays done today; the next day the advice rule can raise it again', async () => {
+  test('done stays done for 12 hours; after that the advice rule can raise it again', async () => {
     assert.equal(await openAlert(samId, fieldId, message), null);
-    const tomorrow = new Date(Date.now() + 86_400_000);
-    const next = await openAlert(samId, fieldId, message, tomorrow);
+    assert.equal(await openAlert(samId, fieldId, message, new Date(Date.now() + 11 * 3_600_000)), null);
+    const next = await openAlert(samId, fieldId, message, new Date(Date.now() + 13 * 3_600_000));
     assert.ok(next && next.id !== alertId);
     const all = (await sam('GET', '/api/alerts')).body.alerts;
     assert.deepEqual(all.map((a: any) => a.id), [next.id, alertId], 'newest first');
+  });
+
+  test('an alert opening while its field is being removed never outlives the field', async () => {
+    const farm = (await sam('GET', '/api/farms')).body.farms.find((f: any) => f.name === 'Alert Farm');
+    const crop = (await sam('GET', '/api/crop-profiles')).body.cropProfiles[0];
+    const racing = (await sam('POST', `/api/farms/${farm.id}/fields`, { name: 'Racing block', cropProfileId: crop.id })).body.field.id;
+    const results = await Promise.allSettled([
+      openAlert(samId, racing, message),
+      sam('DELETE', `/api/fields/${racing}`),
+      openAlert(samId, racing, message),
+      openAlert(samId, racing, message),
+    ]);
+    for (const r of results) if (r.status === 'rejected') assert.equal(r.reason.status, 404); // only "field not found"
+    assert.deepEqual(await listAll((await db()).alert, { fieldId: racing }), []);
   });
 
   test('removing the field removes its alerts, and no alert can open for it afterwards', async () => {

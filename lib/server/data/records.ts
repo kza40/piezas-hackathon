@@ -31,3 +31,8 @@ export async function getOwned(client: EntityClient, id: string, ownerId: string
 
 export const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 export const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+// Piezas stores createdAt to the second (docs/backend-notes.md E19), so records made in the same second tie.
+// The id breaks the tie, so a list never reorders between two requests.
+export const oldestFirst = (a: { createdAt: string; id: string }, b: { createdAt: string; id: string }) =>
+  a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
