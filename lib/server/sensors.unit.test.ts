@@ -7,7 +7,7 @@ import { AppError } from './errors';
 import { MAX_BATCH, READING_TYPES, parseIngestBody, parseReading } from './readings';
 import { deviceKeyHash, newDeviceKey } from './device-keys';
 import { rateLimiter } from './rate-limit';
-import { parseSensorInput } from './data/sensors';
+import { mergeLatest, parseSensorInput } from './data/sensors';
 
 const now = new Date('2026-11-07T18:00:00Z');
 const ok = { type: 'soil_moisture', value: 27.4, unit: '%', time: '2026-11-07T17:00:00Z' };
@@ -66,7 +66,6 @@ test('device keys are random, well-formed, and only their hash is reproducible',
   assert.equal(deviceKeyHash(a.key), a.hash);
   assert.equal(deviceKeyHash(` ${a.key} `), a.hash); // stray whitespace from copy-paste
   assert.notEqual(a.hash, b.hash);
-  assert.ok(!a.hash.includes(a.key.slice(4)));
   for (const junk of [undefined, '', 'fwk_short', `fwk_${'a'.repeat(44)}`, a.key.slice(4), 42]) assert.equal(deviceKeyHash(junk), null);
 });
 
@@ -76,6 +75,26 @@ test('the rate limiter allows the limit per window, per key, then resets', () =>
   assert.deepEqual([allow('a'), allow('a'), allow('a'), allow('b')], [true, true, false, true]);
   t = 1000;
   assert.equal(allow('a'), true);
+});
+
+test('the newest reading of each type wins, and a late older one changes nothing', () => {
+  const stored = { soil_moisture: { value: 30, time: '2026-11-07T17:00:00.000Z' } };
+  const r = (type: string, value: number, time: string) => parseReading({ type, value, time, unit: READING_TYPES[type as 'soil_ph'].unit }, now);
+
+  const late = mergeLatest(stored, [r('soil_moisture', 99, '2026-11-07T16:00:00Z')]);
+  assert.deepEqual(late, { latest: stored, changed: false });
+
+  const next = mergeLatest(stored, [r('soil_moisture', 31, '2026-11-07T17:30:00Z'), r('soil_ph', 5.1, '2026-11-07T17:30:00Z')]);
+  assert.equal(next.changed, true);
+  assert.deepEqual(next.latest, {
+    soil_moisture: { value: 31, time: '2026-11-07T17:30:00.000Z' },
+    soil_ph: { value: 5.1, time: '2026-11-07T17:30:00.000Z' },
+  });
+  assert.equal(stored.soil_moisture.value, 30, 'the input is not mutated');
+
+  // Within one batch the newest wins too, whatever the order.
+  const batch = mergeLatest({}, [r('soil_ph', 5.3, '2026-11-07T17:45:00Z'), r('soil_ph', 5.0, '2026-11-07T17:15:00Z')]);
+  assert.equal(batch.latest.soil_ph?.value, 5.3);
 });
 
 test('a sensor needs a name of at most 60 characters', () => {

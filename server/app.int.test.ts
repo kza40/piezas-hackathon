@@ -257,9 +257,15 @@ describe('sensors, device keys and ingest over HTTP', () => {
   });
 
   test('S-005: after the farmer revokes the key, readings are rejected', async () => {
-    const r = await sam('POST', `/api/sensors/${sensorId}/revoke`);
+    // A batch arriving at the same moment must not undo the revoke (revoke writes only keyStatus).
+    const [r] = await Promise.all([
+      sam('POST', `/api/sensors/${sensorId}/revoke`),
+      device(deviceKey, { type: 'air_humidity', value: 55, unit: '%', time: at(0) }),
+    ]);
     assert.equal(r.status, 200);
     assert.equal(r.body.sensor.keyStatus, 'revoked');
+    const listed = (await sam('GET', `/api/fields/${fieldId}/sensors`)).body.sensors.find((s: any) => s.id === sensorId);
+    assert.equal(listed.keyStatus, 'revoked');
     const after = await device(deviceKey, { type: 'soil_moisture', value: 30, unit: '%', time: at(0) });
     assert.equal(after.status, 401);
     assert.match(after.body.message, /revoked/);

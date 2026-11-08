@@ -20,7 +20,7 @@ The contract between the Vite frontend (and sensor devices) and the backend. Eve
 
 - Production: `npm run build` (the frontend's Vite build into `dist/`; that script comes with the frontend branch), then `npm start`. The same server serves `dist/` and `/api`, so the frontend always calls relative paths like `/api/farms`.
 - `.env` holds your own Piezas keys (`PIEZAS_API_KEY`, `PIEZAS_TEST_API_KEY`, `PIEZAS_API_URL`); it is never committed.
-- `.env` also needs `DEVICE_KEY_PEPPER` (at least 32 random characters), used to hash device keys. Device keys only work on a server with the same pepper that made them, so everyone running against the shared test app should use the same test pepper (ask Person A), and the live app gets its own, set once in the hosting settings and never changed.
+- `.env` also needs `DEVICE_KEY_PEPPER` (at least 32 random characters), used to hash device keys. Device keys only work on a server with the same pepper that made them, so everyone running against the shared test app should use the same test pepper (ask whoever set up the test app; share it privately, never in the repo), and the live app gets its own, set once in the hosting settings and never changed.
 
 ## Session
 

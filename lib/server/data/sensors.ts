@@ -1,13 +1,13 @@
 // Sensors, their device keys, and readings coming in from devices (SPEC R-004, R-005, R-013).
 // Farmer-facing functions take the signed-in farmer's id; ingest is authenticated by the device key instead.
 import type { EntityRecord } from '@piezas/sdk';
-import { db } from '../piezas';
+import { db, errorCode } from '../piezas';
 import { withLock } from '../lock';
 import { AppError, unauthorized } from '../errors';
 import { object, text } from '../validate';
 import { deviceKeyHash, newDeviceKey } from '../device-keys';
 import { rateLimiter } from '../rate-limit';
-import { READING_TYPES, parseIngestBody, type ReadingType } from '../readings';
+import { READING_TYPES, parseIngestBody, type Reading, type ReadingType } from '../readings';
 import { getOwned, listAll, str } from './records';
 
 export interface LatestReading {
@@ -26,7 +26,7 @@ export interface Sensor {
 }
 
 // Stored on the sensor as undeclared JSON (docs/backend-notes.md E3): { soil_moisture: { value, time }, ... }
-type StoredLatest = Partial<Record<ReadingType, { value: number; time: string }>>;
+export type StoredLatest = Partial<Record<ReadingType, { value: number; time: string }>>;
 
 function storedLatest(v: unknown): StoredLatest {
   const out: StoredLatest = {};
@@ -74,21 +74,33 @@ export async function listSensors(ownerId: string, fieldId: string): Promise<Sen
   return (await listAll(sensor, { ownerId, fieldId })).map(toSensor).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-// Locked with ingest, so a batch that is mid-way cannot land after the revoke.
-export function revokeSensor(ownerId: string, sensorId: string): Promise<Sensor> {
-  return withLock(`sensor:${sensorId}`, async () => {
-    const { sensor } = await db();
-    await getOwned(sensor, sensorId, ownerId, 'Sensor');
-    return toSensor(await sensor.update(sensorId, { data: { keyStatus: 'revoked' } }));
-  });
+// No lock needed: this writes only keyStatus, and Piezas merges top-level keys, so it cannot clash
+// with ingest writing `latest`. A batch already past its key check when the revoke lands still saves.
+export async function revokeSensor(ownerId: string, sensorId: string): Promise<Sensor> {
+  const { sensor } = await db();
+  await getOwned(sensor, sensorId, ownerId, 'Sensor');
+  return toSensor(await sensor.update(sensorId, { data: { keyStatus: 'revoked' } }));
 }
 
 // Used when a field is removed. (Step 4 adds the sensors' stored readings here.)
 export async function deleteFieldSensors(ownerId: string, fieldId: string): Promise<void> {
   const { sensor } = await db();
-  for (const r of await listAll(sensor, { ownerId, fieldId })) {
-    await withLock(`sensor:${r.id}`, () => sensor.delete(r.id));
+  for (const r of await listAll(sensor, { ownerId, fieldId })) await sensor.delete(r.id);
+}
+
+// The newest value of each type wins; a late, older reading never replaces a newer one.
+// (Times are normalised UTC ISO strings, so they compare correctly as text.)
+export function mergeLatest(latest: StoredLatest, readings: Reading[]): { latest: StoredLatest; changed: boolean } {
+  const next = { ...latest };
+  let changed = false;
+  for (const { type, value, time } of readings) {
+    const cur = next[type];
+    if (!cur || time >= cur.time) {
+      next[type] = { value, time };
+      changed = true;
+    }
   }
+  return { latest: next, changed };
 }
 
 const BAD_KEY = 'Device key is missing or not valid.';
@@ -103,24 +115,17 @@ export async function ingest(deviceKey: unknown, body: unknown): Promise<{ accep
   const readings = parseIngestBody(body);
 
   const { sensor } = await db();
-  const found = (await sensor.list({ filter: { keyHash: hash }, limit: 1 })).data[0];
-  if (!found) throw unauthorized(BAD_KEY);
-
-  return withLock(`sensor:${found.id}`, async () => {
-    // Read again inside the lock: the key may have been revoked, or another batch landed, meanwhile.
-    const r = await sensor.get(found.id).catch(() => null);
-    if (!r || r.data.keyHash !== hash) throw unauthorized(BAD_KEY);
+  // One device's batches run one at a time, so the read-modify-write of `latest` never loses a reading.
+  return withLock(`device:${hash}`, async () => {
+    const r = (await sensor.list({ filter: { keyHash: hash }, limit: 1 })).data[0];
+    if (!r) throw unauthorized(BAD_KEY);
     if (r.data.keyStatus !== 'active') throw unauthorized('This device key has been revoked.');
-    const latest = storedLatest(r.data.latest);
-    let changed = false;
-    for (const { type, value, time } of readings) {
-      // ISO strings in UTC compare correctly as text. Late, older readings never replace newer ones.
-      if (!latest[type] || time >= latest[type].time) {
-        latest[type] = { value, time };
-        changed = true;
-      }
+    const { latest, changed } = mergeLatest(storedLatest(r.data.latest), readings);
+    if (changed) {
+      await sensor.update(r.id, { data: { latest } }).catch((e) => {
+        throw errorCode(e) === 'not_found' ? unauthorized(BAD_KEY) : e; // the sensor was removed meanwhile
+      });
     }
-    if (changed) await sensor.update(r.id, { data: { latest } });
     return { accepted: readings.length };
   });
 }
