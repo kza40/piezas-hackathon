@@ -40,7 +40,7 @@ The session is an httpOnly, SameSite=Lax cookie named `piezas_session` (lasts 7 
 
 | Method and path | Body | Returns |
 |---|---|---|
-| `GET /api/crop-profiles` | none | `{ cropProfiles: [{ id, key, name, moistureMin, moistureMax, phMin, phMax, ecMax, frostRiskC }] }`, in the order Wheat, Canola, Barley, Oats, Alfalfa, Blueberries. `name` matches the frontend's `Crop` labels; `ecMax` may be `null`. |
+| `GET /api/crop-profiles` | none | `{ cropProfiles: [{ id, key, name, moistureMin, moistureMax, phMin, phMax, ecMax, frostRiskC }] }`, in the order Wheat, Canola, Barley, Oats, Alfalfa, Blueberries. `name` matches the frontend's `Crop` labels; any unsupported threshold is `null`. See `docs/crop-guidance.md` for published values and their limits. |
 | `GET /api/farms` | none | `{ farms: [{ id, name, latitude, longitude, createdAt }] }` (empty for a new farmer) |
 | `POST /api/farms` | `{ name, latitude, longitude }` | 201 `{ farm }` |
 | `GET /api/farms/:farmId` | none | `{ farm }` |

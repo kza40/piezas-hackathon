@@ -31,19 +31,15 @@ Use a fixed random seed so the output is repeatable.
 
 ### crop_profiles.json (array)
 
-The blueberry numbers are placeholders until we check them against BC sources. Keep them in this file so they are easy to change.
+Use only published guidance values from `docs/crop-guidance.md`. Leave unsupported values out rather than inventing a target. The blueberry soil-pH preference is 4.5 to 5.2. Soil-moisture, soil-EC, and frost thresholds are omitted until the sensor method, field calibration, and growth stage are known.
 
 ```json
 [
   {
     "id": "crop_blueberry",
     "crop_name": "Blueberry",
-    "moisture_min": 35,
-    "moisture_max": 50,
     "ph_min": 4.5,
-    "ph_max": 5.5,
-    "ec_max": 1.0,
-    "frost_risk_temp_c": 0
+    "ph_max": 5.2
   }
 ]
 ```
@@ -136,15 +132,15 @@ One entry per farm and week of the year (1 to 52), typical values over past year
 
 Please make sure these exist, and label each with a short comment or a `scenarios.md` note saying which sensors and fields they are:
 
-1. **Dry field:** at least one field where one sensor's latest soil moisture is below 35 and another sensor in the same field is within range.
-2. **Healthy field:** all sensors within range (moisture 35 to 50, pH 4.5 to 5.5, EC under 1.0).
-3. **pH too high:** one field with latest pH around 6.5.
-4. **Salty soil:** one field with latest EC above 1.0.
+1. **Moisture contrast:** at least one field has two different recent soil-moisture readings. These are illustrative sensor values, not irrigation thresholds.
+2. **Typical demo field:** one field has plausible readings and pH within the documented blueberry preference. EC is shown as a sample value without classifying the soil as healthy.
+3. **pH above preference:** one field with latest pH around 6.5.
+4. **Elevated EC example:** one field with a higher EC reading, without labeling it saline until the sensor method and threshold are defined.
 5. **Stale sensor:** one sensor whose last soil moisture reading is about 8 hours before `now`.
 6. **Dead sensor:** one sensor with no readings in the last 3 days, with older readings before that.
 7. **Gaps:** a few missing hours in a few series.
 8. **Glitch:** a few spikes (for example soil moisture jumping to 90 for one reading) in one series.
-9. **Cold night:** an air temperature series that drops below 0 C overnight (and, if you do the forecast file, one farm with a forecast low at or below 0 C and one with a mild night).
+9. **Cold night:** an air temperature series that drops below 0 C overnight (and, if you do the forecast file, one farm with a forecast low below 0 C and one with a mild night). This is weather data, not a crop-stage frost warning.
 10. **Rain event:** a stretch of rain in the forecast file, and soil moisture rising in the readings that match it.
 
 ## Questions to send back

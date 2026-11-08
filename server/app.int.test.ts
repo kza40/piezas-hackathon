@@ -122,7 +122,7 @@ describe('farms and fields over HTTP', () => {
       ['Wheat', 'Canola', 'Barley', 'Oats', 'Alfalfa', 'Blueberries'],
     );
     const blue = crops.find((c: any) => c.key === 'blueberry');
-    assert.equal(blue.phMax, 5.5);
+    assert.equal(blue.phMax, 5.2);
   });
 
   test('create a farm and a field with acres, stage and soil', async () => {
