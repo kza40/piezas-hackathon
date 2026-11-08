@@ -12,6 +12,7 @@ import { createFarm, createField, deleteField, getFarm, getField, listFarms, lis
 import { getProfile, parseProfileInput, updateProfile } from '../lib/server/data/profile';
 import { createSensor, fieldReadings, ingest, listSensors, revokeSensor, simulateField } from '../lib/server/data/sensors';
 import { listAlerts, markAlertDone } from '../lib/server/data/alerts';
+import { fieldAdvice, plantingAdvice, farmWeather } from '../lib/server/data/advice';
 import { object } from '../lib/server/validate';
 
 type Env = { Variables: { user: SessionUser } };
@@ -120,7 +121,15 @@ api.post('/sensors/:sensorId/revoke', signedIn, async (c) => c.json({ sensor: aw
 // Alerts (created by the advice rule through openAlert; the farmer lists them and marks them done)
 api.get('/alerts', signedIn, async (c) => c.json({ alerts: await listAlerts(c.var.user.id, c.req.query('status')) }));
 api.post('/alerts/:alertId/done', signedIn, async (c) => c.json({ alert: await markAlertDone(c.var.user.id, c.req.param('alertId')) }));
-
+api.get('/farms/:farmId/weather', signedIn, async (c) =>
+  c.json(await farmWeather(c.var.user.id, c.req.param('farmId'))),
+);
+api.get('/fields/:fieldId/advice', signedIn, async (c) =>
+  c.json(await fieldAdvice(c.var.user.id, c.req.param('fieldId'))),
+);
+api.get('/fields/:fieldId/planting', signedIn, async (c) =>
+  c.json(await plantingAdvice(c.var.user.id, c.req.param('fieldId'))),
+);
 // Devices send readings here. No farmer session: the x-device-key header is the credential.
 // Public, so the body is capped before it is read: 50 readings fit in a few KB.
 const ingestLimit = bodyLimit({
