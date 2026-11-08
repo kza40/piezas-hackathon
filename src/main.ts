@@ -140,17 +140,6 @@ async function act(node: ActionElement, target: Element) {
       S.authMode = d.m === 'signup' ? 'signup' : 'signin';
       S.authError = '';
       return render();
-    case 'fill': {
-      const email = document.getElementById('em') as HTMLInputElement | null;
-      const pass = document.getElementById('pw') as HTMLInputElement | null;
-      S.authEmail = d.email ?? '';
-      S.authError = '';
-      S.authMode = 'signin';
-      if (email) email.value = d.email ?? '';
-      if (pass) pass.value = d.pass ?? '';
-      document.querySelector('[data-testid=login-error]')?.remove();
-      return;
-    }
     case 'login':
     case 'signup':
       return;

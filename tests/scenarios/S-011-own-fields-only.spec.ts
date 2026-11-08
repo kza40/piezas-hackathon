@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test';
 
 test('S-011 farmers cannot see each other data', async ({ page }) => {
   await page.goto('/#login');
-  await page.getByTestId('demo-sam').click();
+  await page.getByTestId('login-email').fill('sam@willowcreekfarm.ca');
+  await page.getByTestId('login-password').fill('farm123-demo');
   await page.getByTestId('login-submit').click();
   await expect(page.getByTestId('topbar')).toContainText('Willow Creek Farm');
   await expect(page.getByTestId('topbar')).toContainText('3 fields');
