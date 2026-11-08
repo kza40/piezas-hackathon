@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { api } from './app';
 import { db, piezas } from '../lib/server/piezas';
 import { listAll } from '../lib/server/data/records';
+import { openAlert } from '../lib/server/data/alerts';
 
 const run = Date.now();
 const userIds: string[] = [];
@@ -37,9 +38,9 @@ before(async () => {
 });
 
 after(async () => {
-  const { farm, field, profile, sensor, reading_day } = await db();
+  const { farm, field, profile, sensor, reading_day, alert } = await db();
   for (const ownerId of userIds) {
-    for (const client of [reading_day, sensor, field, farm, profile]) for (const r of await listAll(client, { ownerId })) await client.delete(r.id);
+    for (const client of [alert, reading_day, sensor, field, farm, profile]) for (const r of await listAll(client, { ownerId })) await client.delete(r.id);
     await piezas().users.deleteUser(ownerId).catch(() => {});
   }
 });
@@ -375,6 +376,80 @@ describe('reading history and the simulator over HTTP', () => {
   test('removing the field removes its sensors and their history', async () => {
     await sam('DELETE', `/api/fields/${fieldId}`);
     for (const s of sensors) assert.deepEqual(await historyRecords(s.id), []);
+  });
+});
+
+describe('alerts over HTTP', () => {
+  let samId = '';
+  let fieldId = '';
+  let alertId = '';
+  const message = 'Water North block today: the driest probe reads 31%.';
+  const openAlerts = async () => listAll((await db()).alert, { fieldId, status: 'open' });
+
+  test('setup: a field for Sam', async () => {
+    samId = (await sam('GET', '/api/auth/me')).body.user.id;
+    const farm = (await sam('POST', '/api/farms', { name: 'Alert Farm', latitude: 49.05, longitude: -122.3 })).body.farm;
+    const crop = (await sam('GET', '/api/crop-profiles')).body.cropProfiles[5];
+    fieldId = (await sam('POST', `/api/farms/${farm.id}/fields`, { name: 'North block', cropProfileId: crop.id })).body.field.id;
+  });
+
+  test('S-018: repeated and parallel visits leave exactly one open alert', async () => {
+    const first = await openAlert(samId, fieldId, message);
+    assert.ok(first);
+    alertId = first.id;
+    assert.equal((await openAlert(samId, fieldId, message))?.id, alertId);
+    const parallel = await Promise.all(Array.from({ length: 5 }, () => openAlert(samId, fieldId, message)));
+    assert.deepEqual([...new Set(parallel.map((a) => a?.id))], [alertId]);
+    assert.equal((await openAlerts()).length, 1);
+  });
+
+  test('the farmer lists their alerts; another farmer sees none and cannot mark them', async () => {
+    const r = await sam('GET', '/api/alerts?status=open');
+    assert.deepEqual(r.body.alerts.map((a: any) => [a.id, a.fieldId, a.message, a.status, a.doneAt]), [[alertId, fieldId, message, 'open', null]]);
+    assert.deepEqual((await jordan('GET', '/api/alerts')).body.alerts, []);
+    assert.equal((await jordan('POST', `/api/alerts/${alertId}/done`)).status, 404);
+    assert.equal((await sam('GET', '/api/alerts?status=closed')).status, 400);
+    const jordanId = (await jordan('GET', '/api/auth/me')).body.user.id;
+    await assert.rejects(openAlert(jordanId, fieldId, 'sneaky'), (e: any) => e.status === 404); // not their field
+  });
+
+  test('S-010: marking done moves the alert from open to done (and twice is harmless)', async () => {
+    const r = await sam('POST', `/api/alerts/${alertId}/done`);
+    assert.equal(r.status, 200);
+    assert.equal(r.body.alert.status, 'done');
+    assert.ok(r.body.alert.doneAt);
+    assert.deepEqual((await sam('GET', '/api/alerts?status=open')).body.alerts, []);
+    assert.deepEqual((await sam('GET', '/api/alerts?status=done')).body.alerts.map((a: any) => a.id), [alertId]);
+    assert.equal((await sam('POST', `/api/alerts/${alertId}/done`)).body.alert.doneAt, r.body.alert.doneAt);
+  });
+
+  test('done stays done for 12 hours; after that the advice rule can raise it again', async () => {
+    assert.equal(await openAlert(samId, fieldId, message), null);
+    assert.equal(await openAlert(samId, fieldId, message, new Date(Date.now() + 11 * 3_600_000)), null);
+    const next = await openAlert(samId, fieldId, message, new Date(Date.now() + 13 * 3_600_000));
+    assert.ok(next && next.id !== alertId);
+    const all = (await sam('GET', '/api/alerts')).body.alerts;
+    assert.deepEqual(all.map((a: any) => a.id), [next.id, alertId], 'newest first');
+  });
+
+  test('an alert opening while its field is being removed never outlives the field', async () => {
+    const farm = (await sam('GET', '/api/farms')).body.farms.find((f: any) => f.name === 'Alert Farm');
+    const crop = (await sam('GET', '/api/crop-profiles')).body.cropProfiles[0];
+    const racing = (await sam('POST', `/api/farms/${farm.id}/fields`, { name: 'Racing block', cropProfileId: crop.id })).body.field.id;
+    const results = await Promise.allSettled([
+      openAlert(samId, racing, message),
+      sam('DELETE', `/api/fields/${racing}`),
+      openAlert(samId, racing, message),
+      openAlert(samId, racing, message),
+    ]);
+    for (const r of results) if (r.status === 'rejected') assert.equal(r.reason.status, 404); // only "field not found"
+    assert.deepEqual(await listAll((await db()).alert, { fieldId: racing }), []);
+  });
+
+  test('removing the field removes its alerts, and no alert can open for it afterwards', async () => {
+    await sam('DELETE', `/api/fields/${fieldId}`);
+    assert.deepEqual(await listAll((await db()).alert, { fieldId }), []);
+    await assert.rejects(openAlert(samId, fieldId, message), (e: any) => e.status === 404);
   });
 });
 
