@@ -10,7 +10,7 @@ import { AppError, badRequest, notFound, toHttp, unauthorized } from '../lib/ser
 import { listCropProfiles } from '../lib/server/data/crops';
 import { createFarm, createField, deleteField, getFarm, getField, listFarms, listFields } from '../lib/server/data/farms';
 import { getProfile, parseProfileInput, updateProfile } from '../lib/server/data/profile';
-import { createSensor, ingest, listSensors, revokeSensor } from '../lib/server/data/sensors';
+import { createSensor, fieldReadings, ingest, listSensors, revokeSensor, simulateField } from '../lib/server/data/sensors';
 import { object } from '../lib/server/validate';
 
 type Env = { Variables: { user: SessionUser } };
@@ -112,6 +112,8 @@ api.delete('/fields/:fieldId', signedIn, async (c) => {
 // Sensors and device keys
 api.get('/fields/:fieldId/sensors', signedIn, async (c) => c.json({ sensors: await listSensors(c.var.user.id, c.req.param('fieldId')) }));
 api.post('/fields/:fieldId/sensors', signedIn, async (c) => c.json(await createSensor(c.var.user.id, c.req.param('fieldId'), await body(c)), 201));
+api.get('/fields/:fieldId/readings', signedIn, async (c) => c.json(await fieldReadings(c.var.user.id, c.req.param('fieldId'), c.req.query('days'))));
+api.post('/fields/:fieldId/simulate', signedIn, async (c) => c.json({ sensors: await simulateField(c.var.user.id, c.req.param('fieldId')) }));
 api.post('/sensors/:sensorId/revoke', signedIn, async (c) => c.json({ sensor: await revokeSensor(c.var.user.id, c.req.param('sensorId')) }));
 
 // Devices send readings here. No farmer session: the x-device-key header is the credential.

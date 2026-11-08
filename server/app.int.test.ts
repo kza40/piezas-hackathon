@@ -37,9 +37,9 @@ before(async () => {
 });
 
 after(async () => {
-  const { farm, field, profile, sensor } = await db();
+  const { farm, field, profile, sensor, reading_day } = await db();
   for (const ownerId of userIds) {
-    for (const client of [sensor, field, farm, profile]) for (const r of await listAll(client, { ownerId })) await client.delete(r.id);
+    for (const client of [reading_day, sensor, field, farm, profile]) for (const r of await listAll(client, { ownerId })) await client.delete(r.id);
     await piezas().users.deleteUser(ownerId).catch(() => {});
   }
 });
@@ -278,6 +278,103 @@ describe('sensors, device keys and ingest over HTTP', () => {
     const { sensor } = await db();
     assert.deepEqual(await listAll(sensor, { fieldId }), []);
     assert.equal((await device(r.body.deviceKey, { type: 'soil_moisture', value: 30, unit: '%', time: at(0) })).status, 401);
+  });
+});
+
+describe('reading history and the simulator over HTTP', () => {
+  let fieldId = '';
+  const sensors: { id: string; key: string }[] = [];
+  const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
+  const device = (key: string, json: unknown) =>
+    api.request('/api/ingest', { method: 'POST', headers: { 'content-type': 'application/json', 'x-device-key': key }, body: JSON.stringify(json) });
+  const readings = async (q = '') => (await sam('GET', `/api/fields/${fieldId}/readings${q}`)).body;
+  const historyRecords = async (sensorId: string) => listAll((await db()).reading_day, { sensorId });
+
+  test('setup: a blueberry field with two sensors', async () => {
+    const farm = (await sam('POST', '/api/farms', { name: 'History Farm', latitude: 49.05, longitude: -122.3 })).body.farm;
+    const crop = (await sam('GET', '/api/crop-profiles')).body.cropProfiles.find((c: any) => c.key === 'blueberry');
+    fieldId = (await sam('POST', `/api/farms/${farm.id}/fields`, { name: 'East block', cropProfileId: crop.id })).body.field.id;
+    const none = await sam('POST', `/api/fields/${fieldId}/simulate`);
+    assert.deepEqual([none.status, none.body.message], [400, 'Register a sensor on this field first.']);
+    for (const name of ['Row 1 probe', 'Row 9 probe']) {
+      const r = (await sam('POST', `/api/fields/${fieldId}/sensors`, { name })).body;
+      sensors.push({ id: r.sensor.id, key: r.deviceKey });
+    }
+  });
+
+  test('ingest keeps history; a resent reading replaces itself instead of duplicating', async () => {
+    const t1 = at(120);
+    const t2 = at(60);
+    await device(sensors[0].key, { readings: [{ type: 'soil_moisture', value: 33, unit: '%', time: t1 }, { type: 'soil_moisture', value: 32, unit: '%', time: t2 }] });
+    await device(sensors[0].key, { type: 'soil_moisture', value: 31.5, unit: '%', time: t2 }); // resent with a corrected value
+    const body = await readings('?days=1');
+    assert.equal(body.days, 1);
+    const s0 = body.sensors.find((s: any) => s.sensorId === sensors[0].id);
+    assert.deepEqual(s0.series.soil_moisture, [
+      { time: t1, value: 33 },
+      { time: t2, value: 31.5 },
+    ]);
+    assert.equal(s0.simulated, false);
+    assert.equal(body.sensors.find((s: any) => s.sensorId === sensors[1].id).series.soil_moisture, undefined);
+  });
+
+  test('parallel batches from one device keep every history point (the day record is read-modify-write)', async () => {
+    const times = [50, 40, 30, 20, 10].map(at);
+    const res = await Promise.all(times.map((time, i) => device(sensors[1].key, { type: 'soil_ph', value: 5 + i / 10, unit: 'pH', time })));
+    assert.deepEqual(res.map((r) => r.status), [202, 202, 202, 202, 202]);
+    const s1 = (await readings('?days=1')).sensors.find((s: any) => s.sensorId === sensors[1].id);
+    assert.deepEqual(s1.series.soil_ph.map((p: any) => p.time), [...times].sort());
+  });
+
+  test('days must be a whole number from 1 to 14; another farmer gets 404', async () => {
+    for (const q of ['?days=0', '?days=15', '?days=abc', '?days=2.5']) assert.equal((await sam('GET', `/api/fields/${fieldId}/readings${q}`)).status, 400, q);
+    assert.equal((await jordan('GET', `/api/fields/${fieldId}/readings`)).status, 404);
+    assert.equal((await jordan('POST', `/api/fields/${fieldId}/simulate`)).status, 404);
+  });
+
+  test('S-006: the simulator fills each sensor with every type, with its own 7-day trend', async () => {
+    const r = await sam('POST', `/api/fields/${fieldId}/simulate`);
+    assert.equal(r.status, 200);
+    const types = ['air_humidity', 'air_temperature', 'soil_ec', 'soil_moisture', 'soil_ph', 'soil_temperature'];
+    for (const s of r.body.sensors) assert.deepEqual(Object.keys(s.latest).sort(), types);
+
+    const body = await readings(); // default 7 days
+    assert.equal(body.days, 7);
+    for (const s of body.sensors) {
+      assert.equal(s.simulated, true);
+      assert.deepEqual(Object.keys(s.series).sort(), types);
+      const m = s.series.soil_moisture;
+      assert.ok(m.length >= 7 * 24 - 1 && m.length <= 7 * 24 + 1, `about a week of hourly points, got ${m.length}`);
+      const latest = r.body.sensors.find((x: any) => x.id === s.sensorId).latest.soil_moisture;
+      assert.deepEqual(m.at(-1), { time: latest.time, value: latest.value });
+    }
+    const [a, b] = body.sensors.map((s: any) => s.series.soil_moisture.map((p: any) => p.value).join());
+    assert.notEqual(a, b, 'two sensors in one field read a little differently');
+  });
+
+  test('running the simulator again replaces the history instead of adding to it', async () => {
+    const before = (await historyRecords(sensors[0].id)).length;
+    assert.ok(before >= 14 * 6 && before <= 15 * 6, `14 days x 6 types, got ${before}`);
+    assert.equal((await sam('POST', `/api/fields/${fieldId}/simulate`)).status, 200);
+    assert.equal((await historyRecords(sensors[0].id)).length, before);
+  });
+
+  test('a new day drops history older than 14 days', async () => {
+    const fresh = (await sam('POST', `/api/fields/${fieldId}/sensors`, { name: 'New probe' })).body;
+    const { reading_day } = await db();
+    const owner = (await sam('GET', '/api/auth/me')).body.user.id;
+    const old = new Date(Date.now() - 20 * 86_400_000).toISOString();
+    await reading_day.create({
+      title: 'old',
+      data: { ownerId: owner, sensorId: fresh.sensor.id, readingType: 'soil_ph', day: old.slice(0, 10), values: [{ t: old, v: 5, src: 'real' }] },
+    });
+    assert.equal((await device(fresh.deviceKey, { type: 'soil_ph', value: 5.2, unit: 'pH', time: at(1) })).status, 202);
+    assert.deepEqual((await historyRecords(fresh.sensor.id)).map((r) => r.data.day), [at(1).slice(0, 10)]);
+  });
+
+  test('removing the field removes its sensors and their history', async () => {
+    await sam('DELETE', `/api/fields/${fieldId}`);
+    for (const s of sensors) assert.deepEqual(await historyRecords(s.id), []);
   });
 });
 

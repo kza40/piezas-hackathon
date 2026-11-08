@@ -1,6 +1,7 @@
-// Creates the frontend's two demo farmers (src/seed/farmers.ts on the front-end branch) as real
-// accounts with their farms and fields, so the "Try a demo farm" buttons work against the backend.
-// Safe to run again: existing farms and fields are kept, missing ones are added.
+// Creates the two demo farmers as real accounts with their farms, fields and two sensors per field,
+// then fills every sensor with 14 days of simulated readings ending now.
+// Safe to run again: existing farms, fields and sensors are kept, missing ones are added, and the
+// readings are re-simulated so they always end at "now" (run it again right before a demo).
 // Run scripts/setup-app.ts on the same app first.
 //   npx tsx --env-file=.env scripts/seed-demo.ts          (test app)
 //   npx tsx --env-file=.env scripts/seed-demo.ts --live   (live app, only with the owner's go)
@@ -18,6 +19,7 @@ const { piezas } = await import('../lib/server/piezas');
 const { signIn } = await import('../lib/server/auth');
 const { listCropProfiles } = await import('../lib/server/data/crops');
 const { createFarm, createField, listFarms, listFields } = await import('../lib/server/data/farms');
+const { createSensor, listSensors, simulateField } = await import('../lib/server/data/sensors');
 const { updateProfile } = await import('../lib/server/data/profile');
 
 // Locations are approximate county centres (the frontend only has the county name).
@@ -70,5 +72,11 @@ for (const d of DEMO) {
   for (const f of d.fields) {
     if (!have.has(f.name)) await createField(user.id, farm.id, { name: f.name, cropProfileId: crops.get(f.crop), acres: f.acres, stage: f.stage, soil: f.soil });
   }
-  console.log(`${d.email}: ${farm.name} with ${(await listFields(user.id, farm.id)).length} fields`);
+  const fields = await listFields(user.id, farm.id);
+  for (const f of fields) {
+    // Device keys are not kept: the demo sensors are fed by the simulator, not by devices.
+    if (!(await listSensors(user.id, f.id)).length) for (const name of ['North probe', 'South probe']) await createSensor(user.id, f.id, { name });
+    await simulateField(user.id, f.id);
+  }
+  console.log(`${d.email}: ${farm.name} with ${fields.length} fields, 2 sensors each, 14 days of simulated readings`);
 }

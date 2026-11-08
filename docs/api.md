@@ -68,7 +68,22 @@ A `sensor` is `{ id, fieldId, name, keyStatus, latest, createdAt }`. `keyStatus`
   "soil_ph": { "value": 5.1, "unit": "pH", "time": "2026-11-07T17:00:00.000Z" } }
 ```
 
-It is `{}` until the first reading arrives. The 7-day history comes with step 4.
+It is `{}` until the first reading arrives.
+
+## Reading history and the simulator (signed-in farmer)
+
+| Method and path | Body | Returns |
+|---|---|---|
+| `GET /api/fields/:fieldId/readings?days=7` | none | `{ days, sensors: [{ sensorId, simulated, series }] }` for the last `days` days (whole number 1 to 14, default 7) |
+| `POST /api/fields/:fieldId/simulate` | none | `{ sensors: [sensor] }`. Fills every sensor on the field with 14 days of hourly simulated readings of all six types, ending now, and sets their `latest`. **Replaces** those sensors' stored history (a demo tool). 400 if the field has no sensors. |
+
+`series` has one list per reading type, oldest first, for drawing the 7-day trends:
+
+```json
+{ "soil_moisture": [ { "time": "2026-11-01T18:00:00.000Z", "value": 41.2 }, ... ], "soil_ph": [ ... ] }
+```
+
+`simulated` is `true` when any point shown came from the simulator, so the page can say the data is simulated. History is kept for 14 days; a reading older than that is accepted by ingest but not stored.
 
 ## Ingest (devices, no farmer session)
 
@@ -92,7 +107,7 @@ It is `{}` until the first reading arrives. The 7-day history comes with step 4.
 
 ## Demo accounts (test app)
 
-`scripts/seed-demo.ts` has created the two demo farmers from `src/seed/farmers.ts` with their farms and fields:
+`scripts/seed-demo.ts` has created the two demo farmers with their farms and fields, two sensors per field ("North probe", "South probe") and 14 days of simulated readings. Run it again right before a demo so the readings end at "now":
 
 | Email | Password | Farm | Fields |
 |---|---|---|---|
