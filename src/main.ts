@@ -298,7 +298,6 @@ async function act(node: ActionElement, target: Element) {
       const label = fld(id).name;
       try {
         await farmApi.deleteField(id);
-        removeFieldFromFarm(id);
         await refreshFields();
         if (!F.some((f) => f.id === S.sel)) S.sel = F[0]?.id ?? '';
         if (S.fd && !F.some((f) => f.id === S.fd)) S.fd = F[0]?.id ?? null;
