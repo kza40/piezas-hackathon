@@ -1,4 +1,4 @@
-// piezas-scenario: S-016 v=1
+// piezas-scenario: S-016 v=2
 import { expect, test } from '@playwright/test';
 import { signIn } from './helpers';
 
