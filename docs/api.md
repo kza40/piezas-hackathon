@@ -40,7 +40,7 @@ The session is an httpOnly, SameSite=Lax cookie named `piezas_session` (lasts 7 
 
 | Method and path | Body | Returns |
 |---|---|---|
-| `GET /api/crop-profiles` | none | `{ cropProfiles: [{ id, key, name, moistureMin, moistureMax, phMin, phMax, ecMax, frostRiskC }] }`, in the order Wheat, Canola, Barley, Oats, Alfalfa, Blueberries. `name` matches the frontend's `Crop` labels; `ecMax` may be `null`. |
+| `GET /api/crop-profiles` | none | `{ cropProfiles: [{ id, key, name, moistureMin, moistureMax, phMin, phMax, ecMax, frostRiskC }] }`, in the order Wheat, Canola, Barley, Oats, Alfalfa, Blueberries. `name` matches the frontend's `Crop` labels; any unsupported threshold is `null`. See `docs/crop-guidance.md` for published values and their limits. |
 | `GET /api/farms` | none | `{ farms: [{ id, name, latitude, longitude, createdAt }] }` (empty for a new farmer) |
 | `POST /api/farms` | `{ name, latitude, longitude }` | 201 `{ farm }` |
 | `GET /api/farms/:farmId` | none | `{ farm }` |
@@ -49,7 +49,7 @@ The session is an httpOnly, SameSite=Lax cookie named `piezas_session` (lasts 7 
 | `GET /api/fields/:fieldId` | none | `{ field }` |
 | `DELETE /api/fields/:fieldId` | none | 204 |
 
-A `field` is `{ id, farmId, name, cropProfile, acres, stage, soil, createdAt }`, with the full `cropProfile` object (so the ideal moisture and pH ranges are right there) and `stage` / `soil` as `""` when not set. Removing a field also removes its sensors. Reading history, weather, advice and alerts come in later steps.
+A `field` is `{ id, farmId, name, cropProfile, acres, stage, soil, createdAt }`, with the full `cropProfile` object (including any available sourced pH guidance) and `stage` / `soil` as `""` when not set. An unset threshold is `null` and must not be treated as a recommendation. Removing a field also removes its sensors. Reading history, weather, advice and alerts come in later steps.
 
 Another farmer's farm, field or sensor always answers 404, exactly like one that does not exist.
 
