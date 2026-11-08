@@ -38,8 +38,8 @@ The blueberry numbers are placeholders until we check them against BC sources. K
   {
     "id": "crop_blueberry",
     "crop_name": "Blueberry",
-    "moisture_min": 20,
-    "moisture_max": 35,
+    "moisture_min": 35,
+    "moisture_max": 50,
     "ph_min": 4.5,
     "ph_max": 5.5,
     "ec_max": 1.0,
@@ -136,8 +136,8 @@ One entry per farm and week of the year (1 to 52), typical values over past year
 
 Please make sure these exist, and label each with a short comment or a `scenarios.md` note saying which sensors and fields they are:
 
-1. **Dry field:** at least one field where one sensor's latest soil moisture is below 20 and another sensor in the same field is within range.
-2. **Healthy field:** all sensors within range (moisture 20 to 35, pH 4.5 to 5.5, EC under 1.0).
+1. **Dry field:** at least one field where one sensor's latest soil moisture is below 35 and another sensor in the same field is within range.
+2. **Healthy field:** all sensors within range (moisture 35 to 50, pH 4.5 to 5.5, EC under 1.0).
 3. **pH too high:** one field with latest pH around 6.5.
 4. **Salty soil:** one field with latest EC above 1.0.
 5. **Stale sensor:** one sensor whose last soil moisture reading is about 8 hours before `now`.

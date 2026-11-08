@@ -2,14 +2,14 @@
 
 ## Overview
 
-A web app for farmers (starting with BC blueberry growers) that collects soil and air readings from sensors in their fields, shows what each sensor is reporting, combines the readings with weather data, and tells the farmer in plain words when to water each field, when frost is coming, and which weeks are best to plant. Planting advice is a recommendation only. Readings come from a simulator at first, through the same ingest endpoint that real sensor hardware will use later.
+A web app for farmers growing wheat, canola, barley, oats, alfalfa or blueberries that collects soil and air readings from sensors in their fields, shows what each sensor is reporting, combines the readings with weather data, and tells the farmer in plain words when to water each field, when frost is coming, and which weeks are best to plant. Planting advice is a recommendation only. Readings come from a simulator at first, through the same ingest endpoint that real sensor hardware will use later.
 Provenance: idea and decisions from the team's planning chat, 2026-11-07.
 
 ## Requirements
 
 - R-001: A farmer can sign up and sign in with an email and password. (source: team decision)
 - R-002: A farmer can create a farm with a name and a location, and add fields to it. (source: team decision)
-- R-003: Each field has a crop profile; blueberry is provided, with a target soil moisture range, a soil pH range (4.5 to 5.5), a maximum soil EC (salt level) and a frost-risk temperature. The blueberry numbers are general guidance and are checked against BC sources before the demo. (source: team decision, blueberry first)
+- R-003: Each field has one of six crop profiles (wheat, canola, barley, oats, alfalfa, blueberries), each with a target soil moisture range, a soil pH range, a maximum soil EC (salt level) where known and a frost-risk temperature; blueberries need acidic soil (pH 4.5 to 5.5). The numbers are placeholders checked against an agronomy source before the demo. (source: team decision 2026-11-07, crops from the frontend)
 - R-004: A farmer can register a sensor on a field and receive a device key for it; the farmer can revoke that key. A sensor is one physical device and can report any of the six reading types. (source: real-equipment plan, review fix 1)
 - R-005: The app accepts a sensor reading (device, type, value, unit, time) through an ingest endpoint when the device key is valid, and rejects it when the key is missing, wrong or revoked. (source: real-equipment plan)
 - R-006: A built-in simulator can generate realistic readings of all six reading types for a field's sensors in the same format as real devices. (source: team decision, simulated data first)
@@ -23,6 +23,10 @@ Provenance: idea and decisions from the team's planning chat, 2026-11-07.
 - R-014: A field page shows a plain-words soil warning when the latest soil pH is outside the crop's pH range or the latest soil EC is above the crop's maximum, and shows no warning when both are within range. (source: team decision, tier 1 factors)
 - R-015: A soil moisture reading older than 6 hours counts as stale. A sensor with only stale readings is marked "No recent reading" on the field page and is left out of the watering recommendation. When no sensor in a field has a fresh soil moisture reading, the field shows "No recent reading" instead of "Water today" or "Wait", and no watering alert is created. (source: review fix 3)
 - R-016: A field page shows a frost warning when the forecast overnight low in the next 48 hours is at or below the crop's frost-risk temperature, and shows none otherwise. (source: review fix 4)
+- R-017: A wrong email or password keeps the farmer on the sign-in screen with an error. (source: frontend branch)
+- R-018: Signing out returns the farmer to the sign-in screen and hides the farm. (source: frontend branch)
+- R-019: A signed-in farmer can remove one of their fields, and it no longer appears on their farm. (source: frontend branch)
+- R-020: A farmer can keep a name and a phone number on their profile. (source: frontend branch)
 
 ## Data
 
@@ -30,7 +34,8 @@ Farmer accounts (name, email, password) are held by Piezas's user service and ar
 
 - Crop profile: crop name, moisture min, moisture max, pH min, pH max, EC max, frost-risk temperature
 - Farm: name, location (latitude, longitude)
-- Field: name, farm, crop profile
+- Profile: name, phone
+- Field: name, farm, crop profile, acres, growth stage, soil type
 - Sensor: name, field, device key status (active or revoked)
 - Reading: sensor, type (soil moisture, soil temperature, soil EC, soil pH, air temperature, air humidity), value, unit, time, source (real or simulated)
 - Alert: field, message, created time, status (open or done)
@@ -150,6 +155,38 @@ needs: weather forecast service
 Given a blueberry field whose recommendation is "Water today"
 When the farmer opens the field page three times
 Then exactly one open watering alert exists for the field
+
+### S-019: Farmer signs in and opens their farm
+covers: R-001
+Given a demo farmer account with a farm
+When they enter its email and password on the sign-in screen and submit
+Then the farm map for their farm is shown
+
+### S-020: Wrong password is rejected
+covers: R-017
+Given a visitor on the sign-in screen
+When they enter a known email with the wrong password and submit
+Then they stay on the sign-in screen and see an error
+
+### S-021: Sign out leaves the farm
+covers: R-018
+Given a farmer signed in on the farm map
+When they sign out
+Then the sign-in screen is shown again and the farm is no longer reachable
+
+### S-022: Farmer adds and removes a field from their profile
+covers: R-002, R-019
+Given a signed-in farmer on their profile
+When they add a field named South Pasture with the crop Oats
+Then South Pasture appears in their field list
+When they remove South Pasture
+Then it no longer appears in their field list
+
+### S-023: Profile details are saved
+covers: R-020
+Given a signed-in farmer on their profile
+When they save a name and a phone number and reload the page
+Then the same name and phone number are shown
 
 ## Open Conflicts
 
