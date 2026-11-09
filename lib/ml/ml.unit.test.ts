@@ -7,6 +7,7 @@ import { fitDrying, waterBy } from './drydown';
 import { detectWettingEvents, lastWatered } from './events';
 import { sensorHealth } from './health';
 import { suggestTrigger } from './trigger';
+import { simulateSensor } from '../server/simulate';
 import { HOUR, type ForecastHour, type Point, type SensorSeries, type WeatherHour } from './types';
 
 const now = new Date('2026-11-20T12:00:00Z');
@@ -171,4 +172,26 @@ test('water by: a window around the expected hour, later with forecast rain, now
   assert.equal(waterBy(23, 24, fit, outlook).kind, 'now');
   assert.deepEqual(waterBy(40, 24, fit, outlook), { kind: 'beyond', days: 5 });
   assert.equal(waterBy(30, 24, null, outlook).kind, 'learning');
+});
+
+// ---- the simulator and the labeller agree (the demo depends on it) ----
+
+test('simulated fields: the recorded rain is labelled rain, and the 6 am waterings are labelled irrigation', () => {
+  const crop = { moistureMin: 35, moistureMax: 50, phMin: 4.5, phMax: 5.5, ecMax: 1 };
+  const rain = weather({ 100: 4, 99: 6, 98: 4 }); // 14 mm about four days ago
+  const sensors = ['north', 'south'].map((id) => ({
+    sensorId: id,
+    sensorName: id,
+    points: simulateSensor(id, crop, -122.3, now, 14, rain)
+      .filter((r) => r.type === 'soil_moisture')
+      .map((r) => ({ time: r.time, value: r.value })),
+  }));
+  const events = detectWettingEvents(sensors, rain, {});
+  const rains = events.filter((e) => e.label === 'rain');
+  assert.equal(rains.length, 1, JSON.stringify(events.map((e) => [e.start, e.label, e.rainMm])));
+  assert.ok(Math.abs(Date.parse(rains[0].start) - Date.parse(at(100))) <= 6 * HOUR, rains[0].start);
+  const waterings = events.filter((e) => e.label === 'irrigation');
+  assert.ok(waterings.length >= 1, 'the dry spell is broken by irrigation');
+  const localHour = (iso: string) => (new Date(iso).getUTCHours() - 122.3 / 15 + 24) % 24;
+  for (const e of waterings) assert.ok(localHour(e.start) >= 3 && localHour(e.start) <= 7, `irrigation starts near 6 am local, got ${e.start}`);
 });

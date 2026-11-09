@@ -12,6 +12,8 @@ import { getOwned, listAll, num, oldestFirst, str } from './records';
 import { getCropProfile } from './crops';
 import { appendHistory, deleteSensorHistory, replaceHistory, RETENTION_DAYS, sensorHistory, type Series } from './history';
 import { simulateSensor } from '../simulate';
+import { getWeather } from '../../weather/index';
+import type { WeatherHour } from '../../domain/types';
 
 export interface LatestReading {
   value: number;
@@ -111,11 +113,23 @@ export async function simulateField(ownerId: string, fieldId: string, now = new 
   });
   const farmRec = await getOwned(farm, str(f.data.farmId), ownerId, 'Farm');
   const longitude = num(farmRec.data.longitude) ?? 0;
+  const latitude = num(farmRec.data.latitude);
+  // The farm's real recent rain, so simulated soil wets when it actually rained there. Without a location
+  // the simulation is a dry spell; a weather outage must not stop the demo tool, so it is logged instead.
+  let rain: WeatherHour[] = [];
+  if (latitude != null) {
+    rain = await getWeather()
+      .getRecent(latitude, longitude, now)
+      .catch((e) => {
+        console.error('simulate: recent weather unavailable, simulating without rain', e);
+        return [];
+      });
+  }
   const out: Sensor[] = [];
   for (const s of sensors) {
     out.push(
       await withLock(`device:${str(s.data.keyHash)}`, async () => {
-        const readings = simulateSensor(s.id, crop ?? { moistureMin: null, moistureMax: null, phMin: null, phMax: null, ecMax: null }, longitude, now, RETENTION_DAYS);
+        const readings = simulateSensor(s.id, crop ?? { moistureMin: null, moistureMax: null, phMin: null, phMax: null, ecMax: null }, longitude, now, RETENTION_DAYS, rain);
         await replaceHistory(ownerId, s.id, readings, 'simulated', now);
         return toSensor(await sensor.update(s.id, { data: { latest: mergeLatest({}, readings).latest } }));
       }),

@@ -1,8 +1,11 @@
 // Realistic hourly readings of all six types for one sensor (SPEC R-006), in exactly the shape a device sends.
 // Pure and deterministic: the same seed and end time always give the same readings, so tests and demos repeat.
 // Patterns follow docs/synthetic-data.md: daily air temperature cycle, humidity highest when coldest, soil
-// temperature smoother and delayed, moisture drying slowly and jumping after rain or irrigation, slow pH and EC.
+// temperature smoother and delayed, slow pH and EC. Soil moisture follows the farm's recorded rain and a
+// farmer who irrigates at 6 am when a spot gets dry, then drains to field capacity and dries with the warmth,
+// so the field models (lib/ml) see realistic rain and irrigation events.
 import type { Reading } from './readings';
+import type { WeatherHour } from '../domain/types';
 
 export interface SimCrop {
   moistureMin: number | null;
@@ -30,7 +33,8 @@ const round = (v: number, places: number) => Math.round(v * 10 ** places) / 10 *
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 // `days` of hourly readings ending at the last full hour before `end`. `longitude` sets local time (15 degrees per hour).
-export function simulateSensor(seed: string, crop: SimCrop, longitude: number, end: Date, days = 14): Reading[] {
+// `rain` is the farm's hourly rain record over the same days (none means a dry spell).
+export function simulateSensor(seed: string, crop: SimCrop, longitude: number, end: Date, days = 14, rain: WeatherHour[] = []): Reading[] {
   const rnd = random(seed);
   const noise = (size: number) => (rnd() - 0.5) * 2 * size;
   const mMin = crop.moistureMin ?? 30;
@@ -43,8 +47,12 @@ export function simulateSensor(seed: string, crop: SimCrop, longitude: number, e
   let dayMean = 10 + noise(3); // this sensor's weather starts a little different from its neighbours
   let soilT = dayMean;
   // Each spot has its own usual wetness: some sit below the crop's range (a dry field to water), most inside it.
+  // It holds up to its field capacity (target + 6); water above that drains away within hours.
   const target = mMin + (rnd() - 0.45) * (mMax - mMin);
+  const capacity = target + 6;
   let moisture = target + noise(3);
+  let excess = 0;
+  const rainAt = new Map(rain.map((w) => [Math.floor(Date.parse(w.time) / HOUR), w.rainMm]));
   let ph = phMid + noise(0.2);
   let ec = ecMax * (0.45 + rnd() * 0.2);
   const out: Reading[] = [];
@@ -57,16 +65,23 @@ export function simulateSensor(seed: string, crop: SimCrop, longitude: number, e
     const humidity = clamp(72 - 2.5 * (airT - dayMean) + noise(3), 25, 100);
     soilT += (airT - soilT) * 0.08; // follows the air, smoother and later
 
-    // Dries back toward the spot's usual level (faster when warm); rain or irrigation about every three days.
-    const wetting = rnd() < 1 / 72;
-    moisture = wetting ? moisture + 5 + rnd() * 5 : moisture - (moisture - target) * (0.02 + Math.max(0, airT) * 0.001) - 0.02;
+    // Wetting: recorded rain (about a point per mm), or the farmer irrigating at 6 am once the spot is dry.
+    let water = (rainAt.get(Math.floor(at.getTime() / HOUR)) ?? 0) * 1;
+    if (Math.floor(localHour) === 6 && moisture < target - 4) water += 8 + rnd() * 4;
+    if (water > 0) {
+      const room = Math.max(0, capacity - moisture);
+      moisture += Math.min(water, room);
+      excess += water - Math.min(water, room);
+    }
+    excess *= 0.75; // drains away within hours
+    moisture -= 0.02 + Math.max(0, airT) * 0.004; // dries faster when warm
     moisture = clamp(moisture, Math.max(5, mMin - 12), mMax + 8);
     ph = clamp(ph + noise(0.002), phMid - 1, phMid + 1); // at most ~0.05 a day
     ec = clamp(ec + noise(0.004) + (rnd() < 1 / 200 ? ecMax * 0.3 : 0) - (ec - ecMax * 0.5) * 0.01, 0.05, ecMax * 1.5);
 
     const time = at.toISOString();
     out.push(
-      { type: 'soil_moisture', value: round(moisture + noise(0.3), 1), time },
+      { type: 'soil_moisture', value: round(moisture + excess + noise(0.3), 1), time },
       { type: 'soil_temperature', value: round(soilT + noise(0.1), 1), time },
       { type: 'soil_ec', value: round(ec, 2), time },
       { type: 'soil_ph', value: round(ph, 2), time },

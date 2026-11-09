@@ -3,10 +3,12 @@
 const testKey = process.env.PIEZAS_TEST_API_KEY;
 if (!testKey) throw new Error('PIEZAS_TEST_API_KEY missing: run `npx piezas test --setup`');
 process.env.PIEZAS_API_KEY = testKey;
+// Fixed weather files instead of Open-Meteo, so no test depends on an outside service (the simulator
+// and the advice both read the weather).
+process.env.WEATHER_STUB_DIR ??= 'data/weather';
 
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
 import { api } from './app';
 import { db, piezas } from '../lib/server/piezas';
 import { listAll } from '../lib/server/data/records';
@@ -491,7 +493,7 @@ describe('field models in the advice over HTTP (R-009, R-021 to R-025)', () => {
   const device = (key: string, json: unknown) =>
     api.request('/api/ingest', { method: 'POST', headers: { 'content-type': 'application/json', 'x-device-key': key }, body: JSON.stringify(json) });
   const advice = async () => (await sam('GET', `/api/fields/${fieldId}/advice`)).body;
-  const env = { ...process.env };
+  const forecastBefore = process.env.WEATHER_STUB_FORECAST;
 
   // 72 hours of a probe: drying 0.05 an hour, watered 60 hours ago (no rain then) to 33% plus water that drains away.
   const probe = (offset: number) => {
@@ -511,11 +513,11 @@ describe('field models in the advice over HTTP (R-009, R-021 to R-025)', () => {
   };
 
   before(() => {
-    process.env.WEATHER_STUB_DIR = join(process.cwd(), 'data', 'weather');
     process.env.WEATHER_STUB_FORECAST = 'dry-forecast.json';
   });
   after(() => {
-    for (const k of ['WEATHER_STUB_DIR', 'WEATHER_STUB_FORECAST']) if (env[k] === undefined) delete process.env[k];
+    if (forecastBefore === undefined) delete process.env.WEATHER_STUB_FORECAST;
+    else process.env.WEATHER_STUB_FORECAST = forecastBefore;
   });
 
   test('setup: a sandy-loam blueberry field with two probes, watered 60 hours ago', async () => {
@@ -607,6 +609,19 @@ describe('field models in the advice over HTTP (R-009, R-021 to R-025)', () => {
     }
     assert.equal(open.length, 1);
     assert.match(open[0].message, /Row 1 probe is at 21%/);
+  });
+
+  test("S-006/R-023: simulating a field wets it with the farm's recorded rain, and the advice labels that rain", async () => {
+    const farm = (await sam('POST', '/api/farms', { name: 'Sim Farm', latitude: 49.05, longitude: -122.3 })).body.farm;
+    const crop = (await sam('GET', '/api/crop-profiles')).body.cropProfiles.find((c: any) => c.key === 'blueberry');
+    const id = (await sam('POST', `/api/farms/${farm.id}/fields`, { name: 'Sim block', cropProfileId: crop.id, soil: 'Sandy loam' })).body.field.id;
+    for (const name of ['Row 3 probe', 'Row 6 probe']) await sam('POST', `/api/fields/${id}/sensors`, { name });
+    assert.equal((await sam('POST', `/api/fields/${id}/simulate`)).status, 200);
+    const a = (await sam('GET', `/api/fields/${id}/advice`)).body;
+    // data/weather/recent.json: 12 mm about 79 to 84 hours ago.
+    const rain = a.events.find((e: any) => e.label === 'rain' && Math.abs(Date.parse(e.start) - Date.parse(at(84))) <= 8 * 3_600_000);
+    assert.ok(rain, JSON.stringify(a.events.map((e: any) => [e.start, e.label, e.rainMm])));
+    assert.ok(a.fieldCapacity, 'a soaking gives a field capacity');
   });
 
   test("another farmer gets 404 for this field's advice, settings and labels", async () => {
