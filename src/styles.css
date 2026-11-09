@@ -176,17 +176,15 @@ main.mp{max-width:none;padding:0}
 .dock .di{display:grid;place-items:center;height:16px;width:16px}
 .dock .di svg{width:16px;height:16px}
 .dock .badge{position:absolute;top:-3px;right:2px;margin:0;font-size:.65rem;padding:0 5px}
-.panel{position:absolute;top:10px;bottom:62px;left:50%;transform:translateX(-50%);width:min(860px,calc(100% - 24px));overflow:auto;z-index:5;background:var(--bg);padding:16px 22px 28px;box-shadow:0 18px 50px rgba(0,0,0,.28);border:1px solid rgba(38,48,31,.06)}
-.panel{display:flex;flex-direction:column}
-.pclose{position:sticky;top:0;float:none;align-self:flex-end;flex:none;z-index:3;margin:0 0 12px;background:var(--bg)}
-.panel-body{clear:both;min-width:0;flex:1}
-.panel h1{font-size:clamp(1.9rem,3.6vw,2.7rem)}
+.panel{position:absolute;top:10px;bottom:62px;left:50%;transform:translateX(-50%);width:min(860px,calc(100% - 24px));overflow:hidden;z-index:5;background:var(--bg);padding:0;box-shadow:0 18px 50px rgba(0,0,0,.28);border:1px solid rgba(38,48,31,.06);display:flex;flex-direction:column}
+.btn.alt.pclose,.pclose.btn.alt{float:none;align-self:stretch;flex:none;z-index:3;margin:0;border:0;border-bottom:1px solid var(--line);border-radius:0;background:var(--bg);color:var(--ink);padding:12px 22px;justify-content:flex-end;box-shadow:none}
+.panel-body{clear:both;min-width:0;flex:1;min-height:0;overflow:auto;padding:8px 22px 28px;-webkit-overflow-scrolling:touch}
+.panel h1{font-size:clamp(1.9rem,3.6vw,2.7rem);scroll-margin-top:8px}
 .panel .sh{font-size:clamp(1.3rem,2.6vw,1.85rem);margin:24px 0 12px}
 .panel-center{width:min(560px,calc(100% - 24px));display:flex;flex-direction:column}
 .panel .feat{min-height:340px}
 .panel .fn{font-size:clamp(4rem,10vw,7.5rem)}
 .toast{bottom:72px}
-
 main.auth{padding:0;max-width:none;width:100%;min-height:100vh}
 .login{min-height:100vh;min-height:100dvh;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(340px,420px);background:#1f2a18;overflow:hidden}
 .login-scene{position:relative;min-height:100%;overflow:hidden;background:linear-gradient(#7eb0d4 0%,#a8c9e0 28%,#c5d9b0 55%,#6d8f4e 100%)}
