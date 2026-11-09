@@ -311,3 +311,27 @@ svg g.ffield:focus .fpin {
 svg g.ffield:hover .fzone {
   fill-opacity: 0.55;
 }
+/* Field models on the field page (src/views/watering.ts): watering block, setup card, events */
+.waterby{font-weight:700;font-size:1.05rem;margin:4px 0}.wby{font-weight:700;margin-top:2px}
+.wnote{background:var(--wnb);color:var(--wn);border-radius:10px;padding:8px 12px;margin:8px 0;font-size:.92rem}
+.wwarn{border-left:4px solid var(--cr);padding-left:10px;margin:8px 0}
+.zchk{color:var(--cr);font-style:normal;font-weight:700;font-size:.8rem}
+.setup,.events{margin:14px 0}.setup h3,.events h3{margin-bottom:8px}
+.setup>.row{align-items:center;gap:12px;padding:6px 0 10px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.setup label{display:block;font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mut);margin:10px 0 4px}
+.setup select,.setup input{width:100%;max-width:440px;padding:8px 10px;border:2px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit}
+.own .row{justify-content:flex-start;gap:8px;flex-wrap:nowrap}.own input{max-width:120px}
+.tgl{flex:none;min-width:64px;border:2px solid var(--g);border-radius:99px;background:none;color:var(--g);padding:6px 14px;font-weight:700}
+.tgl[aria-checked=true]{background:var(--g);color:var(--bg)}
+.trig,.sugg{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;border-radius:12px;padding:10px 12px;margin:10px 0}
+.trig{background:var(--okb);color:var(--ok)}.sugg{background:var(--g2);border:1px dashed var(--g)}.sugg p{flex-basis:100%;margin:0}
+.tv{font-family:Fraunces,Georgia,serif;font-size:1.6rem;line-height:1;margin-left:4px}
+.learn{background:var(--g2);border-radius:10px;padding:8px 12px;margin:10px 0}
+.evt{border-top:1px solid var(--line);padding:10px 0}.evt:first-of-type{border-top:0}
+.evh{display:flex;gap:10px;align-items:flex-start}.evi{font-size:1.3rem;line-height:1.2;width:24px;text-align:center}
+.rises{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 6px 34px}
+.rise{background:var(--g2);border-radius:99px;padding:1px 9px;font-size:.82rem;font-weight:600}.rise.low{background:var(--crb);color:var(--cr)}
+.evb{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-left:34px}
+.chip-btn{border:2px solid var(--line);background:var(--card);color:var(--ink);border-radius:99px;padding:3px 12px;font-size:.85rem;font-weight:600;min-height:32px}
+.chip-btn[aria-pressed=true]{background:var(--g);border-color:var(--g);color:var(--bg)}
+.mtnote{display:block;margin-top:8px}

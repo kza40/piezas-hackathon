@@ -4,6 +4,7 @@ import { S } from '../state';
 import type { CardId, Field, MapLayer, PanelId, WaterState } from '../types';
 import { esc, fieldNo, firstName, initials, lastWatered, moistureTint, openAlerts, pill, T, ws } from '../ui/helpers';
 import { can } from '../ui/icons';
+import { chipText, healthOf, lastWateredText, triggerShort } from './watering';
 
 const mine = <T extends { f: string }>(rows: T[]) => rows.filter((r) => ownsSeedRef(r.f));
 const recFor = (f: Field) => (S.farmerId ? undefined : mine(REC).find((q) => q.f === f.id || q.f === f.layout));
@@ -65,13 +66,21 @@ function moistureHistory(f: Field): number[] {
 function spark(f: Field): string {
   const h = moistureHistory(f);
   if (!h.length) return "<p class='mut tiny'>Moisture history loads with your sensors.</p>";
-  const lo = Math.min(...h, f.mi[0]) - 3;
-  const hi = Math.max(...h, f.mi[1]) + 3;
+  const a = S.liveAdvice[f.id];
+  const trig = a?.setup.irrigated ? (a.setup.trigger?.value ?? null) : null;
+  const marks = a ? (trig != null ? [trig] : []) : f.mi;
+  const lo = Math.min(...h, ...marks) - 3;
+  const hi = Math.max(...h, ...marks) + 3;
   const y = (v: number) => 54 - ((v - lo) / (hi - lo)) * 50;
-  const x = (i: number) => (i / (h.length - 1)) * 300;
+  const x = (i: number) => (i / Math.max(1, h.length - 1)) * 300;
   const pts = h.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-  const band = `<rect x=0 y=${y(f.mi[1]).toFixed(1)} width=300 height=${(y(f.mi[0]) - y(f.mi[1])).toFixed(1)} fill='#4f8a63' fill-opacity=.16 />`;
-  return `<svg class=spark viewBox='0 0 300 58' preserveAspectRatio=none role=img aria-label='Soil moisture, last 7 days'>${band}<polyline points='${pts}' fill=none stroke='#3d5f8f' stroke-width=2.2 vector-effect=non-scaling-stroke /><circle cx=${x(h.length - 1)} cy=${y(h[h.length - 1])} r=3.5 fill='#3d5f8f'/></svg><div class='row mut tiny'><span>${DN(0)}</span><span>Ideal ${f.mi[0]}–${f.mi[1]}% shaded</span><span>Now</span></div>`;
+  const band = a
+    ? trig != null
+      ? `<line x1=0 x2=300 y1=${y(trig).toFixed(1)} y2=${y(trig).toFixed(1)} stroke='#c0522b' stroke-width=1.6 stroke-dasharray='5 4' vector-effect=non-scaling-stroke />`
+      : ''
+    : `<rect x=0 y=${y(f.mi[1]).toFixed(1)} width=300 height=${(y(f.mi[0]) - y(f.mi[1])).toFixed(1)} fill='#4f8a63' fill-opacity=.16 />`;
+  const key = a ? (trig != null ? `Dashed line: your ${trig}% trigger` : triggerShort(a)) : `Ideal ${f.mi[0]}–${f.mi[1]}% shaded`;
+  return `<svg class=spark viewBox='0 0 300 58' preserveAspectRatio=none role=img aria-label='Soil moisture, last 7 days'>${band}<polyline points='${pts}' fill=none stroke='#3d5f8f' stroke-width=2.2 vector-effect=non-scaling-stroke /><circle cx=${x(h.length - 1)} cy=${y(h[h.length - 1])} r=3.5 fill='#3d5f8f'/></svg><div class='row mut tiny'><span>${DN(0)}</span><span>${key}</span><span>Now</span></div>`;
 }
 
 export function fieldCard(): string {
@@ -81,6 +90,7 @@ export function fieldCard(): string {
   const h = moistureHistory(f);
   const d24 = h.length >= 9 ? Math.round((h[h.length - 1] - h[h.length - 9]) * 10) / 10 : null;
   const trend = d24 == null ? 'no 24 h trend yet' : `<span class=trend>${d24 > 0 ? '▲' : d24 < 0 ? '▼' : '■'} ${Math.abs(d24)} pts / 24 h</span>`;
+  const a = S.liveAdvice[f.id];
   const r = recFor(f);
   const posts = sensorsOf(f.id);
   const live = posts.filter((s) => s.m != null).map((s) => s.m!);
@@ -88,13 +98,15 @@ export function fieldCard(): string {
   const zones = posts
     .map((s) => {
       const tone = s.m == null ? '#b8b2a2' : moistureTint(s.m);
-      return `<div class=zrow><i style='background:${tone}'></i><b>${esc(s.id)}</b><span>${s.m == null ? '—' : `${Math.round(s.m)}%`}</span><em class=mut>${s.online ? 'live' : `${s.age}h ago`}</em></div>`;
+      const flag = s.sensorId ? healthOf(a, s.sensorId) : undefined;
+      const state = flag ? `<em class=zchk title='${esc(flag.reason ?? '')}'>check sensor</em>` : `<em class=mut>${s.online ? 'live' : `${s.age}h ago`}</em>`;
+      return `<div class=zrow><i style='background:${tone}'></i><b>${esc(s.id)}</b><span>${s.m == null ? '—' : `${Math.round(s.m)}%`}</span>${state}</div>`;
     })
     .join('');
-  const hero = `<div class=fhero style='background:${look.bg};color:${look.fg}'><div><div class=fn style='color:${look.n}'>${f.m}<span>%</span></div><div class=fsub>Soil moisture · ${trend}</div></div><button class=cb data-act=op data-id=${f.id} aria-label='Watering details'>${can(k, 48)}</button><p class=chip style='background:${look.fg};color:${look.bg}'><i style='background:${WS[k].h}'></i>${look.c}</p></div>`;
-  const grid = `<div class='kvs g2'>${kv('Crop', `${f.crop} · ${esc(f.stage)}`)}${kv('Area', `${f.ac} ac`)}${kv('Soil', esc(f.soil))}${kv('Air humidity', `${f.h}%`)}${kv('Soil temp', T(f.st))}${kv('pH', String(f.ph))}${kv('Last watered', lastWatered(f.id))}${kv('Across field', span)}</div>`;
-  const body = `${hero}${spark(f)}${grid}<p class=sub>Moisture by area</p><div class=zrows>${zones}</div><div class=nx><span class=mut>Recommended action</span><br>${S.liveAdvice[f.id]?.label ?? (r ? r.t : 'No action needed right now')}${S.liveAdvice[f.id]?.reason ? `<div class='mut tiny'>${esc(S.liveAdvice[f.id].reason)}</div>` : ''}</div><div class=btns><button class='btn sm' data-act=go data-p=field data-id=${f.id} data-testid=open-field-panel>Open field &amp; sensors</button><button class='btn alt sm' data-act=op data-id=${f.id}>Why this advice?</button></div>`;
-  return mapCard('field', `Field ${fieldNo(f.id)} · ${esc(f.name)}`, body, { sum: `${f.m}% · ${WS[k].t}`, panel: 'field', cls: 'fcard' });
+  const hero = `<div class=fhero style='background:${look.bg};color:${look.fg}'><div><div class=fn style='color:${look.n}'>${f.m}<span>%</span></div><div class=fsub>Soil moisture · ${trend}</div></div><button class=cb data-act=op data-id=${f.id} aria-label='Watering details'>${can(k, 48)}</button><p class=chip style='background:${look.fg};color:${look.bg}'><i style='background:${WS[k].h}'></i>${esc(chipText(f, look.c))}</p></div>`;
+  const grid = `<div class='kvs g2'>${kv('Crop', `${f.crop} · ${esc(f.stage)}`)}${kv('Area', `${f.ac} ac`)}${kv('Soil', esc(f.soil))}${kv('Air humidity', `${f.h}%`)}${kv('Soil temp', T(f.st))}${kv('pH', String(f.ph))}${kv('Last watered', a ? lastWateredText(a) : lastWatered(f.id))}${kv('Across field', span)}</div>`;
+  const body = `${hero}${spark(f)}${grid}<p class=sub>Moisture by area</p><div class=zrows>${zones}</div><div class=nx><span class=mut>Recommended action</span><br>${a ? esc(a.label) : r ? r.t : 'No action needed right now'}${a?.waterBy ? `<div class=wby>${esc(a.waterBy.text)}</div>` : ''}${a?.reason ? `<div class='mut tiny'>${esc(a.reason)}</div>` : ''}</div><div class=btns><button class='btn sm' data-act=go data-p=field data-id=${f.id} data-testid=open-field-panel>Open field &amp; sensors</button><button class='btn alt sm' data-act=op data-id=${f.id}>Why this advice?</button></div>`;
+  return mapCard('field', `Field ${fieldNo(f.id)} · ${esc(f.name)}`, body, { sum: `${f.m}% · ${esc(a?.label ?? WS[k].t)}`, panel: 'field', cls: 'fcard' });
 }
 
 export function legendCard(layer: MapLayer): string {

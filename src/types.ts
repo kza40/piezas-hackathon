@@ -174,12 +174,68 @@ export interface LiveWeather {
   overnightLowC: number;
   hours: { time: string; tempC: number; rainMm: number }[];
 }
+// GET /api/fields/:id/advice (docs/api.md). The field models' output: R-009, R-021 to R-025.
+export type EventLabel = 'irrigation' | 'rain' | 'none';
+export interface SavedTrigger {
+  value: number;
+  source: 'suggested' | 'manual';
+  basis: string;
+  savedAt: string;
+}
+export interface SensorHealthRow {
+  sensorId: string;
+  sensorName: string;
+  status: 'ok' | 'check' | 'faulty';
+  reason: string | null;
+}
+export interface WettingEventRow {
+  start: string;
+  peak: string;
+  label: EventLabel;
+  detected: 'irrigation' | 'rain';
+  source: 'detected' | 'farmer';
+  confidence: 'high' | 'low';
+  rainMm: number;
+  rises: { sensorId: string; sensorName: string; rise: number; low: boolean }[];
+}
+export interface TriggerSuggestion {
+  value: number;
+  fieldCapacity: number;
+  wiltingPoint: number;
+  depletion: number;
+  basis: string;
+}
+export interface AdviceResponse {
+  watering: { status: string; label: string; reason: string; driestSensorName: string | null; driestValue: number | null };
+  waterBy: { kind: 'window' | 'now' | 'beyond' | 'learning'; text: string } | null;
+  soilWarning: string | null;
+  frostWarning: string | null;
+  weather: { rainNext48hMm: number; overnightLowC: number };
+  alert: { id: string; message: string } | null;
+  setup: { irrigated: boolean; trigger: SavedTrigger | null; soil: string };
+  sensorHealth: SensorHealthRow[];
+  events: WettingEventRow[]; // newest first
+  lastWatered: string | null;
+  fieldCapacity: { value: number; from: string; basis: string; samples: number } | null;
+  triggerSuggestion: TriggerSuggestion | null;
+  learning: string[];
+}
 export interface LiveAdvice {
   status: string;
   label: string;
   reason: string;
   soilWarning: string | null;
   frostWarning: string | null;
+  driestValue: number | null;
+  rainNext48hMm: number;
+  waterBy: AdviceResponse['waterBy'];
+  setup: AdviceResponse['setup'];
+  sensorHealth: SensorHealthRow[];
+  events: WettingEventRow[];
+  lastWatered: string | null;
+  fieldCapacity: AdviceResponse['fieldCapacity'];
+  triggerSuggestion: TriggerSuggestion | null;
+  learning: string[];
 }
 export interface LiveAlert {
   id: string;
