@@ -37,3 +37,7 @@ test('the status filter is open, done or nothing', () => {
   assert.equal(parseStatusFilter('done'), 'done');
   assert.throws(() => parseStatusFilter('closed'), (e: unknown) => e instanceof AppError && e.status === 400);
 });
+
+test('an alert closed because the field settings changed does not start the 12-hour quiet period', () => {
+  assert.equal(mayOpen([{ ...alert('done', '2026-11-08T00:30:00Z'), closedBy: 'settings' }], now), true);
+});

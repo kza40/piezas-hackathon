@@ -3,6 +3,9 @@
 const testKey = process.env.PIEZAS_TEST_API_KEY;
 if (!testKey) throw new Error('PIEZAS_TEST_API_KEY missing: run `npx piezas test --setup`');
 process.env.PIEZAS_API_KEY = testKey;
+// Fixed weather files instead of Open-Meteo, so no test depends on an outside service (the simulator
+// and the advice both read the weather).
+process.env.WEATHER_STUB_DIR ??= 'data/weather';
 
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -147,6 +150,36 @@ describe('farms and fields over HTTP', () => {
     assert.deepEqual((await jordan('GET', '/api/farms')).body.farms, []);
   });
 
+  test('R-021/R-009: a new field is rain-fed with no trigger; settings are partial, validated and clearable', async () => {
+    const before = (await sam('GET', `/api/fields/${fieldId}`)).body.field;
+    assert.deepEqual([before.irrigated, before.trigger, before.eventFeedback], [false, null, {}]);
+
+    const on = await sam('PATCH', `/api/fields/${fieldId}`, { irrigated: true, trigger: { value: 31, source: 'suggested', basis: 'Nov 3 rain, 2 sensors' } });
+    assert.equal(on.status, 200);
+    assert.equal(on.body.field.irrigated, true);
+    assert.deepEqual([on.body.field.trigger.value, on.body.field.trigger.source, on.body.field.trigger.basis], [31, 'suggested', 'Nov 3 rain, 2 sensors']);
+    assert.equal(on.body.field.soil, 'Sandy loam', 'other settings are left alone');
+
+    for (const bad of [{}, { irrigated: 'yes' }, { trigger: { value: 95 } }, { trigger: 'low' }]) {
+      assert.equal((await sam('PATCH', `/api/fields/${fieldId}`, bad)).status, 400, JSON.stringify(bad));
+    }
+    assert.equal((await jordan('PATCH', `/api/fields/${fieldId}`, { irrigated: false })).status, 404);
+
+    const cleared = await sam('PATCH', `/api/fields/${fieldId}`, { trigger: null, soil: 'Clay loam' });
+    assert.deepEqual([cleared.body.field.trigger, cleared.body.field.soil, cleared.body.field.irrigated], [null, 'Clay loam', true]);
+  });
+
+  test('R-023: the farmer labels a detected event, changes the label, and removes it', async () => {
+    const start = new Date(Date.now() - 3 * 86_400_000).toISOString();
+    const path = `/api/fields/${fieldId}/events/${encodeURIComponent(start)}/feedback`;
+    assert.deepEqual((await sam('POST', path, { label: 'irrigation' })).body.field.eventFeedback, { [start]: 'irrigation' });
+    assert.deepEqual((await sam('POST', path, { label: 'rain' })).body.field.eventFeedback, { [start]: 'rain' }, 'replaced, not added');
+    assert.deepEqual((await sam('POST', path, { label: null })).body.field.eventFeedback, {}, 'removed');
+    assert.equal((await sam('POST', path, { label: 'flood' })).status, 400);
+    assert.equal((await sam('POST', `/api/fields/${fieldId}/events/yesterday/feedback`, { label: 'rain' })).status, 400);
+    assert.equal((await jordan('POST', path, { label: 'rain' })).status, 404);
+  });
+
   test('Sam removes the field', async () => {
     assert.equal((await sam('DELETE', `/api/fields/${fieldId}`)).status, 204);
     assert.equal((await sam('GET', `/api/fields/${fieldId}`)).status, 404);
@@ -165,7 +198,7 @@ describe('sensors, device keys and ingest over HTTP', () => {
       headers: { 'content-type': 'application/json', ...(key !== undefined ? { 'x-device-key': key } : {}) },
       body: JSON.stringify(json),
     });
-    return { status: res.status, body: await res.json() };
+    return { status: res.status, body: (await res.json()) as any }; // like JSON.parse above
   };
   const latest = async () => (await sam('GET', `/api/fields/${fieldId}/sensors`)).body.sensors.find((s: any) => s.id === sensorId).latest;
 
@@ -451,6 +484,173 @@ describe('alerts over HTTP', () => {
     await sam('DELETE', `/api/fields/${fieldId}`);
     assert.deepEqual(await listAll((await db()).alert, { fieldId }), []);
     await assert.rejects(openAlert(samId, fieldId, message), (e: any) => e.status === 404);
+  });
+});
+
+describe('field models in the advice over HTTP (R-009, R-021 to R-025)', () => {
+  let fieldId = '';
+  const keys: Record<string, string> = {};
+  const at = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3_600_000).toISOString();
+  const device = (key: string, json: unknown) =>
+    api.request('/api/ingest', { method: 'POST', headers: { 'content-type': 'application/json', 'x-device-key': key }, body: JSON.stringify(json) });
+  const advice = async () => (await sam('GET', `/api/fields/${fieldId}/advice`)).body;
+  const forecastBefore = process.env.WEATHER_STUB_FORECAST;
+
+  // 72 hours of a probe: drying 0.05 an hour, watered 60 hours ago (no rain then) to 33% plus water that drains away.
+  const probe = (offset: number) => {
+    const out = [];
+    let base = 22 + offset;
+    let excess = 0;
+    for (let ago = 72; ago >= 0; ago--) {
+      if (ago === 60) [base, excess] = [33 + offset, 6];
+      base -= 0.05;
+      excess *= 0.8;
+      out.push({ type: 'soil_moisture', value: Math.round((base + excess) * 10) / 10, unit: '%', time: at(ago) });
+    }
+    return out;
+  };
+  const send = async (key: string, readings: unknown[]) => {
+    for (let i = 0; i < readings.length; i += 50) assert.equal((await device(key, { readings: readings.slice(i, i + 50) })).status, 202);
+  };
+
+  before(() => {
+    process.env.WEATHER_STUB_FORECAST = 'dry-forecast.json';
+  });
+  after(() => {
+    if (forecastBefore === undefined) delete process.env.WEATHER_STUB_FORECAST;
+    else process.env.WEATHER_STUB_FORECAST = forecastBefore;
+  });
+
+  test('setup: a sandy-loam blueberry field with two probes, watered 60 hours ago', async () => {
+    const farm = (await sam('POST', '/api/farms', { name: 'Model Farm', latitude: 49.05, longitude: -122.3 })).body.farm;
+    const crop = (await sam('GET', '/api/crop-profiles')).body.cropProfiles.find((c: any) => c.key === 'blueberry');
+    fieldId = (await sam('POST', `/api/farms/${farm.id}/fields`, { name: 'Model block', cropProfileId: crop.id, soil: 'Sandy loam' })).body.field.id;
+    for (const name of ['North probe', 'South probe']) keys[name] = (await sam('POST', `/api/fields/${fieldId}/sensors`, { name })).body.deviceKey;
+    await send(keys['North probe'], probe(0)); // ends near 30%
+    await send(keys['South probe'], probe(2)); // ends near 32%
+  });
+
+  test('S-025/S-026: a new field is rain-fed; the watering is found, labelled irrigation, and sets last watered', async () => {
+    const a = await advice();
+    assert.equal(a.watering.status, 'rain_fed');
+    assert.deepEqual([a.alert, a.waterBy], [null, null]);
+    assert.equal(a.events.length, 1);
+    assert.deepEqual([a.events[0].label, a.events[0].source, a.events[0].rises.length], ['irrigation', 'detected', 2]);
+    assert.ok(Math.abs(Date.parse(a.events[0].start) - Date.parse(at(60))) <= 3 * 3_600_000, a.events[0].start);
+    assert.equal(a.lastWatered, a.events[0].start);
+    assert.ok(a.sensorHealth.every((h: any) => h.status === 'ok'));
+  });
+
+  test('S-029/S-030: irrigated without a trigger is not configured, with a sourced suggestion to save', async () => {
+    await sam('PATCH', `/api/fields/${fieldId}`, { irrigated: true });
+    const a = await advice();
+    assert.equal(a.watering.status, 'not_configured');
+    assert.match(a.watering.reason, /Irrigation guidance is not configured/);
+    assert.ok(a.fieldCapacity.value > 31 && a.fieldCapacity.value < 36, `capacity ${a.fieldCapacity.value}`);
+    const s = a.triggerSuggestion;
+    assert.ok(s.value >= 22 && s.value <= 28, `suggested ${s.value}`);
+    assert.match(s.basis, /after the irrigation on .*sandy loam.*Berries/);
+    assert.deepEqual(a.learning, []);
+
+    await sam('PATCH', `/api/fields/${fieldId}`, { trigger: { value: s.value, source: 'suggested', basis: s.basis } });
+    const saved = await advice();
+    assert.equal(saved.watering.status, 'wait', 'about 30% is above the suggested trigger');
+    assert.equal(saved.setup.trigger.source, 'suggested');
+    assert.ok(['beyond', 'window'].includes(saved.waterBy.kind), saved.waterBy.text);
+  });
+
+  test('S-031: with a trigger close below the reading, the field shows when to water', async () => {
+    await sam('PATCH', `/api/fields/${fieldId}`, { trigger: { value: 28 } });
+    const a = await advice();
+    assert.equal(a.watering.status, 'wait');
+    assert.equal(a.waterBy.kind, 'window', JSON.stringify(a.waterBy));
+    assert.match(a.waterBy.text, /^Water by \w{3}/);
+  });
+
+  test('S-007/S-018: below the trigger with a dry forecast is Water today, naming the probe, with one alert', async () => {
+    await sam('PATCH', `/api/fields/${fieldId}`, { trigger: { value: 31 } });
+    const [a, b] = [await advice(), await advice()];
+    assert.equal(a.watering.status, 'water_today');
+    assert.match(a.watering.reason, /North probe .*below your 31% trigger/);
+    assert.equal(a.waterBy.kind, 'now');
+    assert.equal(b.alert.id, a.alert.id);
+    assert.equal((await sam('GET', '/api/alerts?status=open')).body.alerts.filter((x: any) => x.fieldId === fieldId).length, 1);
+  });
+
+  test('S-028: the farmer relabels the watering as rain; last watered no longer uses it', async () => {
+    const before = await advice();
+    const start = before.events[0].start;
+    await sam('POST', `/api/fields/${fieldId}/events/${encodeURIComponent(start)}/feedback`, { label: 'rain' });
+    const a = await advice();
+    assert.deepEqual([a.events[0].label, a.events[0].detected, a.events[0].source], ['rain', 'irrigation', 'farmer']);
+    assert.equal(a.lastWatered, null);
+  });
+
+  test('S-024: a probe stuck on one value is marked Check sensor and left out of the advice', async () => {
+    const key = (await sam('POST', `/api/fields/${fieldId}/sensors`, { name: 'Stuck probe' })).body.deviceKey;
+    await send(key, Array.from({ length: 26 }, (_, i) => ({ type: 'soil_moisture', value: 12, unit: '%', time: at(25 - i) })));
+    const a = await advice();
+    const stuck = a.sensorHealth.find((h: any) => h.sensorName === 'Stuck probe');
+    assert.equal(stuck.status, 'faulty');
+    assert.match(stuck.reason, /exactly 12%/);
+    assert.equal(a.watering.driestSensorName, 'North probe', 'the stuck 12% does not drive the advice');
+  });
+
+  test('R-021: switching the field to rain-fed closes its open alert; switching back raises it again at once', async () => {
+    const openFor = async () => (await sam('GET', '/api/alerts?status=open')).body.alerts.filter((x: any) => x.fieldId === fieldId);
+    assert.equal((await openFor()).length, 1, 'still open from S-007');
+    await sam('PATCH', `/api/fields/${fieldId}`, { irrigated: false });
+    assert.equal((await advice()).alert, null);
+    assert.equal((await openFor()).length, 0);
+    await sam('PATCH', `/api/fields/${fieldId}`, { irrigated: true });
+    const a = await advice();
+    assert.equal(a.watering.status, 'water_today');
+    assert.ok(a.alert, 'no 12-hour quiet period after a settings change');
+    assert.equal((await openFor()).length, 1);
+  });
+
+  test('R-023: a later label near the same event replaces the earlier one', async () => {
+    const start = (await advice()).events.at(-1).start; // the watering 60 hours ago (newest first)
+    const shifted = new Date(Date.parse(start) + 3_600_000).toISOString();
+    await sam('POST', `/api/fields/${fieldId}/events/${encodeURIComponent(shifted)}/feedback`, { label: 'irrigation' });
+    const a = await advice();
+    assert.equal(a.events.at(-1).label, 'irrigation', 'the newer label wins over the S-028 "rain"');
+    assert.ok(a.lastWatered);
+  });
+
+  test('a reading below the trigger raises the alert on ingest, without the page being opened', async () => {
+    const farm = (await sam('POST', '/api/farms', { name: 'Ingest Farm', latitude: 49.05, longitude: -122.3 })).body.farm;
+    const crop = (await sam('GET', '/api/crop-profiles')).body.cropProfiles.find((c: any) => c.key === 'blueberry');
+    const id = (await sam('POST', `/api/farms/${farm.id}/fields`, { name: 'Ingest block', cropProfileId: crop.id })).body.field.id;
+    const key = (await sam('POST', `/api/fields/${id}/sensors`, { name: 'Row 1 probe' })).body.deviceKey;
+    await sam('PATCH', `/api/fields/${id}`, { irrigated: true, trigger: { value: 30 } });
+    await send(key, [{ type: 'soil_moisture', value: 21, unit: '%', time: at(0) }]);
+    let open: any[] = [];
+    for (let i = 0; i < 40 && !open.length; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      open = (await sam('GET', '/api/alerts?status=open')).body.alerts.filter((x: any) => x.fieldId === id);
+    }
+    assert.equal(open.length, 1);
+    assert.match(open[0].message, /Row 1 probe is at 21%/);
+  });
+
+  test("S-006/R-023: simulating a field wets it with the farm's recorded rain, and the advice labels that rain", async () => {
+    const farm = (await sam('POST', '/api/farms', { name: 'Sim Farm', latitude: 49.05, longitude: -122.3 })).body.farm;
+    const crop = (await sam('GET', '/api/crop-profiles')).body.cropProfiles.find((c: any) => c.key === 'blueberry');
+    const id = (await sam('POST', `/api/farms/${farm.id}/fields`, { name: 'Sim block', cropProfileId: crop.id, soil: 'Sandy loam' })).body.field.id;
+    for (const name of ['Row 3 probe', 'Row 6 probe']) await sam('POST', `/api/fields/${id}/sensors`, { name });
+    assert.equal((await sam('POST', `/api/fields/${id}/simulate`)).status, 200);
+    const a = (await sam('GET', `/api/fields/${id}/advice`)).body;
+    // data/weather/recent.json: 12 mm about 79 to 84 hours ago.
+    const rain = a.events.find((e: any) => e.label === 'rain' && Math.abs(Date.parse(e.start) - Date.parse(at(84))) <= 8 * 3_600_000);
+    assert.ok(rain, JSON.stringify(a.events.map((e: any) => [e.start, e.label, e.rainMm])));
+    assert.ok(a.fieldCapacity, 'a soaking gives a field capacity');
+  });
+
+  test("another farmer gets 404 for this field's advice, settings and labels", async () => {
+    assert.equal((await jordan('GET', `/api/fields/${fieldId}/advice`)).status, 404);
+    assert.equal((await jordan('PATCH', `/api/fields/${fieldId}`, { irrigated: true })).status, 404);
+    assert.equal((await jordan('POST', `/api/fields/${fieldId}/events/${encodeURIComponent(new Date().toISOString())}/feedback`, { label: 'rain' })).status, 404);
   });
 });
 

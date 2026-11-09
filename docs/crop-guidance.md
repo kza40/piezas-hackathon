@@ -41,8 +41,35 @@ Before adding a moisture or EC warning, record the sensor's measurement method,
 installation depth, and field calibration. Before adding frost warnings, map
 the field's actual growth stage to a source-backed critical temperature.
 
+## Per-field soil-moisture trigger (R-009, R-024)
+
+Because no universal threshold is valid, the trigger is per field and is set by
+the farmer. The app can suggest one from evidence measured on that field
+(`lib/ml/`), and uses it only after the farmer saves it:
+
+1. **Field capacity, measured.** After a soaking rain or irrigation, the field's
+   sensors drain quickly and then level off. The level where the drop slows below
+   0.15 points an hour, 12 to 48 hours after the peak, is taken as field capacity
+   on those sensors' own scale. This sidesteps absolute calibration of cheap probes.
+2. **Wilting point, from soil texture.** FAO-56 Table 19 gives typical θFC and θWP
+   ranges by texture. The app keeps the ratio θWP/θFC of the midpoints and applies
+   it to the measured field capacity. Textures Table 19 does not list (clay loam,
+   sandy clay loam, sandy clay) get no suggestion; the farmer picks a listed one or
+   enters a trigger.
+3. **Allowable depletion, from the crop.** FAO-56 Table 22 gives p, the share of
+   available water a crop can use before stress: 0.55 for wheat, barley, oats and
+   alfalfa (hay), 0.60 for rapeseed/canola, 0.50 for berries (bushes).
+
+Suggested trigger = field capacity − p × (field capacity − wilting point).
+
+Limits: p in Table 22 is for ET around 5 mm a day and the table notes it should
+be adjusted for other ET rates; the suggestion uses one field-level capacity (the
+median of the field's sensors), so a sensor placed at a different depth is better
+handled by a farmer-entered trigger.
+
 ## References
 
+- [FAO Irrigation and Drainage Paper 56, Crop evapotranspiration (Allen et al., 1998)](https://www.fao.org/4/x0490e/x0490e00.htm) — Table 19 (soil water characteristics by texture), Table 22 (rooting depth and depletion fraction p by crop), and the FAO Penman-Monteith reference evapotranspiration (ET0) that Open-Meteo provides.
 - [BC Ministry of Agriculture, Soil pH (Factsheet 637.100-1)](https://www2.gov.bc.ca/assets/gov/farming-natural-resources-and-industry/agriculture-and-seafood/agricultural-land-and-environment/soil-nutrients/600-series/637100-1_soil_ph.pdf) — preferred ranges for blueberries, cereal grains, and alfalfa.
 - [BC Ministry of Agriculture, Blueberry production guide](https://www2.gov.bc.ca/gov/content/industry/agriculture-seafood/agriservice-bc/production-guides/berries/blueberry) — blueberry pH, irrigation, water quality, and the factors needed to schedule irrigation.
 - [BC Ministry of Agriculture, Irrigation scheduling](https://www2.gov.bc.ca/gov/content/industry/agriculture-seafood/agricultural-land-and-environment/water/irrigation) — schedule by farm location, crop, soil, and local climate.

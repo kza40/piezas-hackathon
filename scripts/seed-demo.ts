@@ -18,7 +18,7 @@ process.env.PIEZAS_API_KEY = key;
 const { piezas } = await import('../lib/server/piezas');
 const { signIn } = await import('../lib/server/auth');
 const { listCropProfiles } = await import('../lib/server/data/crops');
-const { createFarm, createField, listFarms, listFields } = await import('../lib/server/data/farms');
+const { createFarm, createField, listFarms, listFields, updateFieldSettings } = await import('../lib/server/data/farms');
 const { createSensor, listSensors, simulateField } = await import('../lib/server/data/sensors');
 const { updateProfile } = await import('../lib/server/data/profile');
 
@@ -42,8 +42,8 @@ const DEMO = [
     farm: { name: 'Maple Ridge Farm', latitude: 43.45, longitude: -81.1 },
     fields: [
       { name: 'West Oats', crop: 'oats', acres: 58, stage: 'Tillering', soil: 'Loam' },
-      { name: 'Creek Alfalfa', crop: 'alfalfa', acres: 41, stage: 'Early bud', soil: 'Sandy loam' },
-      { name: 'Blueberry Hill', crop: 'blueberry', acres: 22, stage: 'Fruit set', soil: 'Sandy loam, mulched' },
+      { name: 'Creek Alfalfa', crop: 'alfalfa', acres: 41, stage: 'Early bud', soil: 'Sandy loam', irrigated: true },
+      { name: 'Blueberry Hill', crop: 'blueberry', acres: 22, stage: 'Fruit set', soil: 'Sandy loam, mulched', irrigated: true },
     ],
   },
 ];
@@ -73,6 +73,9 @@ for (const d of DEMO) {
     if (!have.has(f.name)) await createField(user.id, farm.id, { name: f.name, cropProfileId: crops.get(f.crop), acres: f.acres, stage: f.stage, soil: f.soil });
   }
   const fields = await listFields(user.id, farm.id);
+  // Irrigated demo fields show the watering advice flow (R-021). Only `irrigated` is set, so a trigger
+  // saved during a demo is kept.
+  for (const f of fields) if (d.fields.some((x) => x.name === f.name && 'irrigated' in x && x.irrigated) && !f.irrigated) await updateFieldSettings(user.id, f.id, { irrigated: true });
   for (const f of fields) {
     // Device keys are not kept: the demo sensors are fed by the simulator, not by devices.
     if (!(await listSensors(user.id, f.id)).length) for (const name of ['North probe', 'South probe']) await createSensor(user.id, f.id, { name });

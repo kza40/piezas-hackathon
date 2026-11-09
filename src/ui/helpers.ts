@@ -34,6 +34,9 @@ export const ws = (f: Field): WaterState => {
     if (a.status === 'wait' || a.label === 'Wait') {
       return /rain/i.test(a.reason) ? 'rain' : 'none';
     }
+    // rain_fed, not_configured, check_sensors: no watering prompt. With live advice, never fall back
+    // to the seed's crop range below (a rain-fed field must never look like it needs water; R-021).
+    return 'none';
   }
   const lo = f.mi[0];
   if (f.m < lo) return f.m >= lo - 3 ? 'rain' : 'now';

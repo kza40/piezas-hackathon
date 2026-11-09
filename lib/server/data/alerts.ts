@@ -15,6 +15,7 @@ export interface Alert {
   status: AlertStatus;
   createdAt: string;
   doneAt: string | null;
+  closedBy?: 'settings'; // closed because the field's watering settings changed, not by the farmer
 }
 
 const toAlert = (r: EntityRecord): Alert => ({
@@ -25,6 +26,7 @@ const toAlert = (r: EntityRecord): Alert => ({
   // Our own millisecond time: Piezas's createdAt is whole seconds (E19), too coarse for "newest first".
   createdAt: typeof r.data.openedAt === 'string' ? r.data.openedAt : r.createdAt,
   doneAt: typeof r.data.doneAt === 'string' ? r.data.doneAt : null,
+  ...(r.data.closedBy === 'settings' ? { closedBy: 'settings' as const } : {}),
 });
 
 // After the farmer marks a field's alert done, the advice rule may not raise a new one for this long.
@@ -33,7 +35,9 @@ export const QUIET_AFTER_DONE_MS = 12 * 3_600_000;
 
 // Whether a new alert may open for a field, given that field's alerts. Pure, so the rule is unit-tested.
 export function mayOpen(alerts: Alert[], now: Date): boolean {
-  return !alerts.some((a) => a.status === 'open' || (a.doneAt !== null && now.getTime() - Date.parse(a.doneAt) < QUIET_AFTER_DONE_MS));
+  return !alerts.some(
+    (a) => a.status === 'open' || (a.closedBy !== 'settings' && a.doneAt !== null && now.getTime() - Date.parse(a.doneAt) < QUIET_AFTER_DONE_MS),
+  );
 }
 
 // For the advice rule (not an HTTP route). Returns the field's open alert, creating it if allowed;
@@ -47,6 +51,24 @@ export function openAlert(ownerId: string, fieldId: string, message: string, now
     if (open) return open;
     if (!mayOpen(existing, now)) return null;
     return toAlert(await alert.create({ title: message, data: { ownerId, fieldId, message, status: 'open', openedAt: now.toISOString() } }));
+  });
+}
+
+// Whether the field has an open alert (a read only, for skipping work; openAlert itself is the guard).
+export async function hasOpenAlert(ownerId: string, fieldId: string): Promise<boolean> {
+  const { alert } = await db();
+  return (await listAll(alert, { ownerId, fieldId, status: 'open' })).length > 0;
+}
+
+// When the farmer changes whether or when a field is watered, an open "Water today" may no longer apply
+// (R-021: a rain-fed field never shows one). Close it without the 12-hour quiet period, so the next
+// advice raises it again at once if it still applies.
+export function closeOpenAlertForSettings(ownerId: string, fieldId: string, now = new Date()): Promise<void> {
+  return withFieldAlertsLock(fieldId, async () => {
+    const { alert } = await db();
+    for (const r of await listAll(alert, { ownerId, fieldId, status: 'open' })) {
+      await alert.update(r.id, { data: { status: 'done', doneAt: now.toISOString(), closedBy: 'settings' } });
+    }
   });
 }
 
