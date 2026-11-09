@@ -1,0 +1,9 @@
+{
+  "about": "Stub recent weather for tests and demos: hourly rain given as hours before now, and a daily reference evapotranspiration (FAO-56 ET0). Two rains: 12 mm about 3 days ago and 9 mm about 9 days ago.",
+  "et0_mm_per_day": 1.2,
+  "rain": [
+    { "hours_ago": 84, "mm": 1.5 }, { "hours_ago": 83, "mm": 2.5 }, { "hours_ago": 82, "mm": 3 },
+    { "hours_ago": 81, "mm": 2.5 }, { "hours_ago": 80, "mm": 1.5 }, { "hours_ago": 79, "mm": 1 },
+    { "hours_ago": 220, "mm": 2 }, { "hours_ago": 219, "mm": 3 }, { "hours_ago": 218, "mm": 2.5 }, { "hours_ago": 217, "mm": 1.5 }
+  ]
+}

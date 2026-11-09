@@ -146,6 +146,36 @@ describe('farms and fields over HTTP', () => {
     assert.deepEqual((await jordan('GET', '/api/farms')).body.farms, []);
   });
 
+  test('R-021/R-009: a new field is rain-fed with no trigger; settings are partial, validated and clearable', async () => {
+    const before = (await sam('GET', `/api/fields/${fieldId}`)).body.field;
+    assert.deepEqual([before.irrigated, before.trigger, before.eventFeedback], [false, null, {}]);
+
+    const on = await sam('PATCH', `/api/fields/${fieldId}`, { irrigated: true, trigger: { value: 31, source: 'suggested', basis: 'Nov 3 rain, 2 sensors' } });
+    assert.equal(on.status, 200);
+    assert.equal(on.body.field.irrigated, true);
+    assert.deepEqual([on.body.field.trigger.value, on.body.field.trigger.source, on.body.field.trigger.basis], [31, 'suggested', 'Nov 3 rain, 2 sensors']);
+    assert.equal(on.body.field.soil, 'Sandy loam', 'other settings are left alone');
+
+    for (const bad of [{}, { irrigated: 'yes' }, { trigger: { value: 95 } }, { trigger: 'low' }]) {
+      assert.equal((await sam('PATCH', `/api/fields/${fieldId}`, bad)).status, 400, JSON.stringify(bad));
+    }
+    assert.equal((await jordan('PATCH', `/api/fields/${fieldId}`, { irrigated: false })).status, 404);
+
+    const cleared = await sam('PATCH', `/api/fields/${fieldId}`, { trigger: null, soil: 'Clay loam' });
+    assert.deepEqual([cleared.body.field.trigger, cleared.body.field.soil, cleared.body.field.irrigated], [null, 'Clay loam', true]);
+  });
+
+  test('R-023: the farmer labels a detected event, changes the label, and removes it', async () => {
+    const start = new Date(Date.now() - 3 * 86_400_000).toISOString();
+    const path = `/api/fields/${fieldId}/events/${encodeURIComponent(start)}/feedback`;
+    assert.deepEqual((await sam('POST', path, { label: 'irrigation' })).body.field.eventFeedback, { [start]: 'irrigation' });
+    assert.deepEqual((await sam('POST', path, { label: 'rain' })).body.field.eventFeedback, { [start]: 'rain' }, 'replaced, not added');
+    assert.deepEqual((await sam('POST', path, { label: null })).body.field.eventFeedback, {}, 'removed');
+    assert.equal((await sam('POST', path, { label: 'flood' })).status, 400);
+    assert.equal((await sam('POST', `/api/fields/${fieldId}/events/yesterday/feedback`, { label: 'rain' })).status, 400);
+    assert.equal((await jordan('POST', path, { label: 'rain' })).status, 404);
+  });
+
   test('Sam removes the field', async () => {
     assert.equal((await sam('DELETE', `/api/fields/${fieldId}`)).status, 204);
     assert.equal((await sam('GET', `/api/fields/${fieldId}`)).status, 404);
@@ -164,7 +194,7 @@ describe('sensors, device keys and ingest over HTTP', () => {
       headers: { 'content-type': 'application/json', ...(key !== undefined ? { 'x-device-key': key } : {}) },
       body: JSON.stringify(json),
     });
-    return { status: res.status, body: await res.json() };
+    return { status: res.status, body: (await res.json()) as any }; // like JSON.parse above
   };
   const latest = async () => (await sam('GET', `/api/fields/${fieldId}/sensors`)).body.sensors.find((s: any) => s.id === sensorId).latest;
 

@@ -8,7 +8,7 @@ import { HTTPException } from 'hono/http-exception';
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, getSessionUser, signIn, signOut, signUp, type SessionUser } from '../lib/server/auth';
 import { AppError, badRequest, notFound, toHttp, unauthorized } from '../lib/server/errors';
 import { listCropProfiles } from '../lib/server/data/crops';
-import { createFarm, createField, deleteField, getFarm, getField, listFarms, listFields } from '../lib/server/data/farms';
+import { createFarm, createField, deleteField, getFarm, getField, listFarms, listFields, setEventFeedback, updateFieldSettings } from '../lib/server/data/farms';
 import { getProfile, parseProfileInput, updateProfile } from '../lib/server/data/profile';
 import { createSensor, fieldReadings, ingest, listSensors, revokeSensor, simulateField } from '../lib/server/data/sensors';
 import { listAlerts, markAlertDone } from '../lib/server/data/alerts';
@@ -106,6 +106,12 @@ api.post('/farms/:farmId/fields', signedIn, async (c) =>
 );
 
 api.get('/fields/:fieldId', signedIn, async (c) => c.json({ field: await getField(c.var.user.id, c.req.param('fieldId')) }));
+// Field settings: irrigated, stage, soil, and the soil-moisture trigger (R-009, R-021, R-024).
+api.patch('/fields/:fieldId', signedIn, async (c) => c.json({ field: await updateFieldSettings(c.var.user.id, c.req.param('fieldId'), await body(c)) }));
+// The farmer confirms or corrects a detected wetting event (R-023); :start is the event's start time.
+api.post('/fields/:fieldId/events/:start/feedback', signedIn, async (c) =>
+  c.json({ field: await setEventFeedback(c.var.user.id, c.req.param('fieldId'), c.req.param('start'), await body(c)) }),
+);
 api.delete('/fields/:fieldId', signedIn, async (c) => {
   await deleteField(c.var.user.id, c.req.param('fieldId'));
   return c.body(null, 204);

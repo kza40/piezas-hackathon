@@ -18,6 +18,7 @@ const forecast = (rainNext48hMm: number): WeatherForecast => ({
   hours: [],
   rainNext48hMm,
   overnightLowC: 5,
+  outlook: [],
 });
 
 const sample = (name: string, value: number, hoursAgo: number): MoistureSample => ({

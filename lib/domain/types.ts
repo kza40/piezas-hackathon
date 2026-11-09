@@ -17,15 +17,20 @@ export interface CropAdviceProfile {
     ph: number | null;
     ec: number | null;
   }
-  export interface ForecastHour {
+  /** One hour of weather: rain and reference evapotranspiration (FAO-56 ET0), both in mm. */
+  export interface WeatherHour {
     time: string;
-    tempC: number;
     rainMm: number;
+    et0Mm: number;
+  }
+  export interface ForecastHour extends WeatherHour {
+    tempC: number;
   }
   export interface WeatherForecast {
-    hours: ForecastHour[];
+    hours: ForecastHour[]; // the next 48 hours
     rainNext48hMm: number;
     overnightLowC: number;
+    outlook: ForecastHour[]; // the next 5 days, for the water-by window
   }
   export interface WeekClimate {
     week: number;
