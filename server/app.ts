@@ -13,6 +13,7 @@ import { getProfile, parseProfileInput, updateProfile } from '../lib/server/data
 import { createSensor, fieldReadings, ingest, listSensors, revokeSensor, simulateField } from '../lib/server/data/sensors';
 import { listAlerts, markAlertDone } from '../lib/server/data/alerts';
 import { adviseAfterIngest, farmWeather, fieldAdvice, plantingAdvice } from '../lib/server/data/advice';
+import { exportFieldCsv } from '../lib/server/data/export';
 import { object } from '../lib/server/validate';
 
 type Env = { Variables: { user: SessionUser } };
@@ -136,6 +137,16 @@ api.get('/fields/:fieldId/advice', signedIn, async (c) =>
 api.get('/fields/:fieldId/planting', signedIn, async (c) =>
   c.json(await plantingAdvice(c.var.user.id, c.req.param('fieldId'))),
 );
+api.get('/fields/:fieldId/export', signedIn, async (c) => {
+  const { csv, filename } = await exportFieldCsv(c.var.user.id, c.req.param('fieldId'));
+  return new Response(csv, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    },
+  });
+});
 // Devices send readings here. No farmer session: the x-device-key header is the credential.
 // Public, so the body is capped before it is read: 50 readings fit in a few KB.
 const ingestLimit = bodyLimit({

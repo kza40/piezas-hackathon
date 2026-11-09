@@ -1,12 +1,13 @@
 import './styles.css';
 import { ApiError, farmApi, profileApi, setUnauthorizedHandler } from './api';
+import { onLiveDataLoaded, refreshLiveData } from './live';
 import { refreshFields, restoreSession, signIn, signOut, signUp } from './auth';
 import { F, fld } from './seed/simulate';
 import { S, saveCards, saveLog, saveOffsets } from './state';
 import type { AlertFilter, CardId, Crop, FieldId, MapLayer, MetricKey, PanelId, Units } from './types';
 import { esc, openAlerts } from './ui/helpers';
 import { IC } from './ui/icons';
-import { actionsCard, alertsCard, fieldCard, legendCard, profileCard, todayCard, topBar, weatherCard } from './views/cards';
+import { alertsCard, fieldCard, legendCard, profileCard, todayCard, topBar, weatherCard } from './views/cards';
 import { map, onMapPointerDown, onMapWheel, resetView, zoom } from './views/map';
 import { dispose3D, mount3D, reset3D, zoom3D } from './views/map3d';
 import * as pages from './views/pages';
@@ -52,6 +53,14 @@ function keepScroll(paint: () => void) {
   });
 }
 
+// Live data loaded in the background: redraw, unless the farmer is typing in a form (a redraw would
+// replace the input and lose what they typed); the next redraw shows it instead.
+onLiveDataLoaded(() => {
+  const a = document.activeElement;
+  if (a && (a.tagName === 'INPUT' || a.tagName === 'SELECT' || a.tagName === 'TEXTAREA')) return;
+  render();
+});
+
 setUnauthorizedHandler(() => {
   if (S.page === 'login') return;
   void signOut().then(() => render());
@@ -67,16 +76,32 @@ function render() {
     return;
   }
   main.className = 'mp';
-  const left = (F.length ? fieldCard() : '') + todayCard() + legendCard(S.ly);
-  const right = profileCard() + alertsCard() + actionsCard() + weatherCard();
+  // One scrollable side rail (farmer-first). Map stays free of floating cards.
+  const rail = (
+    todayCard() +
+    (F.length ? fieldCard() : '') +
+    alertsCard() +
+    weatherCard() +
+    profileCard()
+  );
   keepScroll(() => {
-    main.innerHTML = `<div class=board>${topBar()}<div class=stage>${map(left, right)}${S.panel ? panel(S.panel) : ''}${dock()}</div></div>${modal}${toast}`;
+    const overlays = `${S.panel ? panel(S.panel) : ''}${dock()}`;
+    const side = S.bare
+      ? ''
+      : `<aside class='rail' data-scroll=rail data-testid=side-rail>${rail}</aside>`;
+    main.innerHTML = `<div class='board${S.bare ? ' bare' : ''}'>${topBar()}<div class=workspace><div class=stage>${map()}${overlays}</div>${side}</div></div>${modal}${toast}`;
   });
   const host = document.getElementById('m3');
   if (host) mount3D(host, pickField);
 }
 
 function pickField(id: FieldId) {
+  if (!id) {
+    S.hud = '';
+    S.wm = null;
+    return render();
+  }
+  S.hud = S.hud === id ? '' : id;
   S.sel = id;
   if (S.min.field) {
     delete S.min.field;
@@ -182,8 +207,18 @@ async function act(node: ActionElement, target: Element) {
     case 'gf':
       S.wm = null;
       return go('field', d.id);
+    case 'showfield': {
+      if (d.id) S.sel = d.id as FieldId;
+      S.bare = false;
+      if (S.min.field) delete S.min.field;
+      saveCards();
+      render();
+      document.querySelector('[data-testid=card-field]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      return;
+    }
     case 'pk':
       if (S.moved) return;
+      if (!target.closest('[data-w]')) S.hud = S.hud === d.id ? '' : (d.id as FieldId);
       S.sel = d.id as FieldId;
       if (S.min.field) {
         delete S.min.field;
@@ -199,9 +234,20 @@ async function act(node: ActionElement, target: Element) {
     case 'done':
       S.done[Number(d.rid)] = true;
       return say('Marked done');
-    case 'dis':
-      S.dis[Number(d.aid)] = true;
+    case 'dis': {
+      const aid = d.aid ?? '';
+      if (S.farmerId && aid && Number.isNaN(Number(aid))) {
+        try {
+          await farmApi.markAlertDone(aid);
+          await refreshLiveData();
+          return say('Alert marked done');
+        } catch (e) {
+          return say(e instanceof ApiError ? e.message : 'Could not update alert');
+        }
+      }
+      S.dis[Number(aid)] = true;
       return render();
+    }
     case 'say':
       return say(d.t ?? '');
     case 'flt':
@@ -294,6 +340,16 @@ async function act(node: ActionElement, target: Element) {
         return say(e instanceof ApiError ? e.message : 'Could not add field');
       }
     }
+    case 'export': {
+      const id = fld(S.sel).id; // the field the page shows (the first one when none is picked)
+      if (!S.farmerId || !id) return say('Add a field first');
+      try {
+        await farmApi.exportCsv(id);
+        return say('Downloaded CSV (last 14 days)');
+      } catch (e) {
+        return say(e instanceof ApiError ? e.message : 'Could not export');
+      }
+    }
     case 'rmf': {
       if (!S.farmerId || !d.id) return;
       const id = d.id as FieldId;
@@ -317,6 +373,11 @@ async function act(node: ActionElement, target: Element) {
 document.addEventListener('click', (e) => {
   const target = e.target as Element;
   const node = target.closest<ActionElement>('[data-act]');
+  // 2D: a tap on empty map (not the end of a drag) closes the open field card.
+  if (!node && S.hud && !S.moved && target.closest('#fmap')) {
+    S.hud = '';
+    return render();
+  }
   if (!node) return;
   if (node.dataset.act === 'login' || node.dataset.act === 'signup') return;
   void act(node, target).then(() => {
@@ -348,6 +409,10 @@ document.addEventListener('keydown', (e) => {
       S.wm = null;
       render();
     } else if (S.panel) go('map');
+    else if (S.hud) {
+      S.hud = '';
+      render();
+    }
     return;
   }
   if (e.key !== 'Enter') return;

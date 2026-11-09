@@ -38,21 +38,21 @@ const fieldShape = (x: Field, layer: MapLayer) => {
   const zones = posts
     .map((s) => {
       const fill = s.m == null ? '#ccc' : moistureTint(s.m);
-      const op = sel ? 0.55 : 0.28;
-      return `<circle cx='${cx + s.dx}' cy='${cy + s.dy}' r='${sel ? 42 : 34}' fill='${fill}' fill-opacity='${op}' pointer-events='none'/>`;
+      return `<circle class=fzone cx='${cx + s.dx}' cy='${cy + s.dy}' r='34' fill='${fill}' fill-opacity='0.28' pointer-events='none'/>`;
     })
     .join('');
   const sensors = posts
     .map((s) => {
-      const label = sel && s.m != null ? `<text x='${cx + s.dx}' y='${cy + s.dy - 12}' text-anchor='middle' font-size='11' font-weight='800' fill='#1b2229'>${s.id} ${Math.round(s.m)}%</text>` : '';
+      const label =
+        s.m != null
+          ? `<text class=fpin x='${cx + s.dx}' y='${cy + s.dy - 12}' text-anchor='middle' font-size='11' font-weight='800' fill='#1b2229'>${esc(s.id)} ${Math.round(s.m)}%</text>`
+          : '';
       return `<circle cx='${cx + s.dx}' cy='${cy + s.dy}' r='6' fill='${s.online ? '#1f3d27' : '#fff'}' stroke='${s.online ? '#fff' : '#b97a00'}' stroke-width='${s.online ? 2 : 3}'/>${label}`;
     })
     .join('');
-  const hud = sel
-    ? `<g pointer-events='none'><rect x='${cx - 92}' y='${cy + 64}' width='184' height='52' fill='#fffef8' stroke='#1b2229' stroke-width='1.5'/><text x='${cx}' y='${cy + 82}' text-anchor='middle' font-size='11' font-weight='800' fill='#1b2229'>Humidity ${x.h}% · ${T(x.st)}</text><text x='${cx}' y='${cy + 98}' text-anchor='middle' font-size='11' font-weight='700' fill='#434e3a'>Last watered: ${lastWatered(x.id)}</text><text x='${cx}' y='${cy + 112}' text-anchor='middle' font-size='10' fill='#434e3a'>Moisture ${Math.min(...posts.map((s) => s.m ?? x.m))}-${Math.max(...posts.map((s) => s.m ?? x.m))}% across the field</text></g>`
-    : '';
+  const hud = `<g class=fhud pointer-events='none'><rect x='${cx - 92}' y='${cy + 64}' width='184' height='52' fill='#fffef8' stroke='#1b2229' stroke-width='1.5'/><text x='${cx}' y='${cy + 82}' text-anchor='middle' font-size='11' font-weight='800' fill='#1b2229'>Humidity ${x.h}% · ${T(x.st)}</text><text x='${cx}' y='${cy + 98}' text-anchor='middle' font-size='11' font-weight='700' fill='#434e3a'>Last watered: ${lastWatered(x.id)}</text><text x='${cx}' y='${cy + 112}' text-anchor='middle' font-size='10' fill='#434e3a'>Moisture ${Math.min(...posts.map((s) => s.m ?? x.m))}-${Math.max(...posts.map((s) => s.m ?? x.m))}% across the field</text></g>`;
   const pk = polyKey(x.id);
-  return `<g data-act=pk data-id=${x.id} transform='translate(${(S.off[x.id] ?? [0, 0]).join(' ')})' tabindex=0 role=button aria-label='${esc(x.name)}, ${HL[x.hl][0]}' style='cursor:pointer'><polygon points='${POLY[pk]}' fill='${fillFor(x, layer)}' stroke='${sel ? '#1b2229' : '#fff'}' stroke-width='${sel ? 7 : 3}' stroke-linejoin='round'/><polygon points='${POLY[pk]}' fill='url(#st${(pk.charCodeAt(0) || 0) % 3})' pointer-events='none'/>${zones}<polygon points='${POLY[pk]}' fill=none stroke='#7a5a3a' stroke-width=1.6 stroke-dasharray='2 6' stroke-linecap=round pointer-events=none />${fieldNumberLabel(x.id)}${plants(x.id, x.crop)}${sensors}<g data-w=1><circle cx='${cx}' cy='${cy - 8}' r='24' fill='#fff' stroke='#1b2229' stroke-width='4'/><g transform='translate(${cx - 17} ${cy - 25}) scale(1.21)'>${canIn(ws(x))}</g></g><rect x='${cx - 64}' y='${cy + 18}' width='128' height='42' fill='#1b2229'/><text x='${cx}' y='${cy + 36}' text-anchor='middle' font-size='14' font-weight='800' fill='#f6efd9'>${esc(x.name)}</text><text x='${cx}' y='${cy + 53}' text-anchor='middle' font-size='13' font-weight='800' fill='#f0d6a0'>${valueFor(x, layer)}</text>${hud}</g>`;
+  return `<g class='ffield${S.hud === x.id ? ' on' : ''}' data-act=pk data-id=${x.id} transform='translate(${(S.off[x.id] ?? [0, 0]).join(' ')})' tabindex=0 role=button aria-label='${esc(x.name)}, ${HL[x.hl][0]}' style='cursor:pointer'><polygon class=fpoly points='${POLY[pk]}' fill='${fillFor(x, layer)}' stroke='${sel ? '#1b2229' : '#fff'}' stroke-width='${sel ? 7 : 3}' stroke-linejoin='round'/><polygon points='${POLY[pk]}' fill='url(#st${(pk.charCodeAt(0) || 0) % 3})' pointer-events='none'/>${zones}<polygon points='${POLY[pk]}' fill=none stroke='#7a5a3a' stroke-width=1.6 stroke-dasharray='2 6' stroke-linecap=round pointer-events=none />${fieldNumberLabel(x.id)}${plants(x.id, x.crop)}${sensors}<g data-w=1><circle cx='${cx}' cy='${cy - 8}' r='24' fill='#fff' stroke='#1b2229' stroke-width='4'/><g transform='translate(${cx - 17} ${cy - 25}) scale(1.21)'>${canIn(ws(x))}</g></g><rect x='${cx - 64}' y='${cy + 18}' width='128' height='42' fill='#1b2229'/><text x='${cx}' y='${cy + 36}' text-anchor='middle' font-size='14' font-weight='800' fill='#f6efd9'>${esc(x.name)}</text><text x='${cx}' y='${cy + 53}' text-anchor='middle' font-size='13' font-weight='800' fill='#f0d6a0'>${valueFor(x, layer)}</text>${hud}</g>`;
 };
 
 const treeMark = (a: number, b: number, i: number) => {
@@ -78,19 +78,18 @@ const PIPES = `<g fill=none stroke-linecap=round stroke-linejoin=round><path d='
 
 const PATTERNS = `<defs><pattern id=st0 width=12 height=12 patternUnits=userSpaceOnUse patternTransform=rotate(25)><line x1=0 y1=0 x2=0 y2=12 stroke=#fff stroke-opacity=.35 stroke-width=4 /></pattern><pattern id=st1 width=14 height=14 patternUnits=userSpaceOnUse patternTransform=rotate(-40)><line x1=0 y1=0 x2=0 y2=14 stroke=#000 stroke-opacity=.12 stroke-width=3 /></pattern><pattern id=st2 width=10 height=10 patternUnits=userSpaceOnUse><circle cx=5 cy=5 r=1.6 fill=#fff fill-opacity=.55 /></pattern></defs>`;
 
-/** The map with its controls, and the two columns of cards floating over it. */
-export function map(left: string, right: string): string {
+/** Map only — farm cards live in the side rail (see main.ts). */
+export function map(): string {
   const L = S.ly;
   const dim = `<div class=mpc><button data-act=dim data-k=3 data-testid=view-3d aria-pressed=${S.d3}>3D</button><button data-act=dim data-k=2 data-testid=view-2d aria-pressed=${!S.d3}>2D</button></div>`;
   const hint = S.d3
     ? `<span class=hint3>Drag to rotate · right-drag to pan · scroll to zoom · taller block = ${HEIGHT_MEANS[L]}</span>`
     : `<span class=hint3>Drag to pan · scroll to zoom</span>`;
-  const controls = `<div class=mtop><div class=mtl>${dim}<div class=mpc>${LAYERS.map(([key, n]) => `<button data-act=lyr data-k=${key} aria-pressed=${L === key}>${n}</button>`).join('')}</div><div class=mpc><button aria-pressed=${S.edit} data-act=ed>${S.edit ? 'Done' : 'Adjust farm'}</button>${S.edit ? `<button data-act=rl>Standard layout</button>` : ''}</div>${S.edit ? `<span class='mpc note'>Drag parcels to match your farm · Standard layout restores the default</span>` : ''}</div><div class=mtr><div class=mpc><button aria-label='Zoom in' data-act=zm data-f=1.5>+</button><button aria-label='Zoom out' data-act=zm data-f=${1 / 1.5}>−</button><button aria-label='Reset view' data-act=rs>⟲</button></div><div class=mpc><button aria-pressed=${S.bare} data-act=bare data-testid=toggle-cards>${S.bare ? 'Show cards' : 'Hide cards'}</button></div></div></div>`;
+  const controls = `<div class=mtop><div class=mtl>${dim}<div class=mpc>${LAYERS.map(([key, n]) => `<button data-act=lyr data-k=${key} aria-pressed=${L === key}>${n}</button>`).join('')}</div><div class=mpc><button aria-pressed=${S.edit} data-act=ed>${S.edit ? 'Done' : 'Adjust farm'}</button>${S.edit ? `<button data-act=rl>Standard layout</button>` : ''}</div>${S.edit ? `<span class='mpc note'>Drag parcels to match your farm · Standard layout restores the default</span>` : ''}</div><div class=mtr><div class=mpc><button aria-label='Zoom in' data-act=zm data-f=1.5>+</button><button aria-label='Zoom out' data-act=zm data-f=${1 / 1.5}>−</button><button aria-label='Reset view' data-act=rs>⟲</button></div><div class=mpc><button aria-pressed=${S.bare} data-act=bare data-testid=toggle-cards>${S.bare ? 'Show side panel' : 'Hide side panel'}</button></div></div></div>`;
   const scale = `<div class=mscale aria-hidden=true><span class=north>▲ N</span><span class=sbar><i></i>200 m</span></div>`;
   const svg = `<svg id=fmap viewBox='0 0 ${VIEW_W} ${VIEW_H}' style='width:100%;height:100%;display:block;touch-action:none;cursor:grab' role=group aria-label='Farm map'>${PATTERNS}<g id=vp transform='translate(${S.v.x} ${S.v.y}) scale(${S.v.k})'>${BASE}${F.map((x) => fieldShape(x, L)).join('')}${Object.keys(S.off).length ? '' : PIPES}</g></svg>`;
-  const cols = S.bare ? '' : `<aside class='col col-l' data-scroll=l>${left}</aside><aside class='col col-r' data-scroll=r>${right}</aside>`;
-  if (S.d3) return `<div class='mapbox m3' id=m3 data-testid=map-3d></div>${controls}${hint}${cols}`;
-  return `<div class='mapbox${S.bare ? ' bare' : ''}'>${svg}</div>${controls}${scale}${cols}`;
+  if (S.d3) return `<div class='mapbox m3' id=m3 data-testid=map-3d></div>${controls}${hint}`;
+  return `<div class='mapbox${S.bare ? ' bare' : ''}'>${svg}</div>${controls}${scale}`;
 }
 
 // ---- pan, zoom and layout editing -----------------------------------------

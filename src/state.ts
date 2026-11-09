@@ -49,11 +49,18 @@ export const S: AppState = {
   name: '',
   role: 'Owner',
   wm: null,
+  hud: '',
   fd: null,
   edit: false,
   moved: false,
   log: readJson<WaterLogEntry[] | null>(LOG_KEY, null) ?? [],
   cropByName: {},
+  liveWeather: null,
+  liveAdvice: {},
+  liveAlerts: [],
+  liveSensors: {},
+  liveMoistureSeries: {},
+  liveHistory: {},
 };
 
 export const saveOffsets = () => writeJson(OFFSETS_KEY, S.off);

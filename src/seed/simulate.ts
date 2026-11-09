@@ -6,6 +6,7 @@ import type { ApiCropProfile, ApiField } from '../api';
 import type { Alert, Crop, Field, FieldId, FieldSeed, Recommendation, Sensor, SensorKey, StationKey } from '../types';
 import { CROPS } from '../types';
 import { CROP_DEFAULTS, CUSTOM_FIELD_SLOTS, FIELD_SEEDS, POLY, polyAround, SENSOR_XY } from './farm';
+import { S } from '../state';
 
 const HOURS = 168;
 const NOW = new Date();
@@ -144,6 +145,18 @@ export interface FieldSensor {
 const layoutOf = (id: FieldId) => F.find((f) => f.id === id)?.layout ?? id;
 
 export const sensorsOf = (id: FieldId): FieldSensor[] => {
+  const live = S.liveSensors[id];
+  if (live?.length) {
+    return live.map((s, i) => ({
+      id: s.name || s.id.slice(0, 4),
+      m: s.m,
+      st: s.st,
+      online: s.online,
+      age: s.ageHours,
+      dx: SENSOR_XY[i % SENSOR_XY.length][0],
+      dy: SENSOR_XY[i % SENSOR_XY.length][1],
+    }));
+  }
   const layout = layoutOf(id);
   return SEN.filter((s) => s.f === layout).map((s, i) => ({
     id: s.id,

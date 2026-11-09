@@ -106,7 +106,13 @@ async function fieldInsight(ownerId: string, field: Field, sensors: Sensor[], re
   return { series: trusted, faulty, health, events, capacity, suggestion, learning: [capacityNeeds, suggestionNeeds].filter((x): x is string => !!x) };
 }
 
-export async function fieldAdvice(ownerId: string, fieldId: string, now = new Date()) {
+export async function fieldAdvice(
+  ownerId: string,
+  fieldId: string,
+  now = new Date(),
+  opts: { openAlerts?: boolean } = {},
+) {
+  const shouldOpenAlerts = opts.openAlerts !== false;
   const field = await getField(ownerId, fieldId);
   const farm = await getFarm(ownerId, field.farmId);
   const { lat, lon } = requireLocation(farm.latitude, farm.longitude);
@@ -135,7 +141,10 @@ export async function fieldAdvice(ownerId: string, fieldId: string, now = new Da
 
   const soil = soilWarning(crop, soilSample(sensors));
   const frost = frostWarning(crop, weather.overnightLowC);
-  const alert = watering.status === 'water_today' ? await openAlert(ownerId, fieldId, watering.reason, now) : null;
+  const alert =
+    shouldOpenAlerts && watering.status === 'water_today'
+      ? await openAlert(ownerId, fieldId, watering.reason, now)
+      : null;
   return {
     watering,
     waterBy: when,

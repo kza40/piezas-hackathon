@@ -32,6 +32,7 @@ Provenance: idea and decisions from the team's planning chat, 2026-11-07.
 - R-023: The app detects when a field's soil moisture rose sharply and labels each rise as rain or irrigation from the farm's recorded rain. The field shows when it was last watered, how much each sensor rose, and lets the farmer confirm or correct each label; a correction replaces the app's label. (source: owner decision, watering log without manual entry)
 - R-024: After at least one soaking rain or irrigation, the app estimates the field's field capacity from how the soil drained, and suggests a soil-moisture trigger from it, the field's soil type and the crop's allowable depletion. The suggestion shows what it was based on and is used only after the farmer saves it. Until then, the field explains what the app is still waiting for. (source: FAO Irrigation and Drainage Paper 56, Tables 19 and 22; see `docs/crop-guidance.md`)
 - R-025: An irrigated field with a saved trigger shows the time window in which its driest trusted sensor is expected to reach the trigger, from how fast that soil has been drying, the forecast evapotranspiration and the forecast rain; or that it is not expected within the next 5 days. (source: owner decision, farmers plan watering ahead)
+- R-026: A farmer can download a field's last 14 days of sensor readings as a CSV file, with the field's current watering advice and forecast on each row. Downloading never creates an alert, and text that a spreadsheet would run as a formula is saved as plain text. (source: frontend branch)
 
 ## Data
 
@@ -246,6 +247,12 @@ needs: weather forecast service
 Given an irrigated field with a saved trigger, a sensor drying steadily above the trigger, and a dry forecast
 When the farmer opens the field page
 Then the field shows a time window in the coming days by which to water
+
+### S-032: Farmer downloads a field's readings
+covers: R-026
+Given a signed-in farmer with a farm and a field
+When they open Fields & sensors and choose to download the last 14 days
+Then a CSV file named after the field is saved, starting with the column names
 
 ## Open Conflicts
 

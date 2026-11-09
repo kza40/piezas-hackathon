@@ -136,6 +136,7 @@ Farmers do not create alerts; the advice rule does, on the server, with `openAle
 | `GET /api/farms/:farmId/weather` | `{ rainNext48hMm, overnightLowC, hours }` |
 | `GET /api/fields/:fieldId/advice` | see below — may create one open watering alert when status is Water today |
 | `GET /api/fields/:fieldId/planting` | `{ weeks: [{ week, reason, score }] }` recommendation only; no planting date is stored |
+| `GET /api/fields/:fieldId/export` | CSV download: last **14** days of sensor readings plus the latest watering advice / weather snapshot on each row. Never opens an alert. |
 
 The farm must have latitude and longitude or these return 400. `soilWarning` and `frostWarning` are strings or `null`.
 
