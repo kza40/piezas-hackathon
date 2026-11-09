@@ -5,6 +5,7 @@ import { expect, type Page } from '@playwright/test';
 // openField and registerSensor use the ids the field page should get once it is built
 // (the S-003 to S-018 scenarios marked fixme depend on them).
 let nextUser = 0;
+// Also the password scripts/seed.ts should give the test farmers that the fixme scenarios sign in as.
 export const PASSWORD = 'Scenario-pass-123';
 
 // A fresh account per test, so tests never share data or trip the sign-in lockout on the demo farmer.
