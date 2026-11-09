@@ -7,6 +7,7 @@ import { F, fld } from './seed/simulate';
 import { S, saveCards, saveLog, saveOffsets } from './state';
 import type { AlertFilter, CardId, Crop, FieldId, MapLayer, MetricKey, PanelId, Units } from './types';
 import { esc, openAlerts } from './ui/helpers';
+import { onRailKey, onRailPointerDown, railGrip, railStyle, resetRail } from './ui/rail';
 import { IC } from './ui/icons';
 import { alertsCard, fieldCard, legendCard, profileCard, todayCard, topBar, weatherCard } from './views/cards';
 import { map, onMapPointerDown, onMapWheel, resetView, zoom } from './views/map';
@@ -89,8 +90,8 @@ function render() {
     const overlays = `${S.panel ? panel(S.panel) : ''}${dock()}`;
     const side = S.bare
       ? ''
-      : `<aside class='rail' data-scroll=rail data-testid=side-rail>${rail}</aside>`;
-    main.innerHTML = `<div class='board${S.bare ? ' bare' : ''}'>${topBar()}<div class=workspace><div class=stage>${map()}${overlays}</div>${side}</div></div>${modal}${toast}`;
+      : `${railGrip()}<aside class='rail' data-scroll=rail data-testid=side-rail>${rail}</aside>`;
+    main.innerHTML = `<div class='board${S.bare ? ' bare' : ''}'>${topBar()}<div class=workspace style='${railStyle()}'><div class=stage>${map()}${overlays}</div>${side}</div></div>${modal}${toast}`;
   });
   const host = document.getElementById('m3');
   if (host) mount3D(host, pickField);
@@ -451,6 +452,7 @@ document.addEventListener('submit', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
+  if ((e.target as Element | null)?.closest?.('.rail-grip') && onRailKey(e)) return e.preventDefault();
   if (e.key === 'Escape') {
     if (S.wm) {
       S.wm = null;
@@ -491,8 +493,13 @@ document.addEventListener('change', (e) => {
 
 const main = el('main');
 main.addEventListener('pointerdown', (e) => {
+  const grip = (e.target as Element).closest<HTMLElement>('.rail-grip');
+  if (grip) return onRailPointerDown(e, grip);
   const svg = (e.target as Element).closest('#fmap');
   if (svg) onMapPointerDown(e, svg);
+});
+main.addEventListener('dblclick', (e) => {
+  if ((e.target as Element).closest('.rail-grip')) resetRail();
 });
 main.addEventListener(
   'wheel',
