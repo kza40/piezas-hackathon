@@ -152,6 +152,7 @@ export const CC: Record<Crop, string> = {
 
 export const WS: Record<WaterState, WaterLook> = {
   now: { t: 'Water now', c: 'var(--cn)', h: '#4a78b5', bg: 'var(--bgn)', f: '#8fbdf0' },
+  check: { t: 'Check sensors', c: '#4d5560', h: '#7a828c', bg: '#e6e6e3', f: '#c9ccd0' },
   soon: { t: 'Water soon', c: 'var(--cs)', h: '#cf7f3a', bg: 'var(--bgs)', f: '#f6d27a' },
   rain: { t: 'Rain expected', c: 'var(--cr2)', h: '#6d78a8', bg: 'var(--bgr)', f: '#b9c4ec' },
   none: { t: 'No water needed', c: 'var(--c0)', h: '#4f8a63', bg: 'var(--bg0)', f: '#93d6ab' },
@@ -159,6 +160,7 @@ export const WS: Record<WaterState, WaterLook> = {
 
 export const FB: Record<WaterState, FeatureLook> = {
   now: { bg: '#3d5f8f', fg: '#f6efd9', n: '#f0d6a0', c: 'WATERING REQUIRED' },
+  check: { bg: '#8a9099', fg: '#14181d', n: '#14181d', c: 'CHECK SENSORS' },
   soon: { bg: '#d98f55', fg: '#1d1203', n: '#222a33', c: 'WATER SOON' },
   rain: { bg: '#5d6595', fg: '#f6efd9', n: '#f0d6a0', c: 'RAIN EXPECTED: HOLD OFF' },
   none: { bg: '#6f9a7c', fg: '#f6efd9', n: '#fbf3dd', c: 'NO WATERING NEEDED' },
@@ -166,6 +168,7 @@ export const FB: Record<WaterState, FeatureLook> = {
 
 export const NXT: Record<WaterState, string> = {
   now: 'Water lightly today, about 10 mm.',
+  check: 'Check the probes and their power. No watering call until a sensor reads normally.',
   soon: 'Check this afternoon. Water this evening if it keeps drying.',
   rain: 'Rain is due tomorrow. Hold off watering.',
   none: 'Nothing to do today. Check again Thursday.',

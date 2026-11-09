@@ -16,7 +16,7 @@ Open the URL Vite prints (usually `http://localhost:5173`). Sign in before the m
 
 | Farmer | Email | Password | Fields |
 | --- | --- | --- | --- |
-| Sam Whitfield | `sam@willowcreekfarm.ca` | `farm123-demo` | North Wheat, East Canola, South Barley |
+| Sam Whitfield | `sam@willowcreekfarm.ca` | `farm123-demo` | The showcase: Bluecrop Block, Duke Block, East Canola, New Alfalfa, River Alfalfa, North Wheat (see `docs/api.md`, Demo accounts) |
 | Jordan Hale | `jordan@mapleridge.ca` | `oats456-demo` | West Oats, Creek Alfalfa, Blueberry Hill |
 
 Session is an httpOnly cookie (`piezas_session`). Sign-up is on the same screen. New farms need latitude and longitude for weather.

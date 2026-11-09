@@ -10,8 +10,13 @@ export const pill = (k: Level) => `<span class="pill ${k}">${HL[k][1]} ${HL[k][0
 
 export const T = (c: number) => (S.units === '°F' ? Math.round((c * 9) / 5 + 32) + '°F' : c + '°C');
 
-export const demo =
-  '<div class="demo">Demo data: every reading, forecast and alert here is simulated. No real sensors or weather service are connected.</div>';
+/** What on this page is simulated. Signed in, only the sensors are: the weather is the farm's live forecast. */
+export const demo = () =>
+  S.liveWeather?.simulated
+    ? '<div class="demo">Demo farm: the sensor readings and this farm’s weather (a dry spell) are simulated, so every situation shows. No real probes are connected yet.</div>'
+    : S.farmerId
+    ? '<div class="demo">Demo farm: the sensor readings are simulated, since no real probes are connected yet. The weather is the live forecast for this farm.</div>'
+    : '<div class="demo">Demo data: every reading, forecast and alert here is simulated. No real sensors or weather service are connected.</div>';
 
 export function rng(v: number, r: Range): string {
   const span = r[1] * 1.4 - r[0] * 0.5;
@@ -30,11 +35,12 @@ export const ws = (f: Field): WaterState => {
   const a = S.liveAdvice[f.id];
   if (a) {
     if (a.status === 'water_today' || a.label === 'Water today') return 'now';
-    if (a.status === 'no_recent_reading' || a.label === 'No recent reading') return 'soon';
+    // No fresh reading, or every probe faulty: say so, never a watering call made without data.
+    if (a.status === 'no_recent_reading' || a.status === 'check_sensors') return 'check';
     if (a.status === 'wait' || a.label === 'Wait') {
       return /rain/i.test(a.reason) ? 'rain' : 'none';
     }
-    // rain_fed, not_configured, check_sensors: no watering prompt. With live advice, never fall back
+    // rain_fed, not_configured: no watering prompt. With live advice, never fall back
     // to the seed's crop range below (a rain-fed field must never look like it needs water; R-021).
     return 'none';
   }

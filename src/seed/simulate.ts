@@ -222,6 +222,8 @@ export const ALL_F: Field[] = FIELD_SEEDS.map((seed) => {
 export const F: Field[] = [];
 
 const SEED_BY_NAME = new Map(FIELD_SEEDS.map((s) => [s.name.toLowerCase(), s.id]));
+// The six drawn parcels, in the order new fields fill them: top row left to right, then the bottom row.
+const PARCEL_ORDER: FieldId[] = ['A', 'B', 'F', 'C', 'D', 'E'];
 
 export function clearFarmScope() {
   F.splice(0, F.length);
@@ -305,7 +307,7 @@ const fieldFromSeed = (seed: FieldSeed): Field => {
   };
 };
 
-function fieldFromApi(row: ApiField): Field {
+function fieldFromApi(row: ApiField, freeParcels: FieldId[] = []): Field {
   const crop = cropFromProfile(row.cropProfile);
   const seedLetter = SEED_BY_NAME.get(row.name.toLowerCase());
   if (seedLetter) {
@@ -341,9 +343,14 @@ function fieldFromApi(row: ApiField): Field {
         : meta.phr,
   };
   if (!POLY[row.id]) {
-    const n = Object.keys(POLY).length;
-    const slot = CUSTOM_FIELD_SLOTS[n % CUSTOM_FIELD_SLOTS.length];
-    POLY[row.id] = polyAround(slot[0] + (n % 5) * 6, slot[1] + (n % 3) * 4);
+    // One of the six drawn parcels no field on this farm uses; only past six, a generic slot (which may overlap).
+    const parcel = freeParcels.shift();
+    if (parcel) POLY[row.id] = POLY[parcel];
+    else {
+      const n = Object.keys(POLY).length;
+      const slot = CUSTOM_FIELD_SLOTS[n % CUSTOM_FIELD_SLOTS.length];
+      POLY[row.id] = polyAround(slot[0] + (n % 5) * 6, slot[1] + (n % 3) * 4);
+    }
   }
   FIELD_PHYSICS[row.id] = meta.physics;
   if (!SEN.some((s) => s.f === row.id)) {
@@ -355,7 +362,15 @@ function fieldFromApi(row: ApiField): Field {
 
 /** Replace the visible farm with fields from the API (server ids). */
 export function hydrateFields(rows: ApiField[]) {
-  F.splice(0, F.length, ...rows.map(fieldFromApi));
+  // Parcels already taken: by fields named like a seed field, and by fields placed earlier (same outline).
+  const taken = new Set<string>();
+  for (const r of rows) {
+    const letter = SEED_BY_NAME.get(r.name.toLowerCase());
+    if (letter) taken.add(POLY[letter]);
+    else if (POLY[r.id]) taken.add(POLY[r.id]);
+  }
+  const free = PARCEL_ORDER.filter((p) => !taken.has(POLY[p]));
+  F.splice(0, F.length, ...rows.map((r) => fieldFromApi(r, free)));
 }
 
 /** Drop a field from the signed-in farmer's visible map after a successful DELETE. */

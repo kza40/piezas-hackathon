@@ -4,7 +4,8 @@ export type Crop = 'Wheat' | 'Canola' | 'Barley' | 'Oats' | 'Alfalfa' | 'Blueber
 export const CROPS: Crop[] = ['Wheat', 'Canola', 'Barley', 'Oats', 'Alfalfa', 'Blueberries'];
 export type Health = 'ok' | 'wn' | 'cr';
 export type Level = Health | 'in';
-export type WaterState = 'now' | 'soon' | 'rain' | 'none';
+/** check: the sensors can't be trusted right now (no recent reading, or all faulty), so no watering call. */
+export type WaterState = 'now' | 'check' | 'soon' | 'rain' | 'none';
 export type SensorKey = 'm' | 'st' | 'ph' | 'ec';
 export type StationKey = 'at' | 'h' | 'l';
 export type MetricKey = SensorKey | StationKey;
@@ -170,6 +171,7 @@ export interface AppState {
 }
 
 export interface LiveWeather {
+  simulated?: boolean; // a demo farm's scripted weather
   rainNext48hMm: number;
   overnightLowC: number;
   hours: { time: string; tempC: number; rainMm: number }[];

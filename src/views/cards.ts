@@ -10,7 +10,7 @@ const mine = <T extends { f: string }>(rows: T[]) => rows.filter((r) => ownsSeed
 const recFor = (f: Field) => (S.farmerId ? undefined : mine(REC).find((q) => q.f === f.id || q.f === f.layout));
 const fieldForSeed = (ref: string) => F.find((f) => f.id === ref || f.layout === ref) ?? fld(ref);
 
-const ORDER: Record<WaterState, number> = { now: 0, soon: 1, rain: 2, none: 3 };
+const ORDER: Record<WaterState, number> = { now: 0, check: 1, soon: 2, rain: 3, none: 4 };
 const LAYER_KEY: Record<Exclude<MapLayer, 'water'>, string> = {
   health: 'Green = healthy, yellow = needs attention, red = critical.',
   moisture: 'Darker blue = wetter soil.',
@@ -112,7 +112,7 @@ export function fieldCard(): string {
 export function legendCard(layer: MapLayer): string {
   const items =
     layer === 'water'
-      ? (['now', 'soon', 'rain', 'none'] as WaterState[]).map((w) => `<span class=lgi>${can(w, 22)}${WS[w].t}</span>`).join('')
+      ? (['now', 'check', 'soon', 'rain', 'none'] as WaterState[]).map((w) => `<span class=lgi>${can(w, 22)}${WS[w].t}</span>`).join('')
       : `<span class=lgi>${LAYER_KEY[layer]}</span>`;
   const body = `${items}<span class=lgi>● Sensor online ○ offline · ┅ irrigation line</span><span class=lgi><span class=mlg></span> Moisture map: brown = dry, blue = wet</span><span class='lgi demo-chip' data-testid=demo-note>Demo map · simulated data</span>`;
   return mapCard('legend', 'Map key', body, { cls: 'lg' });

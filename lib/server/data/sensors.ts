@@ -12,6 +12,7 @@ import { getOwned, listAll, num, oldestFirst, str } from './records';
 import { getCropProfile } from './crops';
 import { appendHistory, deleteSensorHistory, replaceHistory, RETENTION_DAYS, sensorHistory, type Series } from './history';
 import { simulateSpots } from '../simulate';
+import { applyScenario, isDemoScenario } from '../demo';
 import { getWeather } from '../../weather/index';
 import type { WeatherHour } from '../../domain/types';
 
@@ -60,7 +61,23 @@ export function parseSensorInput(body: unknown) {
 
 async function ownedField(ownerId: string, fieldId: string) {
   const { field } = await db();
-  await getOwned(field, fieldId, ownerId, 'Field'); // 404 if missing or someone else's
+  return getOwned(field, fieldId, ownerId, 'Field'); // 404 if missing or someone else's
+}
+
+// A demo field (one with a scenario, set by scripts/seed-demo.ts) keeps "reporting": once its simulated
+// readings are this old, the next read re-simulates them to end now, so the demo shows the same situations
+// at any time of day. Fields without a scenario are never touched. Three hours keeps readings well inside the
+// 6-hour freshness rule (R-015) while the slower re-simulating read (several seconds) stays rare.
+const DEMO_REFRESH_MS = 3 * 3_600_000;
+const demoStale = (f: EntityRecord, now: Date) => isDemoScenario(f.data.demo) && now.getTime() - (num(f.data.demoAt) ?? 0) > DEMO_REFRESH_MS;
+
+async function refreshDemoField(ownerId: string, f: EntityRecord, now: Date) {
+  if (!demoStale(f, now)) return;
+  // A failed refresh (no sensors yet, a weather outage) must never break reading the field.
+  await withLock(`demo:${f.id}`, async () => {
+    const { field } = await db();
+    if (demoStale(await getOwned(field, f.id, ownerId, 'Field'), now)) await simulateField(ownerId, f.id, now); // not done meanwhile
+  }).catch((e) => console.error('demo refresh failed', f.id, e));
 }
 
 // Returns the device key once; only its hash is kept.
@@ -73,8 +90,8 @@ export async function createSensor(ownerId: string, fieldId: string, body: unkno
   return { sensor: toSensor(r), deviceKey: key };
 }
 
-export async function listSensors(ownerId: string, fieldId: string): Promise<Sensor[]> {
-  await ownedField(ownerId, fieldId);
+export async function listSensors(ownerId: string, fieldId: string, now = new Date()): Promise<Sensor[]> {
+  await refreshDemoField(ownerId, await ownedField(ownerId, fieldId), now);
   const { sensor } = await db();
   return (await listAll(sensor, { ownerId, fieldId })).map(toSensor).sort(oldestFirst);
 }
@@ -104,7 +121,8 @@ export async function deleteFieldSensors(ownerId: string, fieldId: string): Prom
 export async function simulateField(ownerId: string, fieldId: string, now = new Date()): Promise<Sensor[]> {
   const { field, farm, sensor } = await db();
   const f = await getOwned(field, fieldId, ownerId, 'Field');
-  const sensors = await listAll(sensor, { ownerId, fieldId });
+  // Oldest first: a demo scenario acts on sensors by position (the stuck probe is the third one registered).
+  const sensors = (await listAll(sensor, { ownerId, fieldId })).sort(oldestFirst);
   if (!sensors.length) throw badRequest('Register a sensor on this field first.');
   // A deleted crop profile simulates with generic ranges; any other failure is a real error.
   const crop = await getCropProfile(str(f.data.cropProfileId)).catch((e) => {
@@ -118,7 +136,7 @@ export async function simulateField(ownerId: string, fieldId: string, now = new 
   // the simulation is a dry spell; a weather outage must not stop the demo tool, so it is logged instead.
   let rain: WeatherHour[] = [];
   if (latitude != null) {
-    rain = await getWeather()
+    rain = await getWeather({ demoWeather: farmRec.data.demoWeather === true })
       .getRecent(latitude, longitude, now)
       .catch((e) => {
         console.error('simulate: recent weather unavailable, simulating without rain', e);
@@ -127,7 +145,11 @@ export async function simulateField(ownerId: string, fieldId: string, now = new 
   }
   // All the field's sensors together: the farmer waters the whole field, and only if it is irrigated.
   const simCrop = crop ?? { moistureMin: null, moistureMax: null, phMin: null, phMax: null, ecMax: null };
-  const simulated = simulateSpots(sensors.map((s) => s.id), simCrop, longitude, now, RETENTION_DAYS, { rain, irrigated: f.data.irrigated === true });
+  let simulated = simulateSpots(sensors.map((s) => s.id), simCrop, longitude, now, RETENTION_DAYS, { rain, irrigated: f.data.irrigated === true });
+  const scenario = f.data.demo;
+  if (isDemoScenario(scenario)) {
+    simulated = applyScenario(scenario, simulated, longitude, new Map(rain.map((w) => [Date.parse(w.time), w.rainMm])));
+  }
   const out: Sensor[] = [];
   for (const [i, s] of sensors.entries()) {
     out.push(
@@ -138,6 +160,7 @@ export async function simulateField(ownerId: string, fieldId: string, now = new 
       }),
     );
   }
+  if (isDemoScenario(scenario)) await field.update(fieldId, { data: { demoAt: now.getTime() } });
   return out.sort(oldestFirst);
 }
 
