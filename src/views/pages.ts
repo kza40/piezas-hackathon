@@ -23,7 +23,7 @@ import {
 import { can, cropG } from '../ui/icons';
 import { chipText, eventsCard, healthOf, healthPill, setupCard, triggerOf, triggerShort, wateringBlock } from './watering';
 
-const ORDER: Record<WaterState, number> = { now: 0, soon: 1, rain: 2, none: 3 };
+const ORDER: Record<WaterState, number> = { now: 0, check: 1, soon: 2, rain: 3, none: 4 };
 const byUrgency = () => [...F].sort((a, b) => ORDER[ws(a)] - ORDER[ws(b)]);
 const sum = (fn: (f: Field) => number) => F.reduce((a, f) => a + fn(f), 0);
 
@@ -345,12 +345,14 @@ export function wateringModal(f: Field): string {
   const live = S.liveAdvice[f.id];
   const why: Record<WaterState, string> = {
     now: `Soil is at ${f.m}%, below the ${lo}–${hi}% ${f.crop.toLowerCase()} needs.`,
+    check: 'No sensor in this field has a reading you can trust right now.',
     soon: `Moisture is fine at ${f.m}%, but the soil is warm (${T(f.st)}) and will dry out fast.`,
     rain: `Moisture is ${f.m}%, just under range, with rain likely soon.`,
     none: `Moisture is ${f.m}%, inside the ${lo}–${hi}% range.`,
   };
   const next: Record<WaterState, string> = {
     now: 'Water lightly today, then check again tonight.',
+    check: 'Check the probes and their power; the advice comes back with the next normal reading.',
     soon: 'Check this field this afternoon. Water this evening if moisture keeps dropping.',
     rain: 'Hold off if rain is still expected.',
     none: 'Nothing to do right now.',

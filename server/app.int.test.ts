@@ -690,6 +690,41 @@ describe('field CSV export over HTTP (R-026)', () => {
   });
 });
 
+describe('demo fields keep reporting (scripts/seed-demo.ts)', () => {
+  let fieldId = '';
+  const forecastBefore = process.env.WEATHER_STUB_FORECAST;
+  before(() => {
+    process.env.WEATHER_STUB_FORECAST = 'dry-forecast.json';
+  });
+  after(() => {
+    if (forecastBefore === undefined) delete process.env.WEATHER_STUB_FORECAST;
+    else process.env.WEATHER_STUB_FORECAST = forecastBefore;
+  });
+
+  test('setup: an irrigated blueberry field with a 28% trigger, marked as the water_today demo', async () => {
+    const farm = (await sam('POST', '/api/farms', { name: 'Demo Farm', latitude: 49.08, longitude: -122.25 })).body.farm;
+    const crop = (await sam('GET', '/api/crop-profiles')).body.cropProfiles.find((c: any) => c.key === 'blueberry');
+    fieldId = (await sam('POST', `/api/farms/${farm.id}/fields`, { name: 'Demo block', cropProfileId: crop.id, soil: 'Sandy loam' })).body.field.id;
+    for (const name of ['North probe', 'South probe']) await sam('POST', `/api/fields/${fieldId}/sensors`, { name });
+    await sam('PATCH', `/api/fields/${fieldId}`, { irrigated: true, trigger: { value: 28 } });
+    await (await db()).field.update(fieldId, { data: { demo: 'water_today', demoAt: 0 } });
+  });
+
+  test('the first read re-simulates the scenario, so the field shows Water today with its two waterings', async () => {
+    const a = (await sam('GET', `/api/fields/${fieldId}/advice`)).body;
+    assert.equal(a.watering.status, 'water_today', a.watering.reason);
+    assert.deepEqual(a.events.map((e: any) => e.label), ['irrigation', 'irrigation']);
+    assert.ok(a.alert);
+  });
+
+  test('a read within 45 minutes does not re-simulate again', async () => {
+    const at = (await (await db()).field.get(fieldId)).data.demoAt;
+    assert.ok(typeof at === 'number' && at > 0);
+    await sam('GET', `/api/fields/${fieldId}/sensors`);
+    assert.equal((await (await db()).field.get(fieldId)).data.demoAt, at);
+  });
+});
+
 describe('request hygiene', () => {
   test('invalid JSON is a 400, unknown /api paths are a JSON 404', async () => {
     const res = await api.request('/api/auth/sign-in', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{oops' });

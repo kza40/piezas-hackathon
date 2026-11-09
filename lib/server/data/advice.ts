@@ -116,7 +116,7 @@ export async function fieldAdvice(
   const field = await getField(ownerId, fieldId);
   const farm = await getFarm(ownerId, field.farmId);
   const { lat, lon } = requireLocation(farm.latitude, farm.longitude);
-  const sensors = await listSensors(ownerId, fieldId);
+  const sensors = await listSensors(ownerId, fieldId, now);
   const wx = getWeather();
   const [weather, recent] = await Promise.all([wx.getForecast(lat, lon, now), wx.getRecent(lat, lon, now)]);
   const crop = toCrop(field.cropProfile);

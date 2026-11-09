@@ -18,7 +18,7 @@ const MID_Y = 260;
 const wx = (x: number) => x - MID_X;
 const wz = (y: number) => y - MID_Y;
 
-const WATER_H: Record<WaterState, number> = { now: 34, soon: 24, rain: 18, none: 10 };
+const WATER_H: Record<WaterState, number> = { now: 34, check: 26, soon: 24, rain: 18, none: 10 };
 const HEALTH_H = { cr: 34, wn: 22, ok: 12 } as const;
 
 /** Block height shows the active layer, so the worst fields stand tallest. */

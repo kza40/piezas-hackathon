@@ -30,11 +30,12 @@ export const ws = (f: Field): WaterState => {
   const a = S.liveAdvice[f.id];
   if (a) {
     if (a.status === 'water_today' || a.label === 'Water today') return 'now';
-    if (a.status === 'no_recent_reading' || a.label === 'No recent reading') return 'soon';
+    // No fresh reading, or every probe faulty: say so, never a watering call made without data.
+    if (a.status === 'no_recent_reading' || a.status === 'check_sensors') return 'check';
     if (a.status === 'wait' || a.label === 'Wait') {
       return /rain/i.test(a.reason) ? 'rain' : 'none';
     }
-    // rain_fed, not_configured, check_sensors: no watering prompt. With live advice, never fall back
+    // rain_fed, not_configured: no watering prompt. With live advice, never fall back
     // to the seed's crop range below (a rain-fed field must never look like it needs water; R-021).
     return 'none';
   }

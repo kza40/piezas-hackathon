@@ -14,6 +14,7 @@ export const polyPoints = (id: FieldId): [number, number][] =>
 
 const CAN_GLYPH: Record<WaterState, string> = {
   now: `<path d='M22 17.5c1.4 1.8 2.2 2.8 2.2 3.8a2.2 2.2 0 0 1-4.4 0c0-1 .8-2 2.2-3.8z' fill='#fff'/>`,
+  check: `<path d='M22 17.6v3.6' stroke='#fff' stroke-width='1.8' stroke-linecap='round'/><circle cx='22' cy='23.6' r='1' fill='#fff'/>`,
   soon: `<path d='M22 18v3.2l2 1.3' stroke='#fff' stroke-width='1.4' fill='none' stroke-linecap='round'/>`,
   rain: `<path d='M19.5 21.5a2 2 0 0 1 .6-3.9 3 3 0 0 1 5.6 1 1.6 1.6 0 0 1-.4 2.9z' fill='#fff'/>`,
   none: `<path d='M19.3 21l2 2 3.6-4' stroke='#fff' stroke-width='1.8' fill='none' stroke-linecap='round'/>`,
