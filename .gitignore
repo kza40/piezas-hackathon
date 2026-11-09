@@ -7,3 +7,5 @@ dist/
 .piezas/quality-scan/
 .piezas/deploy-link.json
 .piezas/test-results/
+.piezas/test-attestation.json
+.piezas/test-baseline.json

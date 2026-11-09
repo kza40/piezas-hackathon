@@ -51,7 +51,13 @@ function requireLocation(lat: number | null, lon: number | null) {
   return { lat, lon };
 }
 
-export async function fieldAdvice(ownerId: string, fieldId: string, now = new Date()) {
+export async function fieldAdvice(
+  ownerId: string,
+  fieldId: string,
+  now = new Date(),
+  opts: { openAlerts?: boolean } = {},
+) {
+  const shouldOpenAlerts = opts.openAlerts !== false;
   const field = await getField(ownerId, fieldId);
   const farm = await getFarm(ownerId, field.farmId);
   const { lat, lon } = requireLocation(farm.latitude, farm.longitude);
@@ -62,7 +68,9 @@ export async function fieldAdvice(ownerId: string, fieldId: string, now = new Da
   const soil = soilWarning(crop, soilSample(sensors));
   const frost = frostWarning(crop, weather.overnightLowC);
   const alert =
-    watering.status === 'water_today' ? await openAlert(ownerId, fieldId, watering.reason, now) : null;
+    shouldOpenAlerts && watering.status === 'water_today'
+      ? await openAlert(ownerId, fieldId, watering.reason, now)
+      : null;
   return {
     watering,
     soilWarning: soil,

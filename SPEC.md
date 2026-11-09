@@ -27,6 +27,7 @@ Provenance: idea and decisions from the team's planning chat, 2026-11-07.
 - R-018: Signing out returns the farmer to the sign-in screen and hides the farm. (source: frontend branch)
 - R-019: A signed-in farmer can remove one of their fields, and it no longer appears on their farm. (source: frontend branch)
 - R-020: A farmer can keep a name and a phone number on their profile. (source: frontend branch)
+- R-026: A farmer can download a field's last 14 days of sensor readings as a CSV file, with the field's current watering advice and forecast on each row. Downloading never creates an alert, and text that a spreadsheet would run as a formula is saved as plain text. (source: frontend branch)
 
 ## Data
 
@@ -187,6 +188,12 @@ covers: R-020
 Given a signed-in farmer on their profile
 When they save a name and a phone number and reload the page
 Then the same name and phone number are shown
+
+### S-032: Farmer downloads a field's readings
+covers: R-026
+Given a signed-in farmer with a farm and a field
+When they open Fields & sensors and choose to download the last 14 days
+Then a CSV file named after the field is saved, starting with the column names
 
 ## Open Conflicts
 

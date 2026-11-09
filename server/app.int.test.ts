@@ -26,7 +26,8 @@ function browser() {
     const set = res.headers.get('set-cookie');
     if (set) cookie = set.split(';')[0].endsWith('=') ? '' : set.split(';')[0];
     const text = await res.text();
-    return { status: res.status, setCookie: set, body: text ? JSON.parse(text) : null };
+    const isJson = (res.headers.get('content-type') ?? '').includes('json');
+    return { status: res.status, setCookie: set, headers: res.headers, body: text ? (isJson ? JSON.parse(text) : text) : null };
   };
 }
 
@@ -450,6 +451,42 @@ describe('alerts over HTTP', () => {
     await sam('DELETE', `/api/fields/${fieldId}`);
     assert.deepEqual(await listAll((await db()).alert, { fieldId }), []);
     await assert.rejects(openAlert(samId, fieldId, message), (e: any) => e.status === 404);
+  });
+});
+
+describe('field CSV export over HTTP (R-026)', () => {
+  let fieldId = '';
+  const hourAgo = new Date(Date.now() - 3_600_000).toISOString();
+
+  test('setup: a field with a formula-like sensor name and a below-zero reading', async () => {
+    const farm = (await sam('POST', '/api/farms', { name: 'Export Farm', latitude: 49.05, longitude: -122.3 })).body.farm;
+    const crop = (await sam('GET', '/api/crop-profiles')).body.cropProfiles[5];
+    fieldId = (await sam('POST', `/api/farms/${farm.id}/fields`, { name: 'North block', cropProfileId: crop.id })).body.field.id;
+    const { deviceKey } = (await sam('POST', `/api/fields/${fieldId}/sensors`, { name: '=SUM(1+1)' })).body;
+    const res = await api.request('/api/ingest', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-device-key': deviceKey },
+      body: JSON.stringify({ readings: [{ type: 'air_temperature', value: -2.5, unit: 'C', time: hourAgo }] }),
+    });
+    assert.equal(res.status, 202);
+  });
+
+  test('S-032: the export is a CSV named after the field, numbers intact and formulas neutralised', async () => {
+    const r = await sam('GET', `/api/fields/${fieldId}/export`);
+    assert.equal(r.status, 200);
+    assert.match(r.headers.get('content-type') ?? '', /^text\/csv/);
+    assert.equal(r.headers.get('content-disposition'), 'attachment; filename="north-block-export.csv"');
+    const [header, ...rows] = (r.body as string).trim().split('\n');
+    assert.equal(header, 'exportedAt,rangeDays,farm,field,crop,sensor,type,value,unit,time,adviceLabel,adviceReason,rainNext48hMm,overnightLowC');
+    const row = rows.find((x) => x.includes('air_temperature'));
+    assert.ok(row, r.body);
+    assert.ok(row.includes(`,'=SUM(1+1),air_temperature,-2.5,C,${hourAgo},`), row);
+  });
+
+  test('downloading never opens an alert; another farmer gets 404, and no session is 401', async () => {
+    assert.equal((await listAll((await db()).alert, { fieldId })).length, 0);
+    assert.equal((await jordan('GET', `/api/fields/${fieldId}/export`)).status, 404);
+    assert.equal((await api.request(`/api/fields/${fieldId}/export`)).status, 401);
   });
 });
 

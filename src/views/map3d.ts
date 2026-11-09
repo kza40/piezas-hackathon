@@ -65,6 +65,7 @@ interface Ctx {
   onPick: (id: FieldId) => void;
   /** Field the camera last centred on, and the point it is gliding towards. */
   sel: FieldId;
+  hover: FieldId | '';
   focus: THREE.Vector3 | null;
   /** Baked field outlines; if the farm parcels change, rebuild the scene. */
   layout: string;
@@ -284,10 +285,10 @@ function hudHtml(f: Field): string {
     .map((s) => {
       const v = s.m == null ? '—' : `${Math.round(s.m)}%`;
       const tone = s.m == null ? '#b8b2a2' : moistureTint(s.m);
-      return `<div class=z3><i style='background:${tone}'></i><b>${s.id}</b><span>${v}</span><em>${s.online ? 'live' : `${s.age}h ago`}</em></div>`;
+      return `<div class=z3><i style='background:${tone}'></i><b>${esc(s.id)}</b><span>${v}</span><em>${s.online ? 'live' : `${s.age}h ago`}</em></div>`;
     })
     .join('');
-  return `<p class=hud3-k>${esc(f.name)} · ${f.crop}</p><div class=hud3-grid><div><span>Avg moisture</span><b>${f.m}%</b></div><div><span>Air humidity</span><b>${f.h}%</b></div><div><span>Soil temp</span><b>${T(f.st)}</b></div><div><span>Last watered</span><b>${lastWatered(f.id)}</b></div></div><div class=hud3-leg aria-hidden=true><span>Dry</span><i></i><span>Wet</span><em>${Math.round(lo)}–${Math.round(hi)}% across field</em></div><p class=hud3-z>Moisture by sensor area</p>${rows}<button class='btn sm hud3-btn' data-act=go data-p=field data-id=${f.id}>Open field details</button>`;
+  return `<p class=hud3-k>${esc(f.name)} · ${f.crop}</p><div class=hud3-grid><div><span>Avg moisture</span><b>${f.m}%</b></div><div><span>Air humidity</span><b>${f.h}%</b></div><div><span>Soil temp</span><b>${T(f.st)}</b></div><div><span>Last watered</span><b>${lastWatered(f.id)}</b></div></div><div class=hud3-leg aria-hidden=true><span>Dry</span><i></i><span>Wet</span><em>${Math.round(lo)}–${Math.round(hi)}% across field</em></div><p class=hud3-z>Moisture by sensor area</p>${rows}<button class='btn sm hud3-btn' data-act=showfield data-id=${f.id} data-testid=open-field-details>See field details →</button>`;
 }
 
 function fieldNode(f: Field, labels: HTMLDivElement): FieldNode {
@@ -396,23 +397,40 @@ function create(onPick: (id: FieldId) => void): Ctx {
   const pipes = irrigation();
   scene.add(pipes);
 
-  const c: Ctx = { renderer, scene, camera, controls, labels, fields, pipes, running: false, onPick, sel: S.sel, focus: null, layout: layoutKey() };
+  const c: Ctx = { renderer, scene, camera, controls, labels, fields, pipes, running: false, onPick, sel: S.sel, hover: '', focus: null, layout: layoutKey() };
 
-  // A click picks a field; a drag only moves the camera.
+  // Hover shows the field card; click still selects for the side rail.
   const ray = new THREE.Raycaster();
   let down: [number, number] | null = null;
-  renderer.domElement.addEventListener('pointerdown', (e) => (down = [e.clientX, e.clientY]));
-  renderer.domElement.addEventListener('pointerup', (e) => {
-    if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
-    const r = renderer.domElement.getBoundingClientRect();
-    ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+
+  const fieldIdAt = (clientX: number, clientY: number): FieldId | '' => {
+    const box = renderer.domElement.getBoundingClientRect();
+    ray.setFromCamera(
+      new THREE.Vector2(((clientX - box.left) / box.width) * 2 - 1, -((clientY - box.top) / box.height) * 2 + 1),
+      camera,
+    );
     const hit = ray.intersectObjects(
       fields.map((n) => n.group),
       true,
     )[0];
     let obj: THREE.Object3D | undefined = hit?.object;
     while (obj && !obj.userData.id) obj = obj.parent ?? undefined;
-    if (obj) c.onPick(obj.userData.id as FieldId);
+    return (obj?.userData.id as FieldId | undefined) ?? '';
+  };
+
+  renderer.domElement.addEventListener('pointerdown', (e) => (down = [e.clientX, e.clientY]));
+  renderer.domElement.addEventListener('pointermove', (e) => {
+    const id = fieldIdAt(e.clientX, e.clientY);
+    if (id === c.hover) return;
+    c.hover = id;
+  });
+  renderer.domElement.addEventListener('pointerup', (e) => {
+    if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
+    const id = fieldIdAt(e.clientX, e.clientY);
+    // Touch and pen have no hover: a tap's position must not keep a card open after the next tap.
+    if (e.pointerType !== 'mouse') c.hover = '';
+    if (!id) c.onPick('' as FieldId);
+    else c.onPick(id);
   });
   return c;
 }
@@ -453,21 +471,21 @@ function sync(c: Ctx) {
     n.label.setAttribute('aria-pressed', String(sel));
     n.label.setAttribute('aria-label', `${f.name}, ${valueFor(f, L)}`);
     n.hud.innerHTML = hudHtml(f);
-    n.hud.classList.toggle('on', sel);
+    n.hud.classList.add('on');
     const ss = sensorsOf(f.id);
     n.pins.forEach((p, i) => {
       const s = ss[i];
-      p.el.classList.toggle('on', sel);
+      p.el.classList.add('on');
       if (!s) return;
-      p.el.innerHTML = `<b>${s.id}</b>${s.m == null ? '—' : `${Math.round(s.m)}%`}`;
+      p.el.innerHTML = `<b>${esc(s.id)}</b>${s.m == null ? '—' : `${Math.round(s.m)}%`}`;
       p.el.style.borderColor = s.m == null ? '#b8b2a2' : moistureTint(s.m);
     });
   }
   c.pipes.visible = Object.keys(S.off).length === 0;
   if (S.sel !== c.sel) {
     c.sel = S.sel;
-    const n = c.fields.find((x) => x.id === S.sel)!;
-    c.focus = n.anchor.clone().add(n.group.position);
+    const n = c.fields.find((x) => x.id === S.sel);
+    c.focus = n ? n.anchor.clone().add(n.group.position) : null;
   }
 }
 
@@ -498,10 +516,12 @@ function frame(c: Ctx) {
     const lab = toScreen(n.anchor.x + n.group.position.x, n.h + 36, n.anchor.z + n.group.position.z, true);
     n.label.style.display = lab.off ? 'none' : '';
     if (!lab.off) n.label.style.transform = `translate(-50%,-100%) translate(${lab.tx}px,${lab.ty}px)`;
-    const sel = S.sel === n.id;
-    n.hud.style.display = sel && !lab.off ? '' : 'none';
-    if (sel && !lab.off) n.hud.style.transform = `translate(18px,-100%) translate(${lab.tx}px,${lab.ty}px)`;
-    if (sel) {
+    // The hovered field, or with nothing hovered the one the farmer tapped open: so it works on touch
+    // screens and stays while the pointer moves onto its "See field details" button. Never opens by itself.
+    const hot = c.hover ? c.hover === n.id : n.id === S.hud;
+    n.hud.style.display = hot && !lab.off ? '' : 'none';
+    if (hot && !lab.off) n.hud.style.transform = `translate(18px,-100%) translate(${lab.tx}px,${lab.ty}px)`;
+    if (hot) {
       n.pins.forEach((p) => {
         const pin = toScreen(p.x + n.group.position.x, n.h + 22, p.z + n.group.position.z, true);
         p.el.style.display = pin.off ? 'none' : '';
@@ -534,6 +554,12 @@ export function mount3D(host: HTMLElement, onPick: (id: FieldId) => void) {
   const c = ctx;
   c.onPick = onPick;
   host.append(c.renderer.domElement, c.labels);
+  if (!host.dataset.fwHoverLeave) {
+    host.dataset.fwHoverLeave = '1';
+    host.addEventListener('pointerleave', () => {
+      if (ctx) ctx.hover = '';
+    });
+  }
   c.resize?.disconnect();
   c.resize = new ResizeObserver(() => fit(c, host));
   c.resize.observe(host);
