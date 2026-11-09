@@ -6,6 +6,7 @@ process.env.PIEZAS_API_KEY = testKey;
 
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import { api } from './app';
 import { db, piezas } from '../lib/server/piezas';
 import { listAll } from '../lib/server/data/records';
@@ -480,6 +481,136 @@ describe('alerts over HTTP', () => {
     await sam('DELETE', `/api/fields/${fieldId}`);
     assert.deepEqual(await listAll((await db()).alert, { fieldId }), []);
     await assert.rejects(openAlert(samId, fieldId, message), (e: any) => e.status === 404);
+  });
+});
+
+describe('field models in the advice over HTTP (R-009, R-021 to R-025)', () => {
+  let fieldId = '';
+  const keys: Record<string, string> = {};
+  const at = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3_600_000).toISOString();
+  const device = (key: string, json: unknown) =>
+    api.request('/api/ingest', { method: 'POST', headers: { 'content-type': 'application/json', 'x-device-key': key }, body: JSON.stringify(json) });
+  const advice = async () => (await sam('GET', `/api/fields/${fieldId}/advice`)).body;
+  const env = { ...process.env };
+
+  // 72 hours of a probe: drying 0.05 an hour, watered 60 hours ago (no rain then) to 33% plus water that drains away.
+  const probe = (offset: number) => {
+    const out = [];
+    let base = 22 + offset;
+    let excess = 0;
+    for (let ago = 72; ago >= 0; ago--) {
+      if (ago === 60) [base, excess] = [33 + offset, 6];
+      base -= 0.05;
+      excess *= 0.8;
+      out.push({ type: 'soil_moisture', value: Math.round((base + excess) * 10) / 10, unit: '%', time: at(ago) });
+    }
+    return out;
+  };
+  const send = async (key: string, readings: unknown[]) => {
+    for (let i = 0; i < readings.length; i += 50) assert.equal((await device(key, { readings: readings.slice(i, i + 50) })).status, 202);
+  };
+
+  before(() => {
+    process.env.WEATHER_STUB_DIR = join(process.cwd(), 'data', 'weather');
+    process.env.WEATHER_STUB_FORECAST = 'dry-forecast.json';
+  });
+  after(() => {
+    for (const k of ['WEATHER_STUB_DIR', 'WEATHER_STUB_FORECAST']) if (env[k] === undefined) delete process.env[k];
+  });
+
+  test('setup: a sandy-loam blueberry field with two probes, watered 60 hours ago', async () => {
+    const farm = (await sam('POST', '/api/farms', { name: 'Model Farm', latitude: 49.05, longitude: -122.3 })).body.farm;
+    const crop = (await sam('GET', '/api/crop-profiles')).body.cropProfiles.find((c: any) => c.key === 'blueberry');
+    fieldId = (await sam('POST', `/api/farms/${farm.id}/fields`, { name: 'Model block', cropProfileId: crop.id, soil: 'Sandy loam' })).body.field.id;
+    for (const name of ['North probe', 'South probe']) keys[name] = (await sam('POST', `/api/fields/${fieldId}/sensors`, { name })).body.deviceKey;
+    await send(keys['North probe'], probe(0)); // ends near 30%
+    await send(keys['South probe'], probe(2)); // ends near 32%
+  });
+
+  test('S-025/S-026: a new field is rain-fed; the watering is found, labelled irrigation, and sets last watered', async () => {
+    const a = await advice();
+    assert.equal(a.watering.status, 'rain_fed');
+    assert.deepEqual([a.alert, a.waterBy], [null, null]);
+    assert.equal(a.events.length, 1);
+    assert.deepEqual([a.events[0].label, a.events[0].source, a.events[0].rises.length], ['irrigation', 'detected', 2]);
+    assert.ok(Math.abs(Date.parse(a.events[0].start) - Date.parse(at(60))) <= 3 * 3_600_000, a.events[0].start);
+    assert.equal(a.lastWatered, a.events[0].start);
+    assert.ok(a.sensorHealth.every((h: any) => h.status === 'ok'));
+  });
+
+  test('S-029/S-030: irrigated without a trigger is not configured, with a sourced suggestion to save', async () => {
+    await sam('PATCH', `/api/fields/${fieldId}`, { irrigated: true });
+    const a = await advice();
+    assert.equal(a.watering.status, 'not_configured');
+    assert.match(a.watering.reason, /Irrigation guidance is not configured/);
+    assert.ok(a.fieldCapacity.value > 31 && a.fieldCapacity.value < 36, `capacity ${a.fieldCapacity.value}`);
+    const s = a.triggerSuggestion;
+    assert.ok(s.value >= 22 && s.value <= 28, `suggested ${s.value}`);
+    assert.match(s.basis, /after the irrigation on .*sandy loam.*Berries/);
+    assert.deepEqual(a.learning, []);
+
+    await sam('PATCH', `/api/fields/${fieldId}`, { trigger: { value: s.value, source: 'suggested', basis: s.basis } });
+    const saved = await advice();
+    assert.equal(saved.watering.status, 'wait', 'about 30% is above the suggested trigger');
+    assert.equal(saved.setup.trigger.source, 'suggested');
+    assert.ok(['beyond', 'window'].includes(saved.waterBy.kind), saved.waterBy.text);
+  });
+
+  test('S-031: with a trigger close below the reading, the field shows when to water', async () => {
+    await sam('PATCH', `/api/fields/${fieldId}`, { trigger: { value: 28 } });
+    const a = await advice();
+    assert.equal(a.watering.status, 'wait');
+    assert.equal(a.waterBy.kind, 'window', JSON.stringify(a.waterBy));
+    assert.match(a.waterBy.text, /^Water by \w{3}/);
+  });
+
+  test('S-007/S-018: below the trigger with a dry forecast is Water today, naming the probe, with one alert', async () => {
+    await sam('PATCH', `/api/fields/${fieldId}`, { trigger: { value: 31 } });
+    const [a, b] = [await advice(), await advice()];
+    assert.equal(a.watering.status, 'water_today');
+    assert.match(a.watering.reason, /North probe .*below your 31% trigger/);
+    assert.equal(a.waterBy.kind, 'now');
+    assert.equal(b.alert.id, a.alert.id);
+    assert.equal((await sam('GET', '/api/alerts?status=open')).body.alerts.filter((x: any) => x.fieldId === fieldId).length, 1);
+  });
+
+  test('S-028: the farmer relabels the watering as rain; last watered no longer uses it', async () => {
+    const before = await advice();
+    const start = before.events[0].start;
+    await sam('POST', `/api/fields/${fieldId}/events/${encodeURIComponent(start)}/feedback`, { label: 'rain' });
+    const a = await advice();
+    assert.deepEqual([a.events[0].label, a.events[0].detected, a.events[0].source], ['rain', 'irrigation', 'farmer']);
+    assert.equal(a.lastWatered, null);
+  });
+
+  test('S-024: a probe stuck on one value is marked Check sensor and left out of the advice', async () => {
+    const key = (await sam('POST', `/api/fields/${fieldId}/sensors`, { name: 'Stuck probe' })).body.deviceKey;
+    await send(key, Array.from({ length: 26 }, (_, i) => ({ type: 'soil_moisture', value: 12, unit: '%', time: at(25 - i) })));
+    const a = await advice();
+    const stuck = a.sensorHealth.find((h: any) => h.sensorName === 'Stuck probe');
+    assert.equal(stuck.status, 'faulty');
+    assert.match(stuck.reason, /exactly 12%/);
+    assert.equal(a.watering.driestSensorName, 'North probe', 'the stuck 12% does not drive the advice');
+  });
+
+  test('a reading below the trigger raises the alert on ingest, without the page being opened', async () => {
+    const farm = (await sam('POST', '/api/farms', { name: 'Ingest Farm', latitude: 49.05, longitude: -122.3 })).body.farm;
+    const crop = (await sam('GET', '/api/crop-profiles')).body.cropProfiles.find((c: any) => c.key === 'blueberry');
+    const id = (await sam('POST', `/api/farms/${farm.id}/fields`, { name: 'Ingest block', cropProfileId: crop.id })).body.field.id;
+    const key = (await sam('POST', `/api/fields/${id}/sensors`, { name: 'Row 1 probe' })).body.deviceKey;
+    await sam('PATCH', `/api/fields/${id}`, { irrigated: true, trigger: { value: 30 } });
+    await send(key, [{ type: 'soil_moisture', value: 21, unit: '%', time: at(0) }]);
+    let open: any[] = [];
+    for (let i = 0; i < 40 && !open.length; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      open = (await sam('GET', '/api/alerts?status=open')).body.alerts.filter((x: any) => x.fieldId === id);
+    }
+    assert.equal(open.length, 1);
+    assert.match(open[0].message, /Row 1 probe is at 21%/);
+  });
+
+  test("another farmer gets 404 for this field's advice, settings and labels", async () => {
+    assert.equal((await jordan('GET', `/api/fields/${fieldId}/advice`)).status, 404);
   });
 });
 

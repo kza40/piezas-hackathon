@@ -161,8 +161,15 @@ const BAD_KEY = 'Device key is missing or not valid.';
 // 120 requests a minute per device key: an hourly probe sends 1; this only stops a device stuck in a loop.
 const perDevice = rateLimiter(120, 60_000);
 
+export interface IngestSaved {
+  ownerId: string;
+  fieldId: string;
+  readings: Reading[];
+}
+
 // POST /api/ingest. Checks the key, then the readings (all or nothing), then keeps each type's newest value.
-export async function ingest(deviceKey: unknown, body: unknown): Promise<{ accepted: number }> {
+// `onSaved` runs after the device lock is released, and the device's response does not wait for it.
+export async function ingest(deviceKey: unknown, body: unknown, onSaved?: (saved: IngestSaved) => void): Promise<{ accepted: number }> {
   const hash = deviceKeyHash(deviceKey);
   if (!hash) throw unauthorized(BAD_KEY);
   if (!perDevice(hash)) throw new AppError(429, 'rate_limited', 'Too many requests from this device. Send readings less often.');
@@ -170,7 +177,7 @@ export async function ingest(deviceKey: unknown, body: unknown): Promise<{ accep
 
   const { sensor } = await db();
   // One device's batches run one at a time, so the read-modify-write of `latest` never loses a reading.
-  return withLock(`device:${hash}`, async () => {
+  const saved = await withLock(`device:${hash}`, async () => {
     const r = (await sensor.list({ filter: { keyHash: hash }, limit: 1 })).data[0];
     if (!r) throw unauthorized(BAD_KEY);
     if (r.data.keyStatus !== 'active') throw unauthorized('This device key has been revoked.');
@@ -182,6 +189,8 @@ export async function ingest(deviceKey: unknown, body: unknown): Promise<{ accep
         throw errorCode(e) === 'not_found' ? unauthorized(BAD_KEY) : e; // the sensor was removed meanwhile
       });
     }
-    return { accepted: readings.length };
+    return { ownerId: str(r.data.ownerId), fieldId: str(r.data.fieldId) };
   });
+  onSaved?.({ ...saved, readings });
+  return { accepted: readings.length };
 }

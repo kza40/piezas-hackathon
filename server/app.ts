@@ -12,7 +12,7 @@ import { createFarm, createField, deleteField, getFarm, getField, listFarms, lis
 import { getProfile, parseProfileInput, updateProfile } from '../lib/server/data/profile';
 import { createSensor, fieldReadings, ingest, listSensors, revokeSensor, simulateField } from '../lib/server/data/sensors';
 import { listAlerts, markAlertDone } from '../lib/server/data/alerts';
-import { fieldAdvice, plantingAdvice, farmWeather } from '../lib/server/data/advice';
+import { adviseAfterIngest, farmWeather, fieldAdvice, plantingAdvice } from '../lib/server/data/advice';
 import { object } from '../lib/server/validate';
 
 type Env = { Variables: { user: SessionUser } };
@@ -142,7 +142,9 @@ const ingestLimit = bodyLimit({
   maxSize: 64 * 1024,
   onError: (c) => c.json({ error: 'payload_too_large', message: 'Send at most 50 readings at a time.' }, 413),
 });
-api.post('/ingest', ingestLimit, async (c) => c.json(await ingest(c.req.header('x-device-key'), await body(c)), 202));
+api.post('/ingest', ingestLimit, async (c) =>
+  c.json(await ingest(c.req.header('x-device-key'), await body(c), (saved) => void adviseAfterIngest(saved)), 202),
+);
 
 // Anything else under /api is a JSON 404, never the frontend's index.html.
 api.all('/*', () => {

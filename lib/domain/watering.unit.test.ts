@@ -21,6 +21,8 @@ const forecast = (rainNext48hMm: number): WeatherForecast => ({
   outlook: [],
 });
 
+const irrigated = { irrigated: true, trigger: 35 }; // the farmer saved a 35% trigger
+
 const sample = (name: string, value: number, hoursAgo: number): MoistureSample => ({
   sensorId: name,
   sensorName: name,
@@ -34,6 +36,7 @@ test('S-007: dry soil and no rain gives Water today and names the dry sensor', (
     [sample('North probe', 28, 1), sample('South probe', 40, 1)],
     forecast(0),
     now,
+    irrigated,
   );
   assert.equal(r.status, 'water_today');
   assert.equal(r.label, 'Water today');
@@ -42,15 +45,32 @@ test('S-007: dry soil and no rain gives Water today and names the dry sensor', (
 });
 
 test('S-008: dry soil but heavy rain gives Wait', () => {
-  const r = wateringAdvice(blueberry, [sample('North probe', 28, 1)], forecast(8), now);
+  const r = wateringAdvice(blueberry, [sample('North probe', 28, 1)], forecast(8), now, irrigated);
   assert.equal(r.status, 'wait');
   assert.equal(r.label, 'Wait');
   assert.match(r.reason, /rain/i);
 });
 
 test('S-015: stale readings give No recent reading', () => {
-  const r = wateringAdvice(blueberry, [sample('North probe', 20, 8)], forecast(0), now);
+  const r = wateringAdvice(blueberry, [sample('North probe', 20, 8)], forecast(0), now, irrigated);
   assert.equal(r.status, 'no_recent_reading');
   assert.equal(r.label, 'No recent reading');
   assert.equal(r.sensors[0].fresh, false);
+});
+test('above the saved trigger gives Wait, naming the trigger', () => {
+  const r = wateringAdvice(blueberry, [sample('North probe', 38, 1)], forecast(0), now, irrigated);
+  assert.equal(r.status, 'wait');
+  assert.match(r.reason, /above your 35% trigger/);
+});
+
+test('S-025: a rain-fed field never says Water today, and notes a dry forecast', () => {
+  const r = wateringAdvice(blueberry, [sample('North probe', 12, 1)], forecast(0), now, { irrigated: false, trigger: 35 });
+  assert.equal(r.status, 'rain_fed');
+  assert.match(r.reason, /reads 12%.*rain-fed.*No rain is forecast/);
+});
+
+test('S-029: an irrigated field without a saved trigger is not configured, and shows the reading', () => {
+  const r = wateringAdvice(blueberry, [sample('North probe', 12, 1)], forecast(0), now, { irrigated: true, trigger: null });
+  assert.deepEqual([r.status, r.label, r.driestValue], ['not_configured', 'Not configured', 12]);
+  assert.match(r.reason, /Irrigation guidance is not configured/);
 });

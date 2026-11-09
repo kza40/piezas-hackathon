@@ -47,9 +47,18 @@ The session is an httpOnly, SameSite=Lax cookie named `piezas_session` (lasts 7 
 | `GET /api/farms/:farmId/fields` | none | `{ fields: [field] }` |
 | `POST /api/farms/:farmId/fields` | `{ name, cropProfileId, acres?, stage?, soil? }` | 201 `{ field }` |
 | `GET /api/fields/:fieldId` | none | `{ field }` |
+| `PATCH /api/fields/:fieldId` | any of `{ irrigated, stage, soil, trigger }` | `{ field }` |
+| `POST /api/fields/:fieldId/events/:start/feedback` | `{ label: "irrigation" \| "rain" \| "none" \| null }` | `{ field }` |
 | `DELETE /api/fields/:fieldId` | none | 204 |
 
-A `field` is `{ id, farmId, name, cropProfile, acres, stage, soil, createdAt }`, with the full `cropProfile` object (so the ideal moisture and pH ranges are right there) and `stage` / `soil` as `""` when not set. Removing a field also removes its sensors. Weather and advice endpoints are documented below.
+A `field` is `{ id, farmId, name, cropProfile, acres, stage, soil, irrigated, trigger, eventFeedback, createdAt }`, with the full `cropProfile` object and `stage` / `soil` as `""` when not set. Removing a field also removes its sensors. Weather and advice endpoints are documented below.
+
+Field settings (R-009, R-021, R-024):
+
+- `irrigated` is `false` for a new field (rain-fed: no watering advice). Send `true` for a field the farmer can water.
+- `trigger` is `null` until the farmer saves one: `{ value, source: "suggested" | "manual", basis, savedAt }`. Save with `{ trigger: { value, source?, basis? } }` (value 1 to 80 %); to save the app's suggestion, send its `value` and `basis` with `source: "suggested"`. `{ trigger: null }` clears it.
+- `soil` is free text, but the trigger suggestion needs one of the FAO-56 textures in it: sand, loamy sand, sandy loam, loam, silt loam, silt, silty clay loam, silty clay, clay.
+- `eventFeedback` maps a detected event's `start` to the farmer's label. `:start` in the feedback URL is that event's `start` (URL-encoded); `label: null` removes the farmer's label.
 
 Another farmer's farm, field or sensor always answers 404, exactly like one that does not exist.
 
@@ -124,10 +133,30 @@ Farmers do not create alerts; the advice rule does, on the server, with `openAle
 | Method and path | Returns |
 |---|---|
 | `GET /api/farms/:farmId/weather` | `{ rainNext48hMm, overnightLowC, hours }` |
-| `GET /api/fields/:fieldId/advice` | `{ watering, soilWarning, frostWarning, weather, alert }` — may create one open watering alert when status is Water today |
+| `GET /api/fields/:fieldId/advice` | see below — may create one open watering alert when status is Water today |
 | `GET /api/fields/:fieldId/planting` | `{ weeks: [{ week, reason, score }] }` recommendation only; no planting date is stored |
-`watering.label` is `Water today`, `Wait`, or `No recent reading`. `soilWarning` and `frostWarning` are strings or `null`. The farm must have latitude and longitude or these return 400.
-Set `WEATHER_STUB_DIR=data/weather` (and optional `WEATHER_STUB_FORECAST` / `WEATHER_STUB_HISTORY`) to use fixed forecast files instead of Open-Meteo. Planting history currently needs the stub `history.json` (live Open-Meteo history is nowired yet).
+
+The farm must have latitude and longitude or these return 400. `soilWarning` and `frostWarning` are strings or `null`.
+
+`GET /api/fields/:fieldId/advice` returns:
+
+| key | what it is |
+|---|---|
+| `watering` | `{ status, label, reason, driestSensorName, driestValue, sensors }`. `status`: `water_today`, `wait`, `no_recent_reading`, `not_configured` (irrigated, no trigger saved), `rain_fed`. Only trusted sensors count (see `sensorHealth`). |
+| `waterBy` | `null`, or for an irrigated field with a trigger: `{ kind, text, ... }`. `kind`: `window` (`window: { earliest, latest, ifNoRain }`, ISO times), `now`, `beyond` (`days`), `learning` (`needs`). `text` is ready to show, e.g. "Water by Thu–Fri." |
+| `setup` | `{ irrigated, trigger, soil }` |
+| `sensorHealth` | `[{ sensorId, sensorName, status, reason }]`. `faulty` (stuck, impossible value, spike without rain) is left out of `watering`; `check` (reads far from the others, or barely rose in the last soaking) still counts. Show `reason` as "Check sensor: …". |
+| `events` | Detected wettings, newest first: `[{ start, peak, label, detected, source, confidence, rainMm, rises: [{ sensorId, sensorName, rise, low }] }]`. `label` is what to show (`irrigation`, `rain` or `none`); `detected` is the app's own label; `source` is `farmer` when the farmer labelled it. Offer "Watered? Yes / No, it rained / Neither" through the feedback route. |
+| `lastWatered` | Start of the newest event labelled irrigation, or `null` |
+| `fieldCapacity` | `{ value, from, basis, samples }` measured after a soaking, or `null` |
+| `triggerSuggestion` | `{ value, fieldCapacity, wiltingPoint, depletion, basis }` or `null`. A suggestion only: it is used after the farmer saves it as `trigger`. |
+| `learning` | Plain-words list of what the app is still waiting for, e.g. "a soaking rain or irrigation" or "a soil type (one of: …)" |
+| `weather` | `{ rainNext48hMm, overnightLowC, hours }` |
+| `alert` | The open watering alert when status is `water_today`, else `null` |
+
+A soil-moisture reading through `/api/ingest` that is below an irrigated field's trigger runs the same advice, so the alert opens without anyone opening the page. The device's reply does not wait for it.
+
+Weather comes from Open-Meteo (temperature, rain and FAO-56 ET0, the last 14 days and the next 5, cached for 30 minutes per location). Set `WEATHER_STUB_DIR=data/weather` (and optional `WEATHER_STUB_FORECAST`, `WEATHER_STUB_HISTORY`, `WEATHER_STUB_RECENT`) to use fixed files instead: the forecast file is moved to start at the current hour, and `recent.json` gives rain as hours before now. Planting history currently needs the stub `history.json` (live Open-Meteo history is not wired yet).
 ## Demo accounts (test app)
 
 `scripts/seed-demo.ts` has created the two demo farmers with their farms and fields, two sensors per field ("North probe", "South probe") and 14 days of simulated readings. Run it again right before a demo so the readings end at "now":
