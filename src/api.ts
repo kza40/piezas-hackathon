@@ -128,7 +128,7 @@ export const farmApi = {
   ) => api<{ field: ApiField }>(`/api/farms/${farmId}/fields`, { method: 'POST', body: JSON.stringify(body) }),
   deleteField: (fieldId: string) => api<void>(`/api/fields/${fieldId}`, { method: 'DELETE' }),
   getWeather: (farmId: string) =>
-    api<{ rainNext48hMm: number; overnightLowC: number; hours: { time: string; tempC: number; rainMm: number }[] }>(
+    api<{ simulated?: boolean; rainNext48hMm: number; overnightLowC: number; hours: { time: string; tempC: number; rainMm: number }[] }>(
       `/api/farms/${farmId}/weather`,
     ),
   getAdvice: (fieldId: string) => api<AdviceResponse>(`/api/fields/${fieldId}/advice`),

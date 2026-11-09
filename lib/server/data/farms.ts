@@ -15,6 +15,7 @@ export interface Farm {
   name: string;
   latitude: number | null;
   longitude: number | null;
+  demoWeather: boolean; // a demo farm's weather is scripted (lib/weather/demo.ts); set only by scripts/seed-demo.ts
   createdAt: string;
 }
 export interface Field {
@@ -44,6 +45,7 @@ const toFarm = (r: EntityRecord): Farm => ({
   name: str(r.data.name),
   latitude: num(r.data.latitude),
   longitude: num(r.data.longitude),
+  demoWeather: r.data.demoWeather === true,
   createdAt: r.createdAt,
 });
 

@@ -117,7 +117,7 @@ export async function fieldAdvice(
   const farm = await getFarm(ownerId, field.farmId);
   const { lat, lon } = requireLocation(farm.latitude, farm.longitude);
   const sensors = await listSensors(ownerId, fieldId, now);
-  const wx = getWeather();
+  const wx = getWeather(farm);
   const [weather, recent] = await Promise.all([wx.getForecast(lat, lon, now), wx.getRecent(lat, lon, now)]);
   const crop = toCrop(field.cropProfile);
   const insight = await fieldInsight(ownerId, field, sensors, recent, now);
@@ -188,17 +188,18 @@ export async function plantingAdvice(ownerId: string, fieldId: string) {
   const farm = await getFarm(ownerId, field.farmId);
   const { lat, lon } = requireLocation(farm.latitude, farm.longitude);
   const crop = toCrop(field.cropProfile);
-  const history = await getWeather().getHistory(lat, lon);
+  const history = await getWeather(farm).getHistory(lat, lon);
   return { weeks: rankPlantingWeeks(crop, history) };
 }
 
 export async function farmWeather(ownerId: string, farmId: string, now = new Date()) {
   const farm = await getFarm(ownerId, farmId);
   const { lat, lon } = requireLocation(farm.latitude, farm.longitude);
-  const weather = await getWeather().getForecast(lat, lon, now);
+  const weather = await getWeather(farm).getForecast(lat, lon, now);
   return {
     rainNext48hMm: weather.rainNext48hMm,
     overnightLowC: weather.overnightLowC,
     hours: weather.hours,
+    simulated: farm.demoWeather, // the page says when a demo farm's weather is scripted
   };
 }

@@ -134,7 +134,7 @@ export async function simulateField(ownerId: string, fieldId: string, now = new 
   // the simulation is a dry spell; a weather outage must not stop the demo tool, so it is logged instead.
   let rain: WeatherHour[] = [];
   if (latitude != null) {
-    rain = await getWeather()
+    rain = await getWeather({ demoWeather: farmRec.data.demoWeather === true })
       .getRecent(latitude, longitude, now)
       .catch((e) => {
         console.error('simulate: recent weather unavailable, simulating without rain', e);

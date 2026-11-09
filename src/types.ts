@@ -171,6 +171,7 @@ export interface AppState {
 }
 
 export interface LiveWeather {
+  simulated?: boolean; // a demo farm's scripted weather
   rainNext48hMm: number;
   overnightLowC: number;
   hours: { time: string; tempC: number; rainMm: number }[];

@@ -12,7 +12,9 @@ export const T = (c: number) => (S.units === '°F' ? Math.round((c * 9) / 5 + 32
 
 /** What on this page is simulated. Signed in, only the sensors are: the weather is the farm's live forecast. */
 export const demo = () =>
-  S.farmerId
+  S.liveWeather?.simulated
+    ? '<div class="demo">Demo farm: the sensor readings and this farm’s weather (a dry spell) are simulated, so every situation shows. No real probes are connected yet.</div>'
+    : S.farmerId
     ? '<div class="demo">Demo farm: the sensor readings are simulated, since no real probes are connected yet. The weather is the live forecast for this farm.</div>'
     : '<div class="demo">Demo data: every reading, forecast and alert here is simulated. No real sensors or weather service are connected.</div>';
 
