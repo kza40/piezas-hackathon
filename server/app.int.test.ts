@@ -717,7 +717,7 @@ describe('demo fields keep reporting (scripts/seed-demo.ts)', () => {
     assert.ok(a.alert);
   });
 
-  test('a read within 45 minutes does not re-simulate again', async () => {
+  test('a read within 3 hours does not re-simulate again', async () => {
     const at = (await (await db()).field.get(fieldId)).data.demoAt;
     assert.ok(typeof at === 'number' && at > 0);
     await sam('GET', `/api/fields/${fieldId}/sensors`);

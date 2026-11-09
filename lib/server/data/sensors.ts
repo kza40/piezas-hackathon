@@ -66,8 +66,9 @@ async function ownedField(ownerId: string, fieldId: string) {
 
 // A demo field (one with a scenario, set by scripts/seed-demo.ts) keeps "reporting": once its simulated
 // readings are this old, the next read re-simulates them to end now, so the demo shows the same situations
-// at any time of day. Fields without a scenario are never touched.
-const DEMO_REFRESH_MS = 45 * 60_000;
+// at any time of day. Fields without a scenario are never touched. Three hours keeps readings well inside the
+// 6-hour freshness rule (R-015) while the slower re-simulating read (several seconds) stays rare.
+const DEMO_REFRESH_MS = 3 * 3_600_000;
 const demoStale = (f: EntityRecord, now: Date) => isDemoScenario(f.data.demo) && now.getTime() - (num(f.data.demoAt) ?? 0) > DEMO_REFRESH_MS;
 
 async function refreshDemoField(ownerId: string, f: EntityRecord, now: Date) {

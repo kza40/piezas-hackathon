@@ -7,7 +7,7 @@ test('S-011 farmers cannot see each other data', async ({ page }) => {
   await page.getByTestId('login-password').fill('farm123-demo');
   await page.getByTestId('login-submit').click();
   await expect(page.getByTestId('topbar')).toContainText('Willow Creek Farm');
-  await expect(page.getByTestId('topbar')).toContainText('3 fields');
+  await expect(page.getByTestId('topbar')).toContainText('6 fields');
   const overview = page.getByTestId('card-today');
   await expect(overview).toContainText('North Wheat');
   await expect(overview).toContainText('East Canola');

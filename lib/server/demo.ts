@@ -4,7 +4,7 @@
 // moisture story (and pH, or missing hours) that leads the field models (lib/ml) to that situation.
 //
 // Waterings happen at 6 am farm time on fixed days before today, so a demo regenerated during the day
-// keeps the same events (and the farmer's labels for them) until midnight.
+// (lib/server/data/sensors.ts, every 3 hours) keeps the same events (and the farmer's labels) until midnight.
 import type { Reading } from './readings';
 
 export const DEMO_SCENARIOS = {
