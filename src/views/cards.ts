@@ -6,7 +6,7 @@ import { esc, fieldNo, firstName, initials, lastWatered, moistureTint, openAlert
 import { can } from '../ui/icons';
 
 const mine = <T extends { f: string }>(rows: T[]) => rows.filter((r) => ownsSeedRef(r.f));
-const recFor = (f: Field) => mine(REC).find((q) => q.f === f.id || q.f === f.layout);
+const recFor = (f: Field) => (S.farmerId ? undefined : mine(REC).find((q) => q.f === f.id || q.f === f.layout));
 const fieldForSeed = (ref: string) => F.find((f) => f.id === ref || f.layout === ref) ?? fld(ref);
 
 const ORDER: Record<WaterState, number> = { now: 0, soon: 1, rain: 2, none: 3 };
@@ -50,6 +50,9 @@ export function profileCard(): string {
 
 /** Field average of the sensors that are still reporting, one point every 3 hours. */
 function moistureHistory(f: Field): number[] {
+  const series = S.liveMoistureSeries[f.id];
+  if (series?.length) return series;
+  if (S.farmerId) return [];
   const live = SEN.filter((s) => s.f === f.layout && s.age <= 6);
   const out: number[] = [];
   for (let t = 0; t < 168; t += 3) {
@@ -61,6 +64,7 @@ function moistureHistory(f: Field): number[] {
 
 function spark(f: Field): string {
   const h = moistureHistory(f);
+  if (!h.length) return "<p class='mut tiny'>Moisture history loads with your sensors.</p>";
   const lo = Math.min(...h, f.mi[0]) - 3;
   const hi = Math.max(...h, f.mi[1]) + 3;
   const y = (v: number) => 54 - ((v - lo) / (hi - lo)) * 50;
@@ -89,7 +93,7 @@ export function fieldCard(): string {
     .join('');
   const hero = `<div class=fhero style='background:${look.bg};color:${look.fg}'><div><div class=fn style='color:${look.n}'>${f.m}<span>%</span></div><div class=fsub>Soil moisture · ${trend}</div></div><button class=cb data-act=op data-id=${f.id} aria-label='Watering details'>${can(k, 48)}</button><p class=chip style='background:${look.fg};color:${look.bg}'><i style='background:${WS[k].h}'></i>${look.c}</p></div>`;
   const grid = `<div class='kvs g2'>${kv('Crop', `${f.crop} · ${esc(f.stage)}`)}${kv('Area', `${f.ac} ac`)}${kv('Soil', esc(f.soil))}${kv('Air humidity', `${f.h}%`)}${kv('Soil temp', T(f.st))}${kv('pH', String(f.ph))}${kv('Last watered', lastWatered(f.id))}${kv('Across field', span)}</div>`;
-  const body = `${hero}${spark(f)}${grid}<p class=sub>Moisture by area</p><div class=zrows>${zones}</div><div class=nx><span class=mut>Recommended action</span><br>${r ? r.t : 'No action needed right now'}.</div><div class=btns><button class='btn sm' data-act=go data-p=field>Open field &amp; sensors</button><button class='btn alt sm' data-act=op data-id=${f.id}>Why this advice?</button></div>`;
+  const body = `${hero}${spark(f)}${grid}<p class=sub>Moisture by area</p><div class=zrows>${zones}</div><div class=nx><span class=mut>Recommended action</span><br>${S.liveAdvice[f.id]?.label ?? (r ? r.t : 'No action needed right now')}${S.liveAdvice[f.id]?.reason ? `<div class='mut tiny'>${esc(S.liveAdvice[f.id].reason)}</div>` : ''}</div><div class=btns><button class='btn sm' data-act=go data-p=field data-id=${f.id} data-testid=open-field-panel>Open field &amp; sensors</button><button class='btn alt sm' data-act=op data-id=${f.id}>Why this advice?</button></div>`;
   return mapCard('field', `Field ${fieldNo(f.id)} · ${esc(f.name)}`, body, { sum: `${f.m}% · ${WS[k].t}`, panel: 'field', cls: 'fcard' });
 }
 
@@ -122,30 +126,60 @@ export function todayCard(): string {
 }
 
 export function weatherCard(): string {
-  const bars = W.map(
-    (d) => `<div class=wc><b>${d.rain}%</b><div class=wb><i style='height:${Math.max(4, d.rain)}%'></i></div><b>${d.day.slice(0, 3)}</b><span>${T(d.temp)}</span></div>`,
-  ).join('');
-  const body = `<div class=wnow><span class=wt>${T(16)}</span><span>Sunny<br><span class=mut>${FARM.station}</span></span></div><div class='kvs g2'>${kv('Wind', '12 km/h W')}${kv('Humidity', '58%')}${kv('Rain, last 7 days', `${RT} mm`)}${kv('Next rain', `${W[1].day}, ${W[1].rain}%`)}</div><div class=spray><b>Spray window: good today</b><span class=mut>Wind under 15 km/h until about 4 pm. Rain from tomorrow.</span></div><div class='wk wk-sm'>${bars}</div><p class='mut tiny'>Rain tomorrow (6 mm) and Tuesday (14 mm). ${RT} mm fell last ${DN(64)}.</p>`;
-  return mapCard('weather', 'Weather', body, { sum: `${T(16)} sunny · rain ${W[1].day.toLowerCase()} ${W[1].rain}%`, panel: 'weather' });
+  const live = S.liveWeather;
+  if (!live) {
+    return mapCard('weather', 'Weather', '<p class=mut>Weather loads from your farm location after sign-in.</p>', { sum: 'Waiting for farm weather', panel: 'weather' });
+  }
+  const now = live.hours[0];
+  const nextRain = live.hours.find((h) => h.rainMm > 0.2);
+  const bars = live.hours.slice(0, 8).map((h) => {
+    const label = new Date(h.time).toLocaleTimeString('en', { hour: 'numeric' });
+    const pct = Math.min(100, Math.round(h.rainMm * 20));
+    return `<div class=wc><b>${h.rainMm.toFixed(1)}</b><div class=wb><i style='height:${Math.max(4, pct)}%'></i></div><b>${label}</b><span>${T(h.tempC)}</span></div>`;
+  }).join('');
+  const body = `<div class=wnow><span class=wt>${now ? T(now.tempC) : '—'}</span><span>Next 48h rain<br><span class=mut>${live.rainNext48hMm.toFixed(1)} mm</span></span></div><div class='kvs g2'>${kv('Overnight low', T(live.overnightLowC))}${kv('Rain next 48h', `${live.rainNext48hMm.toFixed(1)} mm`)}${kv('Next rain hour', nextRain ? new Date(nextRain.time).toLocaleString('en', { weekday: 'short', hour: 'numeric' }) : 'None soon')}${kv('Source', 'Farm forecast')}</div><div class='wk wk-sm'>${bars}</div><p class='mut tiny'>Live forecast for your farm pin.</p>`;
+  return mapCard('weather', 'Weather', body, { sum: `${live.rainNext48hMm.toFixed(1)} mm / 48h · low ${T(live.overnightLowC)}`, panel: 'weather' });
 }
 
 export function alertsCard(): string {
+  if (S.farmerId) {
+    const open = S.liveAlerts;
+    const items = open.length
+      ? open.slice(0, 3).map((a) => {
+          const field = F.find((f) => f.id === a.fieldId);
+          const where = field ? `<button class=lnk data-act=pk data-id=${field.id}>${esc(field.name)}</button> · ` : '';
+          const when = new Date(a.createdAt).toLocaleString('en', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+          return `<div class=item><div style='flex:1'>${pill('wn')} <b>Watering alert</b><div class='mut tiny'>${where}${when}</div><div class=mut>${esc(a.message)}</div></div><button class='btn alt sm' data-act=dis data-aid=${a.id} aria-label='Mark alert done'>✕</bun></div>`;
+        }).join('') + (open.length > 3 ? `<button class='btn alt sm' data-act=go data-p=alerts>See all ${open.length}</button>` : '')
+      : '<p class=mut>Nothing needs your attention.</p>';
+    return mapCard('alerts', 'Alerts', items, { count: open.length, sum: open.length ? `${open.length} open` : '', panel: 'alerts' });
+  }
   const open = openAlerts();
   const items = open.length
-    ? open
-        .slice(0, 3)
-        .map((a) => {
-          const field = a.f ? fieldForSeed(a.f) : null;
-          const where = field?.id ? `<button class=lnk data-act=pk data-id=${field.id}>${esc(field.name)}</button> · ` : '';
-          return `<div class=item><div style='flex:1'>${pill(a.l)} <b>${a.t}</b><div class='mut tiny'>${where}${a.ago}</div><div class=mut>${a.d}</div></div><button class='btn alt sm' data-act=dis data-aid=${a.id} aria-label='Dismiss ${a.t}'>✕</button></div>`;
-        })
-        .join('') + (open.length > 3 ? `<button class='btn alt sm' data-act=go data-p=alerts>See all ${open.length}</button>` : '')
-    : '<p class=mut>Nothing needs your attention.</p>';
+    ? open.slice(0, 3).map((a) => {
+        const field = a.f ? fieldForSeed(a.f) : null;
+        const where = field?.id ? `<button class=lnk data-act=pk data-id=${field.id}>${esc(field.name)}</button> · ` : '';
+        return `<div class=item><div style='flex:1'>${pill(a.l)} <b>${a.t}</b><div class='mut tiny'>${where}${a.ago}</div><div class=mut>${a.d}</div></div><button class='btn alt sm' data-act=dis data-aid=${a.id} aria-label='Dismiss ${a.t}'>✕</button></div>`;
+      }).join('') + (open.length > 3 ? `<button class='btn alt sm' data-act=go data-p=alerts>See all ${open.length}</button>` : '')
+    : '<p class=>Nothing needs your attention.</p>';
   const crit = open.filter((a) => a.l === 'cr').length;
   return mapCard('alerts', 'Alerts', items, { count: open.length, sum: crit ? `${crit} critical` : '', panel: 'alerts' });
 }
 
 export function actionsCard(): string {
+  if (S.farmerId) {
+    const todo = F.map((field) => {
+      const a = S.liveAdvice[field.id];
+      if (!a || a.label === 'No action') return null;
+      return { field, a };
+    }).filter(Boolean) as { field: Field; a: NonNullable<(typeof S.liveAdvice)[string]> }[];
+    const items = todo.length
+      ? todo.slice(0, 3).map(({ field, a }) =>
+          '<div class=item>' + can(ws(field), 24) + "<div style='flex:1'><b>" + esc(a.label) + "</b><div class='mut tiny'>" + esc(field.name) + "</div></div><button class='btn sm' data-act=go data-p=field data-id=" + field.id + '>Open</button></div>'
+        ).join('') + (todo.length > 3 ? "<button class='btn alt sm' data-act=go data-p=recs>See all " + todo.length + '</button>' : '')
+      : '<p class=mut>All caught up.</p>';
+    return mapCard('recs', 'Recommended actions', items, { count: todo.length, sum: todo.length ? 'next: ' + todo[0].a.label.toLowerCase() : 'all done', panel: 'recs' });
+  }
   const todo = mine(REC).filter((r) => r.p !== 'in' && !S.done[r.id]);
   const items = todo.length
     ? todo
@@ -168,5 +202,5 @@ export function topBar(): string {
   const crit = openAlerts().some((a) => a.l === 'cr');
   const place =
     S.farmLat != null && S.farmLng != null ? `${S.farmLat.toFixed(2)}°, ${S.farmLng.toFixed(2)}°` : S.farm ? 'Your farm' : 'No farm yet';
-  return `<header class=topbar data-testid=topbar><div class=tb-brand>${can('now', 18, '#fff')}<span>Fieldwise</span></div><div class=tb-farm><b>${esc(S.farm || 'No farm yet')}</b><span>${esc(place)} · ${F.length} fields · ${totalAcres()} ac</span></div><div class=tb-wx><span><b>${T(16)}</b> Sunny</span><span>Wind 12 km/h</span><span>Humidity 58%</span><span>Rain tmrw ${W[1].rain}%</span></div><div class=tb-right><span class=tb-date>${date}</span><span class=tb-sync title='Simulated data'><i></i>${on}/${total} sensors · synced 2 min ago</span><button class='tb-btn${crit ? ' hot' : ''}' data-act=go data-p=alerts data-testid=top-alerts aria-label='${open} open alerts'>🔔<span class=badge>${open}</span></button><button class=tb-user data-act=me data-testid=top-profile aria-label='Farmer profile'><span class='av sm'>${esc(initials())}</span><span class=tb-un><b>${esc(S.name)}</b><span>${esc(S.role)}</span></span></button></div></header>`;
+  return `<header class=topbar data-testid=topbar><div class=tb-brand>${can('now', 18, '#fff')}<span>Fieldwise</span></div><div class=tb-farm><b>${esc(S.farm || 'No farm yet')}</b><span>${esc(place)} · ${F.length} fields · ${totalAcres()} ac</span></div><div class=tb-wx data-testid=top-weather>${S.liveWeather ? `<span>${S.liveWeather.rainNext48hMm.toFixed(1)} mm rain / 48h</span><span class=mut>low ${T(S.liveWeather.overnightLowC)}</span>` : `<span class=mut>Weather loads from your farm location</span>`}</div><div class=tb-right><span class=tb-date>${date}</span><span class=tb-sync title='Live farm data'><i></i>${on}/${total} sensors online</span><button class='tb-btn${crit ? ' hot' : ''}' data-act=go data-p=alerts data-testid=top-alerts aria-label='${open} open alerts'>🔔<span class=badge>${open}</span></button><button class=tb-user data-act=me data-testid=top-profile aria-label='Farmer profile'><span class='av sm'>${esc(initials())}</span><span class=tb-un><b>${esc(S.name)}</b><span>${esc(S.role)}</span></span></button></div></header>`;
 }

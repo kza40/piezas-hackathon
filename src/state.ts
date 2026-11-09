@@ -54,6 +54,12 @@ export const S: AppState = {
   moved: false,
   log: readJson<WaterLogEntry[] | null>(LOG_KEY, null) ?? [],
   cropByName: {},
+  liveWeather: null,
+  liveAdvice: {},
+  liveAlerts: [],
+  liveSensors: {},
+  liveMoistureSeries: {},
+  liveHistory: {},
 };
 
 export const saveOffsets = () => writeJson(OFFSETS_KEY, S.off);

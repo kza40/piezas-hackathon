@@ -1,4 +1,5 @@
 import { DN, HOD, RAIN, RT, SEN } from '../seed/simulate';
+import { S } from '../state';
 import type { Field, MetricKey } from '../types';
 import { esc, idealRange, isStation, metric, ws } from './helpers';
 import { canIn, cropIn } from './icons';
@@ -16,32 +17,84 @@ interface Line {
 export function chart(f: Field, k: MetricKey): string {
   const met = metric(k);
   const rg = idealRange(f, met);
-  const lines: Line[] = isStation(k)
-    ? [{ id: 'Station', v: f.stn[k], gl: new Set(), age: 0 }]
-    : SEN.filter((x) => x.f === f.layout).map((x) => ({ id: x.id, v: x.vals[k], gl: x.gl[k], age: x.age }));
+  const hist = S.liveHistory[f.id];  let lines: Line[];
+  let rain: number[];
+  let n: number;
+  let dayLabel: (i: number) => string;
+  let rainTotal: number;
+
+  if (hist?.sensors.length) {
+    n = hist.hours.length;
+    rain = hist.rain;
+    rainTotal = Math.round(rain.reduce((a, b) => a + b, 0) * 10) / 10;
+    dayLabel = (i) => {
+      const d = new Date(hist.hours[i] + ':00:00.000Z');
+      return d.toLocaleDateString('en', { weekday: 'short' });
+    };
+    if (isStation(k)) {
+      const arr: (number | null)[] = Array(n).fill(null);
+      for (let i = 0; i < n; i++) {
+        const vals = hist.sensors.map((s) => s.vals[k]?.[i]).filter((v): v is number => v != null);
+        arr[i] = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+      }
+      lines = [{ id: 'Field avg', v: arr, gl: new Set(), age: 0 }];
+    } else {
+      lines = hist.sensors.map((s) => ({
+        id: s.name,
+        v: s.vals[k] ?? Array(n).fill(null),
+        gl: new Set(),
+        age: s.ageHours,
+      }));
+    }
+  } else if (S.farmerId) {
+    n = 168;
+    rain = Array(168).fill(0);
+    rainTotal = 0;
+    dayLabel = (i) => DN(i);
+    lines = [];
+  } else {
+    n = 168;
+    rain = RAIN;
+    rainTotal = RT;
+    dayLabel = (i) => DN(i);
+    lines = isStation(k)
+      ? [{ id: 'Station', v: f.stn[k], gl: new Set(), age: 0 }]
+      : SEN.filter((x) => x.f === f.layout).map((x) => ({ id: x.id, v: x.vals[k], gl: x.gl[k], age: x.age }));
+  }
+
   const all = lines.flatMap((l) => l.v.filter((x, i): x is number => x != null && !l.gl.has(i)));
+  if (!all.length) {
+    return `<svg viewBox='0 0 640 236' style='width:100%;height:auto' role=img aria-label='${esc(met.name)}, last 7 days'><text x=320 y=120 text-anchor=middle fill=#5b6470 font-size=14>No readings for this metric yet</text></svg>`;
+  }
   let lo = Math.min(...all, rg[0]);
   let hi = Math.max(...all, rg[1]);
   const temp = k === 'at' || k === 'st';
   if (temp) lo = Math.min(lo, 0);
-  const pad = (hi - lo) * 0.1;
+  const pad = (hi - lo) * 0.1 || 1;
   lo -= pad;
   hi += pad;
-  const X = (i: number) => 44 + i * (586 / 167);
+  const span = Math.max(1, n - 1);
+  const X = (i: number) => 44 + i * (586 / span);
   const Y = (v: number) => 200 - ((Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) * 180;
 
   let o = `<svg viewBox='0 0 640 236' style='width:100%;height:auto' role=img aria-label='${esc(met.name)}, last 7 days'>`;
-  RAIN.forEach((q, i) => {
+  rain.forEach((q, i) => {
     if (q > 0) o += `<rect x=${X(i) - 2} y=20 width=4 height=180 fill=#5b8ec9 fill-opacity=.3 />`;
   });
   o += `<rect x=44 y=${Y(rg[1])} width=586 height=${Y(rg[0]) - Y(rg[1])} fill=#6f9a7c fill-opacity=.2 /><text x=40 y=${Y(rg[1]) + 4} text-anchor=end font-size=10 fill=#5b6470>${rg[1]}</text><text x=40 y=${Y(rg[0]) + 4} text-anchor=end font-size=10 fill=#5b6470>${rg[0]}</text>`;
   if (temp && lo < 0) {
     o += `<path d='M44 ${Y(0)}H630' stroke=#5b8ec9 stroke-dasharray='4 4' /><text x=40 y=${Y(0) + 4} text-anchor=end font-size=10 fill=#4a78b5>0</text>`;
   }
-  for (let i = 0; i < 168; i++) {
-    if (HOD(i) === 0) o += `<path d='M${X(i)} 20V200' stroke=#d9d0bd /><text x=${X(i) + 3} y=216 font-size=10 fill=#5b6470>${DN(i)}</text>`;
+  let lastDay = '';
+  for (let i = 0; i < n; i++) {
+    const label = dayLabel(i);
+    const isMidnight = hist ? hist.hours[i].endsWith('T00') : HOD(i) === 0;
+    if (isMidnight || (hist && label !== lastDay && i % 24 === 0)) {
+      o += `<path d='M${X(i)} 20V200' stroke=#d9d0bd /><text x=${X(i) + 3} y=216 font-size=10 fill=#5b6470>${label}</text>`;
+      lastDay = label;
+    }
   }
-  o += `<text x=${X(64)} y=14 text-anchor=middle font-size=10 fill=#3d5f8f>Rain ${RT} mm</text>`;
+  o += `<text x=${X(Math.floor(n * 0.38))} y=14 text-anchor=middle font-size=10 fill=#3d5f8f>Rain ${rainTotal} mm</text>`;
   lines.forEach((l, j) => {
     let d = '';
     let on = false;
@@ -55,13 +108,8 @@ export function chart(f: Field, k: MetricKey): string {
       on = true;
     });
     o += `<path d='${d}' fill=none stroke='${SERIES_COLORS[j % 4]}' stroke-width=2 stroke-linejoin=round />`;
-    l.v.forEach((x, i) => {
-      if (x != null && l.gl.has(i)) {
-        o += `<circle cx=${X(i)} cy=${Y(x)} r=5 fill=#c0583f stroke=#fff stroke-width=1.5><title>Odd reading ${x}, ignored</title></circle>`;
-      }
-    });
     if (l.age > 6) {
-      o += `<text x=${Math.min(590, X(167 - l.age))} y=231 text-anchor=middle font-size=10 fill=#c0583f>${l.id} last reading</text>`;
+      o += `<text x=${Math.min(590, X(Math.max(0, n - 1 - Math.min(n - 1, l.age))))} y=231 text-anchor=middle font-size=10 fill=#c0583f>${esc(l.id)} last reading</text>`;
     }
   });
   return o + '</svg>';

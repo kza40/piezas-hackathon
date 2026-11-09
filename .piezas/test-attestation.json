@@ -1,0 +1,166 @@
+{
+  "version": 2,
+  "ranAt": "2026-11-09T03:59:08.523Z",
+  "validUntil": "2026-11-10T03:59:08.523Z",
+  "sourceFingerprint": "7640517993b4afefa1d63de825ae1f2d29100a41eb19cccbcb1e37315433bd58",
+  "specFingerprint": "de15943c221b34eccbd2942ef9be9015d6b9bf593328eb5bc5198f9cb82c585c",
+  "passing": false,
+  "rounds": 2,
+  "stuck": 1,
+  "progress": {
+    "written": 0,
+    "fixed": 7
+  },
+  "scenarios": [
+    {
+      "id": "S-001",
+      "title": "Farmer signs up and sees an empty dashboard",
+      "status": "passed",
+      "fp": "470447c1b4c866b6ed121491"
+    },
+    {
+      "id": "S-002",
+      "title": "Farmer creates a farm and a blueberry field with sourced pH guidance",
+      "status": "not-written",
+      "fp": "5d56c58fa553634f58689f32"
+    },
+    {
+      "id": "S-003",
+      "title": "Farmer registers a sensor and gets a device key",
+      "status": "not-written",
+      "fp": "5d0913459cf87c5e99c757e8"
+    },
+    {
+      "id": "S-004",
+      "title": "Valid key is accepted, bad key is rejected",
+      "status": "not-written",
+      "fp": "14edbaa2bc3a2dbd49461646"
+    },
+    {
+      "id": "S-005",
+      "title": "Revoked key stops working",
+      "status": "not-written",
+      "fp": "9dedeebfcdf44412327584d3"
+    },
+    {
+      "id": "S-006",
+      "title": "Simulator fills each sensor with readings",
+      "status": "not-written",
+      "fp": "3d88f0dcba998d4d0c899a67"
+    },
+    {
+      "id": "S-007",
+      "title": "Calibrated dry soil and no rain gives Water today",
+      "status": "not-written",
+      "fp": "25cc2f512eaf2667f5396d81"
+    },
+    {
+      "id": "S-008",
+      "title": "Calibrated dry soil but rain coming gives Wait",
+      "status": "not-written",
+      "fp": "51d7ea3373ae807a9ba8cb68"
+    },
+    {
+      "id": "S-009",
+      "title": "Planting weeks are ranked with reasons",
+      "status": "not-written",
+      "fp": "5a3332fd355894239eabcafd"
+    },
+    {
+      "id": "S-010",
+      "title": "Watering alert can be marked done",
+      "status": "not-written",
+      "fp": "a40e953092a0bcd28b2788a3"
+    },
+    {
+      "id": "S-011",
+      "title": "Farmers cannot see each other's data",
+      "status": "passed",
+      "fp": "944949036d58d6987a395f4b"
+    },
+    {
+      "id": "S-012",
+      "title": "Only the six reading types are accepted",
+      "status": "not-written",
+      "fp": "120993ec2c564b34306eeb91"
+    },
+    {
+      "id": "S-013",
+      "title": "Out-of-range pH shows a soil warning",
+      "status": "not-written",
+      "fp": "732a69261dd77307d31e24ad"
+    },
+    {
+      "id": "S-014",
+      "title": "In-range soil pH shows no pH warning",
+      "status": "not-written",
+      "fp": "4c6272bb394009d96dd932b9"
+    },
+    {
+      "id": "S-015",
+      "title": "Stale readings give No recent reading",
+      "status": "not-written",
+      "fp": "f8ad628f3f10536f0a095efa"
+    },
+    {
+      "id": "S-016",
+      "title": "Cold forecast at a sourced crop stage shows a frost warning",
+      "status": "not-written",
+      "fp": "ddc7a160660c361fb356ae50"
+    },
+    {
+      "id": "S-017",
+      "title": "Mild forecast above the sourced crop-stage threshold shows no frost warning",
+      "status": "not-written",
+      "fp": "4d365349c6cfb70b1d28fc67"
+    },
+    {
+      "id": "S-018",
+      "title": "Repeat visits do not duplicate the watering alert",
+      "status": "not-written",
+      "fp": "f9f4c0f3534dc8cc0ed7c7bd"
+    },
+    {
+      "id": "S-019",
+      "title": "Farmer signs in and opens their farm",
+      "status": "passed",
+      "fp": "cc42d45352d0d6e3d3b0c381"
+    },
+    {
+      "id": "S-020",
+      "title": "Wrong password is rejected",
+      "status": "passed",
+      "fp": "d77b411d83ce330d2c3609a5"
+    },
+    {
+      "id": "S-021",
+      "title": "Sign out leaves the farm",
+      "status": "passed",
+      "fp": "291a7173e59159c9a11417dd"
+    },
+    {
+      "id": "S-022",
+      "title": "Farmer adds and removes a field from their profile",
+      "status": "passed",
+      "fp": "188dc1f830f89305a5d29b5a"
+    },
+    {
+      "id": "S-023",
+      "title": "Profile details are saved",
+      "status": "passed",
+      "fp": "b68e25bc811ff2894a8850d3"
+    }
+  ],
+  "passed": 7,
+  "failed": 16,
+  "counts": {
+    "passed": 7,
+    "failed": 0,
+    "notWritten": 16,
+    "needsHelp": 0,
+    "skipped": 0,
+    "changedChecks": 0
+  },
+  "acceptedChanges": [],
+  "testCopy": true
+}

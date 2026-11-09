@@ -1,6 +1,7 @@
 import { ApiError, authApi, farmApi, type ApiUser, type ApiProfile } from './api';
 import { clearFarmScope, F, hydrateFields } from './seed/simulate';
 import { S } from './state';
+import { loadLiveData } from './live';
 import type { Crop } from './types';
 
 function applyProfile(user: ApiUser, profile: ApiProfile) {
@@ -39,6 +40,7 @@ async function loadFarmData() {
   hydrateFields(fields);
   S.sel = fields[0]?.id ?? '';
   S.fd = fields[0]?.id ?? null;
+  await loadLiveData();
 }
 
 function authFail(e: unknown, fallback: string) {
@@ -120,6 +122,9 @@ export async function signOut() {
   S.sel = '';
   S.fd = null;
   S.cropByName = {};
+  S.liveWeather = null;
+  S.liveAdvice = {};
+  S.liveAlerts = [];
   clearFarmScope();
 }
 
@@ -133,4 +138,5 @@ export async function refreshFields() {
   hydrateFields(fields);
   if (!F.some((f) => f.id === S.sel)) S.sel = fields[0]?.id ?? '';
   if (S.fd && !F.some((f) => f.id === S.fd)) S.fd = fields[0]?.id ?? null;
+  await loadLiveData();
 }

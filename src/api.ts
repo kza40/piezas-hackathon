@@ -126,4 +126,48 @@ export const farmApi = {
     body: { name: string; cropProfileId: string; acres?: number; stage?: string; soil?: string },
   ) => api<{ field: ApiField }>(`/api/farms/${farmId}/fields`, { method: 'POST', body: JSON.stringify(body) }),
   deleteField: (fieldId: string) => api<void>(`/api/fields/${fieldId}`, { method: 'DELETE' }),
+  getWeather: (farmId: string) =>
+    api<{ rainNext48hMm: number; overnightLowC: number; hours: { time: string; tempC: number; rainMm: number }[] }>(
+      `/api/farms/${farmId}/weather`,
+    ),
+  getAdvice: (fieldId: string) =>
+    api<{
+      watering: { status: string; label: string; reason: string };
+      soilWarning: string | null;
+      frostWarning: string | null;
+      weather: { rainNext48hMm: number; overnightLowC: number };
+      alert: { id: string; message: string } | null;
+    }>(`/api/fields/${fieldId}/advice`),
+  listAlerts: (status?: 'open' | 'done') =>
+    api<{ alerts: { id: string; fieldId: string; message: string; status: string; createdAt: string; doneAt: string | null }[] }>(
+      status ? `/api/alerts?status=${status}` : '/api/alerts',
+    ),
+  markAlertDone: (alertId: string) =>
+    api<{ alert: { id: string; status: string } }>(`/api/alerts/${alertId}/done`, { method: 'POST' }),
+  listSensors: (fieldId: string) =>
+    api<{ sensors: { id: string; name: string; keyStatus: string; latest: Record<string, { value: number; unit: string; time: string }>; createdAt: string }[] }>(
+      `/api/fields/${fieldId}/sensors`,
+    ),
+  getReadings: (fieldId: string, days = 7) =>
+    api<{ days: number; sensors: { sensorId: string; simulated: boolean; series: Record<string, { time: string; value: number }[]> }[] }>(
+      `/api/fields/${fieldId}/readings?days=${days}`,
+    ),
+  exportCsv: async (fieldId: string) => {
+    const res = await fetch(`/api/fields/${fieldId}/export`, { credentials: 'same-origin' });
+    if (!res.ok) {
+      if (res.status === 401) onUnauthorized?.();
+      throw await parseError(res);
+    }
+    const blob = await res.blob();
+    const match = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '');
+    const filename = match?.[1] ?? 'field-export.csv';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 };
+
+

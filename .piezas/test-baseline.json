@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "scenarios": {
+    "S-001": {
+      "checks": [
+        "expect(page.getByTestId('topbar')).toContainText('No farm yet')",
+        "expect(page.getByTestId('topbar')).toContainText('0 fields')"
+      ],
+      "scenarioFingerprint": "b5a567327428",
+      "files": [
+        "tests/scenarios/S-001-sign-up-empty-dashboard.spec.ts"
+      ],
+      "recordedAt": "2026-11-09T03:59:08.523Z"
+    },
+    "S-011": {
+      "checks": [
+        "expect(page.getByTestId('topbar')).toContainText('Willow Creek Farm')",
+        "expect(page.getByTestId('topbar')).toContainText('3 fields')",
+        "expect(overview).toContainText('North Wheat')",
+        "expect(overview).toContainText('East Canola')",
+        "expect(overview).not.toContainText('Blueberry Hill')",
+        "expect(overview).not.toContainText('West Oats')"
+      ],
+      "scenarioFingerprint": "3942b2b25cc0",
+      "files": [
+        "tests/scenarios/S-011-own-fields-only.spec.ts"
+      ],
+      "recordedAt": "2026-11-09T03:59:08.523Z"
+    },
+    "S-019": {
+      "checks": [
+        "expect(page.getByTestId('login-page')).toBeVisible()",
+        "expect(page.getByTestId('topbar')).toBeVisible()",
+        "expect(page.getByTestId('topbar')).toContainText('Willow Creek Farm')"
+      ],
+      "scenarioFingerprint": "f90928bf16b2",
+      "files": [
+        "tests/scenarios/S-019-farmer-signs-in.spec.ts"
+      ],
+      "recordedAt": "2026-11-09T03:59:08.523Z"
+    },
+    "S-020": {
+      "checks": [
+        "expect(signUp.status()).toBe(201)",
+        "expect(page.getByTestId('login-page')).toBeVisible()",
+        "expect(page.getByTestId('login-error')).toBeVisible()"
+      ],
+      "scenarioFingerprint": "f924aab01462",
+      "files": [
+        "tests/scenarios/S-020-wrong-password.spec.ts"
+      ],
+      "recordedAt": "2026-11-09T03:59:08.523Z"
+    },
+    "S-021": {
+      "checks": [
+        "expect(page.getByTestId('topbar')).toBeVisible()",
+        "expect(page.getByTestId('login-page')).toBeVisible()",
+        "expect(page.getByTestId('topbar')).toHaveCount(0)",
+        "expect(page.getByTestId('login-page')).toBeVisible()",
+        "expect(page.getByTestId('topbar')).toHaveCount(0)"
+      ],
+      "scenarioFingerprint": "e0c098c53b18",
+      "files": [
+        "tests/scenarios/S-021-sign-out.spec.ts"
+      ],
+      "recordedAt": "2026-11-09T03:59:08.523Z"
+    },
+    "S-022": {
+      "checks": [
+        "expect(page.getByTestId('topbar')).toBeVisible()",
+        "expect(page.getByTestId('create-farm-form')).toBeVisible()",
+        "expect(page.getByTestId('add-field-form')).toBeVisible({timeout: 15000})",
+        "expect(page.getByTestId('my-fields')).toContainText('South Pasture')",
+        "expect(page.getByTestId('topbar')).toContainText('1 field')",
+        "expect(page.getByTestId('my-fields')).not.toContainText('South Pasture')",
+        "expect(page.getByTestId('topbar')).toContainText('0 fields')"
+      ],
+      "scenarioFingerprint": "fa099bc28f90",
+      "files": [
+        "tests/scenarios/S-022-add-field.spec.ts"
+      ],
+      "recordedAt": "2026-11-09T03:59:08.523Z"
+    },
+    "S-023": {
+      "checks": [
+        "expect(page.getByText('Profile saved')).toBeVisible()",
+        "expect(page.getByTestId('profile-name')).toHaveValue('Sam Example')",
+        "expect(page.getByTestId('profile-phone')).toHaveValue('+1 604 555 0123')"
+      ],
+      "scenarioFingerprint": "7bd88ea6a94d",
+      "files": [
+        "tests/scenarios/S-023-save-profile-details.spec.ts"
+      ],
+      "recordedAt": "2026-11-09T03:59:08.523Z"
+    }
+  },
+  "history": []
+}

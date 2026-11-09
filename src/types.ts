@@ -159,4 +159,52 @@ export interface AppState {
   log: WaterLogEntry[];
   /** Crop profiles from the API (id → profile), loaded after sign-in. */
   cropByName: Partial<Record<Crop, string>>;
+  liveWeather: LiveWeather | null;
+  liveAdvice: Record<string, LiveAdvice>;
+  liveAlerts: LiveAlert[];
+  liveSensors: Record<string, LiveSensor[]>;
+  liveMoistureSeries: Record<string, number[]>;
+  liveHistory: Record<string, LiveHistory>;
+}
+
+export interface LiveWeather {
+  rainNext48hMm: number;
+  overnightLowC: number;
+  hours: { time: string; tempC: number; rainMm: number }[];
+}
+export interface LiveAdvice {
+  label: string;
+  reason: string;
+  soilWarning: string | null;
+  frostWarning: string | null;
+}
+export interface LiveAlert {
+  id: string;
+  fieldId: string;
+  message: string;
+  createdAt: string;
+}
+
+
+export interface LiveHistorySensor {
+  id: string;
+  name: string;
+  ageHours: number;
+  vals: Partial<Record<MetricKey, (number | null)[]>>;
+}
+export interface LiveHistory {
+  /** Hour keys YYYY-MM-DDTHH, oldest → newest. */
+  hours: string[];
+  rain: number[];
+  sensors: LiveHistorySensor[];
+}
+export interface LiveSensor {
+  id: string;
+  name: string;
+  m: number | null;
+  st: number | null;
+  ph: number | null;
+  h: number | null;
+  online: boolean;
+  ageHours: number;
 }

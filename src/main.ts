@@ -1,5 +1,6 @@
 import './styles.css';
 import { ApiError, farmApi, profileApi, setUnauthorizedHandler } from './api';
+import { refreshLiveData } from './live';
 import { refreshFields, restoreSession, signIn, signOut, signUp } from './auth';
 import { F, fld } from './seed/simulate';
 import { S, saveCards, saveLog, saveOffsets } from './state';
@@ -67,11 +68,20 @@ function render() {
     return;
   }
   main.className = 'mp';
-  const left = (F.length ? fieldCard() : '') + todayCard() + legendCard(S.ly);
-  const right = profileCard() + alertsCard() + actionsCard() + weatherCard();
+  // One scrollable side rail (farmer-first). Map stays free of floating cards.
+  const rail = (
+    todayCard() +
+    (F.length ? fieldCard() : '') +
+    alertsCard() +
+    weatherCard() +
+    profileCard()
+  );
   keepScroll(() => {
     const overlays = `${S.panel ? panel(S.panel) : ''}${dock()}`;
-    main.innerHTML = `<div class=board>${topBar()}<div class='stage${S.bare ? ' bare' : ''}'>${map(left, right, overlays)}</div></div>${modal}${toast}`;
+    const side = S.bare
+      ? ''
+      : `<aside class='rail' data-scroll=rail data-testid=side-rail>${rail}</aside>`;
+    main.innerHTML = `<div class='board${S.bare ? ' bare' : ''}'>${topBar()}<div class=workspace><div class=stage>${map()}${overlays}</div>${side}</div></div>${modal}${toast}`;
   });
   const host = document.getElementById('m3');
   if (host) mount3D(host, pickField);
@@ -79,6 +89,10 @@ function render() {
 
 function pickField(id: FieldId) {
   S.sel = id;
+  if (!id) {
+    S.wm = null;
+    return render();
+  }
   if (S.min.field) {
     delete S.min.field;
     saveCards();
@@ -183,6 +197,15 @@ async function act(node: ActionElement, target: Element) {
     case 'gf':
       S.wm = null;
       return go('field', d.id);
+    case 'showfield': {
+      if (d.id) S.sel = d.id as FieldId;
+      S.bare = false;
+      if (S.min.field) delete S.min.field;
+      saveCards();
+      render();
+      document.querySelector('[data-testid=card-field]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      return;
+    }
     case 'pk':
       if (S.moved) return;
       S.sel = d.id as FieldId;
@@ -200,9 +223,20 @@ async function act(node: ActionElement, target: Element) {
     case 'done':
       S.done[Number(d.rid)] = true;
       return say('Marked done');
-    case 'dis':
-      S.dis[Number(d.aid)] = true;
+    case 'dis': {
+      const aid = d.aid ?? '';
+      if (S.farmerId && aid && Number.isNaN(Number(aid))) {
+        try {
+          await farmApi.markAlertDone(aid);
+          await refreshLiveData();
+          return say('Alert marked done');
+        } catch (e) {
+          return say(e instanceof ApiError ? e.message : 'Could not update alert');
+        }
+      }
+      S.dis[Number(aid)] = true;
       return render();
+    }
     case 'say':
       return say(d.t ?? '');
     case 'flt':
@@ -293,6 +327,15 @@ async function act(node: ActionElement, target: Element) {
         return say(`Added ${field.name} to your farm`);
       } catch (e) {
         return say(e instanceof ApiError ? e.message : 'Could not add field');
+      }
+    }
+    case 'export': {
+      if (!S.farmerId || !S.sel) return say('Pick a field first');
+      try {
+        await farmApi.exportCsv(S.sel);
+        return say('Downloaded CSV (last 14 days)');
+      } catch (e) {
+        return say(e instanceof ApiError ? e.message : 'Could not export');
       }
     }
     case 'rmf': {

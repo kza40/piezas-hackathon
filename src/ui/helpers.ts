@@ -27,6 +27,10 @@ export const mix = (a: number[], b: number[], t: number) => {
 };
 
 export const ws = (f: Field): WaterState => {
+  const label = S.liveAdvice[f.id]?.label;
+  if (label === 'Water today') return 'now';
+  if (label === 'Wait') return 'rain';
+  if (label === 'No recent reading') return 'soon';
   const lo = f.mi[0];
   if (f.m < lo) return f.m >= lo - 3 ? 'rain' : 'now';
   return f.stMax > 20 || f.m < lo + 4 ? 'soon' : 'none';
@@ -56,7 +60,19 @@ export const lastWatered = (id: FieldId) => {
 export const moistureTint = (m: number) => mix([176, 86, 42], [55, 118, 168], Math.max(0, Math.min(1, (m - 14) / 34)));
 
 /** Alerts for this farmer's fields, plus farm-wide weather notices. */
-export const openAlerts = () => AL.filter((a) => !S.dis[a.id] && a.l !== 'in' && ownsSeedRef(a.f));
+export const openAlerts = () => {
+  if (S.farmerId) {
+    return S.liveAlerts.map((a, i) => ({
+      id: i + 1,
+      l: 'wn' as const,
+      t: 'Watering alert',
+      f: a.fieldId,
+      d: a.message,
+      ago: new Date(a.createdAt).toLocaleString('en', { month: 'short', day: 'numeric', hour: 'numeric' }),
+    }));
+  }
+  return AL.filter((a) => !S.dis[a.id] && a.l !== 'in' && ownsSeedRef(a.f));
+};
 
 export const firstName = () => S.name.split(' ')[0] ?? '';
 export const initials = () =>
