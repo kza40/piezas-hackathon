@@ -10,8 +10,11 @@ export const pill = (k: Level) => `<span class="pill ${k}">${HL[k][1]} ${HL[k][0
 
 export const T = (c: number) => (S.units === '°F' ? Math.round((c * 9) / 5 + 32) + '°F' : c + '°C');
 
-export const demo =
-  '<div class="demo">Demo data: every reading, forecast and alert here is simulated. No real sensors or weather service are connected.</div>';
+/** What on this page is simulated. Signed in, only the sensors are: the weather is the farm's live forecast. */
+export const demo = () =>
+  S.farmerId
+    ? '<div class="demo">Demo farm: the sensor readings are simulated, since no real probes are connected yet. The weather is the live forecast for this farm.</div>'
+    : '<div class="demo">Demo data: every reading, forecast and alert here is simulated. No real sensors or weather service are connected.</div>';
 
 export function rng(v: number, r: Range): string {
   const span = r[1] * 1.4 - r[0] * 0.5;

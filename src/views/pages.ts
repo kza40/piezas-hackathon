@@ -123,7 +123,7 @@ export function login(): string {
 
 export function dashboard(): string {
   if (!F.length) {
-    return `${demo}<p class=kick>Welcome, ${esc(firstName())}</p><h1 class=mast>No farm yet.</h1><p class=mut>Create a farm with a map pin (latitude and longitude) from your profile, then add fields.</p><p><button class=btn data-act=go data-p=profile data-testid=empty-goto-profile>Set up my farm</button></p>`;
+    return `${demo()}<p class=kick>Welcome, ${esc(firstName())}</p><h1 class=mast>No farm yet.</h1><p class=mut>Create a farm with a map pin (latitude and longitude) from your profile, then add fields.</p><p><button class=btn data-act=go data-p=profile data-testid=empty-goto-profile>Set up my farm</button></p>`;
   }
   const Ls = byUrgency();
   if (!S.fd) S.fd = Ls[0].id;
@@ -155,7 +155,7 @@ export function dashboard(): string {
       ? `Blue bars are mm of rain per day. Wettest: ${wet.map((d) => `${d.label} (${d.mm} mm)`).join(', ')}. ${liveWx.rainNext48hMm.toFixed(1)} mm expected in the next 48h.`
       : `Blue bars are mm of rain per day. ${liveWx.rainNext48hMm.toFixed(1)} mm expected in the next 48h.`
     : 'Blue bars show the chance of rain. Set a farm location to load your forecast.';
-  return `${demo}<p class=kick>Good morning, ${esc(firstName())} · ${esc(S.farm)}</p><h1 class=mast>${n ? `Water ${n} field${n > 1 ? 's' : ''} today.` : 'Nothing to water today.'}</h1>${feat(f)}<h2 class=sh>All fields at a glance</h2><div class=tiles>${Ls.map(tile).join('')}</div><h2 class=sh>The week ahead</h2><div class='blk cream'><div class=wk>${weekBars}</div><p>${weekNote}</p></div><div class='grid g2' style='margin-top:14px'><div class='blk orange' style='margin:0'><h2>Needs you</h2>${alertItems(3)}<button class=btn data-act=go data-p=alerts>All ${open.length} alerts</button></div><div class='blk lime row' style='margin:0;justify-content:flex-start;gap:20px'><div class=ring style='background:conic-gradient(#1b2229 0 ${(healthy / F.length) * 100}%,rgba(6,33,15,.2) 0)'><b>${healthy}/${F.length}</b></div><div><h2>Fields healthy</h2><p>${F.filter((x) => x.hl !== 'ok')
+  return `${demo()}<p class=kick>Good morning, ${esc(firstName())} · ${esc(S.farm)}</p><h1 class=mast>${n ? `Water ${n} field${n > 1 ? 's' : ''} today.` : 'Nothing to water today.'}</h1>${feat(f)}<h2 class=sh>All fields at a glance</h2><div class=tiles>${Ls.map(tile).join('')}</div><h2 class=sh>The week ahead</h2><div class='blk cream'><div class=wk>${weekBars}</div><p>${weekNote}</p></div><div class='grid g2' style='margin-top:14px'><div class='blk orange' style='margin:0'><h2>Needs you</h2>${alertItems(3)}<button class=btn data-act=go data-p=alerts>All ${open.length} alerts</button></div><div class='blk lime row' style='margin:0;justify-content:flex-start;gap:20px'><div class=ring style='background:conic-gradient(#1b2229 0 ${(healthy / F.length) * 100}%,rgba(6,33,15,.2) 0)'><b>${healthy}/${F.length}</b></div><div><h2>Fields healthy</h2><p>${F.filter((x) => x.hl !== 'ok')
     .map((x) => x.name)
     .join(', ')} need a look.</p></div></div></div><h2 class=sh>Fields &amp; sensors</h2><div class=row style='justify-content:flex-start;gap:24px'><div class=fn style='font-size:clamp(4rem,10vw,7rem);color:var(--g)'>${sum((x) => x.s[0])}<span>/${sum((x) => x.s[1])}</span></div><div><p>${sum((x) => x.s[0])} of ${sum((x) => x.s[1])} sensors reporting · average soil moisture ${avg}%.</p><button class='btn alt' data-act=go data-p=field>Open fields &amp; sensors</button></div></div>`;
 }
@@ -212,7 +212,7 @@ const waterLog = (f: Field) => {
 
 export function field(): string {
   if (!F.length) {
-    return `${demo}<h1>Fields &amp; sensors</h1><p class=mut>No fields yet. Create a farm and add a field from your profile.</p><button class=btn data-act=go data-p=profile>Open profile</button>`;
+    return `${demo()}<h1>Fields &amp; sensors</h1><p class=mut>No fields yet. Create a farm and add a field from your profile.</p><button class=btn data-act=go data-p=profile>Open profile</button>`;
   }
   const f = fld(S.sel);
   const r = S.farmerId ? null : REC.find((x) => x.f === f.id || x.f === f.layout);
@@ -236,13 +236,13 @@ export function field(): string {
       ? `<div class='blk orange'><h2>Recommended action</h2><p><b>${r.t}</b></p><p>${r.w}</p><p>${r.c}</p></div>`
       : `<div class='blk lime'><h2>Recommended action</h2><p class=mut>Advice loading…</p></div>`;
   const metricTabs = MET.map((m) => `<button aria-pressed=${m.key === S.mk} data-act=mk data-k=${m.key}>${m.name}</button>`).join('');
-  return `${demo}<h1>Fields &amp; sensors</h1><p class=mut>Readings, history and watering for each parcel — in one place.</p><p><button class='btn alt sm' data-act=export data-testid=export-csv>Download last 14 days (CSV)</button></p>${fieldTabs()}${feat(f)}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>Sensor history</h2><div class=tabs>${metricTabs}</div>${history(f)}${live ? eventsCard(f, live) : waterLog(f)}`;
+  return `${demo()}<h1>Fields &amp; sensors</h1><p class=mut>Readings, history and watering for each parcel — in one place.</p><p><button class='btn alt sm' data-act=export data-testid=export-csv>Download last 14 days (CSV)</button></p>${fieldTabs()}${feat(f)}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>Sensor history</h2><div class=tabs>${metricTabs}</div>${history(f)}${live ? eventsCard(f, live) : waterLog(f)}`;
 }
 
 export function weather(): string {
   const live = S.liveWeather;
   if (!live) {
-    return `${demo}<h1>Weather and your fields</h1><p class=mut>Sign in and set a farm location to load the forecast.</p>`;
+    return `${demo()}<h1>Weather and your fields</h1><p class=mut>Sign in and set a farm location to load the forecast.</p>`;
   }
   const now = live.hours[0];
   // One card per local day of the forecast (a whole day's rain and its low, not one hour's reading).
@@ -256,7 +256,7 @@ export function weather(): string {
   const frost = live.overnightLowC <= 2
     ? `Frost risk: overnight low ${T(live.overnightLowC)}.`
     : `No hard frost expected. Overnight low ${T(live.overnightLowC)}.`;
-  return `${demo}<h1>Weather and your fields</h1><div class='grid g2' style='margin:14px 0'><div class='blk cream' style='margin:0'><h3>Next 48 hours</h3><p>Rain: ${live.rainNext48hMm.toFixed(1)} mm<br>${frost}</p></div><div class='blk lime' style='margin:0'><h3>Now</h3><p>${now ? T(now.tempC) : '—'} · ${now ? `${now.rainMm.toFixed(1)} mm this hour` : '—'}</p></div></div><div class="card"><div class="big">${now ? T(now.tempC) : '—'}</div><p class="mut">Farm forecast · ${live.rainNext48hMm.toFixed(1)} mm rain in 48h</p></div>
+  return `${demo()}<h1>Weather and your fields</h1><div class='grid g2' style='margin:14px 0'><div class='blk cream' style='margin:0'><h3>Next 48 hours</h3><p>Rain: ${live.rainNext48hMm.toFixed(1)} mm<br>${frost}</p></div><div class='blk lime' style='margin:0'><h3>Now</h3><p>${now ? T(now.tempC) : '—'} · ${now ? `${now.rainMm.toFixed(1)} mm this hour` : '—'}</p></div></div><div class="card"><div class="big">${now ? T(now.tempC) : '—'}</div><p class="mut">Farm forecast · ${live.rainNext48hMm.toFixed(1)} mm rain in 48h</p></div>
 <h2 style="margin:18px 0 8px">Ahead</h2><div class="days">${dayCards}</div>
 <div class="card" style="margin-top:14px"><h3>What this means for your fields</h3>${F.map((f) => {
   const a = S.liveAdvice[f.id];
@@ -271,7 +271,7 @@ export function recs(): string {
       if (!a) return '';
       return `<div class="card" style="margin-bottom:12px"><div class="row"><div style="display:flex;gap:8px;align-items:center">${can(ws(field), 34)}${pill(a.label === 'Water today' ? 'cr' : a.label === 'Wait' ? 'wn' : 'ok')}</div><button class="btn alt" data-act="go" data-p="field" data-id="${field.id}">${esc(field.name)}</button></div><h2 style="margin:8px 0">${esc(a.label)}</h2><p>${esc(a.reason)}</p>${a.soilWarning ? `<p class="mut">${esc(a.soilWarning)}</p>` : ''}${a.frostWarning ? `<p class="mut">${esc(a.frostWarning)}</p>` : ''}</div>`;
     }).join('');
-    return `${demo}<h1>Recommended actions</h1><p class="mut">From live advice for each field.</p>${cards || '<p class=mut>No advice yet — check sensors and farm location.</p>'}`;
+    return `${demo()}<h1>Recommended actions</h1><p class="mut">From live advice for each field.</p>${cards || '<p class=mut>No advice yet — check sensors and farm location.</p>'}`;
   }
   const cards = REC.filter((r) => ownsSeedRef(r.f)).map((r) => {
     const field = F.find((f) => f.id === r.f || f.layout === r.f) ?? fld(r.f);
@@ -281,7 +281,7 @@ export function recs(): string {
       : `<button class="btn" data-act="done" data-rid="${r.id}">Mark as done</button>`;
     return `<div class="card" style="margin-bottom:12px"><div class="row"><div style="display:flex;gap:8px;align-items:center">${can(ws(field), 34)}${pill(r.p === 'in' ? 'ok' : r.p)}</div><button class="btn alt" data-act="go" data-p="field" data-id="${field.id}">${esc(field.name)}</button></div><h2 style="margin:8px 0">${done ? '<s>' + r.t + '</s>' : r.t}</h2><p>${r.w}</p><p class="mut">${r.c}</p>${actions}</div>`;
   }).join('');
-  return `${demo}<h1>Recommended actions</h1><p class="mut">Ordered by how soon each one matters.</p>${cards}`;
+  return `${demo()}<h1>Recommended actions</h1><p class="mut">Ordered by how soon each one matters.</p>${cards}`;
 }
 
 export function alerts(): string {
@@ -296,14 +296,14 @@ export function alerts(): string {
           })
           .join('')
       : '<p class=mut>Nothing needs your attention.</p>';
-    return `${demo}<h1>Alerts</h1><p class="mut">Open alerts from the advice engine.</p>${list}`;
+    return `${demo()}<h1>Alerts</h1><p class="mut">Open alerts from the advice engine.</p>${list}`;
   }
   const L = AL.filter((a) => !S.dis[a.id] && (S.flt === 'all' || a.l === S.flt) && ownsSeedRef(a.f));
   const list = L.map((a) => {
     const field = a.f ? F.find((f) => f.id === a.f || f.layout === a.f) : null;
     return `<div class="card" style="margin-bottom:10px"><div class="row">${pill(a.l)}<button class="btn alt" data-act="dis" data-aid="${a.id}">Dismiss</button></div><h2 style="margin:8px 0 4px">${a.t}</h2><p>${a.d}</p><p class="mut">${field ? esc(field.name) + ' · ' : ''}${a.ago}</p></div>`;
   }).join('');
-  return `${demo}<h1>Alerts</h1>${list || '<p class=mut>Nothing needs your attention.</p>'}`;
+  return `${demo()}<h1>Alerts</h1>${list || '<p class=mut>Nothing needs your attention.</p>'}`;
 }
 
 export function settings(): string {
@@ -317,7 +317,7 @@ export function settings(): string {
     (f) =>
       `<tr><td>${esc(f.name)}</td><td>${f.s[0]} of ${f.s[1]}</td><td><button class="btn alt" data-act="say" data-t="Pairing is not available in this demo">Add sensor</button></td></tr>`,
   ).join('');
-  return `${demo}<h1>Settings</h1><div class="stack"><div class="card"><h3>Farm</h3><label for="fn2">Farm name</label><input id="fn2" data-bind="farm" value="${esc(S.farm)}"><label for="un">Temperature units</label><select id="un" data-bind="units"><option ${S.units === '°C' ? 'selected' : ''}>°C</option><option ${S.units === '°F' ? 'selected' : ''}>°F</option></select><p><button class="btn" data-act="say" data-t="Settings saved">Save changes</button></p></div>
+  return `${demo()}<h1>Settings</h1><div class="stack"><div class="card"><h3>Farm</h3><label for="fn2">Farm name</label><input id="fn2" data-bind="farm" value="${esc(S.farm)}"><label for="un">Temperature units</label><select id="un" data-bind="units"><option ${S.units === '°C' ? 'selected' : ''}>°C</option><option ${S.units === '°F' ? 'selected' : ''}>°F</option></select><p><button class="btn" data-act="say" data-t="Settings saved">Save changes</button></p></div>
 <div class="card"><h3>Notifications</h3>${notify}</div>
 <div class="card"><h3>Sensors</h3><table><tr><th>Field</th><th>Online</th><th></th></tr>${sensors}</table></div><p><button class="btn alt" data-act="out" data-testid="settings-sign-out">Sign out</button></p></div>`;
 }
@@ -335,7 +335,7 @@ export function profile(): string {
   const add = S.farmId
     ? `<div class=add-field data-testid=add-field-form><h3>Add a field</h3><p class=mut>Saved on the server. New parcels show on your map with demo sensors until real ones are wired.</p><label for=afn>Field name</label><input id=afn placeholder="South pasture" data-testid=add-field-name><label for=afc>Crop</label><select id=afc data-testid=add-field-crop>${cropOpts}</select><label for=afa>Acres</label><input id=afa type=number min=1 max=500 step=1 value=40 data-testid=add-field-acres><button class=btn type=button data-act=af data-testid=add-field-submit>Add field to my farm</button></div>`
     : '';
-  return `${demo}<h1>Your profile</h1><div class='grid g2'><div class=card><div class=row style='justify-content:flex-start;gap:16px'><div class=av>${esc(initials())}</div><div><h2>${esc(S.name)}</h2><span class=mut>${esc(S.role)} · ${esc(S.farm || 'No farm yet')}</span></div></div><label for=pn>Your name</label><input id=pn data-bind=name value="${esc(S.name)}" data-testid=profile-name><label for=pp>Phone</label><input id=pp data-bind=phone value="${esc(S.phone)}" data-testid=profile-phone><label for=pf>Farm name</label><input id=pf data-bind=farm value="${esc(S.farm)}" ${S.farmId ? 'disabled' : ''}><label for=pr>Your role</label><select id=pr data-bind=role>${roles}</select>${farmForm}<p><button class=btn data-act=savep data-testid=save-profile>Save profile</button></p></div><div class=card data-testid=my-fields><h3>My fields (${F.length})</h3><p class=mut>Open a field on the map, or remove it from your farm.</p><div class=field-list>${fields || '<p class=mut>No fields yet. Add one below.</p>'}</div>${add}<p style='margin-top:14px'><button class='btn alt' data-act=go data-p=settings>Notifications and sensors</button> <button class='btn alt' data-act=out>Sign out</button></p></div></div>`;
+  return `${demo()}<h1>Your profile</h1><div class='grid g2'><div class=card><div class=row style='justify-content:flex-start;gap:16px'><div class=av>${esc(initials())}</div><div><h2>${esc(S.name)}</h2><span class=mut>${esc(S.role)} · ${esc(S.farm || 'No farm yet')}</span></div></div><label for=pn>Your name</label><input id=pn data-bind=name value="${esc(S.name)}" data-testid=profile-name><label for=pp>Phone</label><input id=pp data-bind=phone value="${esc(S.phone)}" data-testid=profile-phone><label for=pf>Farm name</label><input id=pf data-bind=farm value="${esc(S.farm)}" ${S.farmId ? 'disabled' : ''}><label for=pr>Your role</label><select id=pr data-bind=role>${roles}</select>${farmForm}<p><button class=btn data-act=savep data-testid=save-profile>Save profile</button></p></div><div class=card data-testid=my-fields><h3>My fields (${F.length})</h3><p class=mut>Open a field on the map, or remove it from your farm.</p><div class=field-list>${fields || '<p class=mut>No fields yet. Add one below.</p>'}</div>${add}<p style='margin-top:14px'><button class='btn alt' data-act=go data-p=settings>Notifications and sensors</button> <button class='btn alt' data-act=out>Sign out</button></p></div></div>`;
 }
 
 export function wateringModal(f: Field): string {
