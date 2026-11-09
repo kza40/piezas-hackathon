@@ -2,7 +2,9 @@
 import { expect, test } from '@playwright/test';
 import { createFarmAndField, registerSensor, signUp } from './helpers';
 
-test('S-006: simulator fills each sensor with readings and trends', async ({ page }) => {
+// Not runnable yet: the field page has no sensor panel yet (register sensor, one-time device key, send a reading, revoke, simulate).
+// Remove .fixme when that screen is built; this test is then its done check.
+test.fixme('S-006: simulator fills each sensor with readings and trends', async ({ page }) => {
   await signUp(page);
   await createFarmAndField(page);
   await page.getByTestId('field-card').filter({ hasText: 'Blueberry Field' }).getByTestId('open-field').click();
