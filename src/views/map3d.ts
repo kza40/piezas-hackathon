@@ -285,7 +285,7 @@ function hudHtml(f: Field): string {
     .map((s) => {
       const v = s.m == null ? '—' : `${Math.round(s.m)}%`;
       const tone = s.m == null ? '#b8b2a2' : moistureTint(s.m);
-      return `<div class=z3><i style='background:${tone}'></i><b>${s.id}</b><span>${v}</span><em>${s.online ? 'live' : `${s.age}h ago`}</em></div>`;
+      return `<div class=z3><i style='background:${tone}'></i><b>${esc(s.id)}</b><span>${v}</span><em>${s.online ? 'live' : `${s.age}h ago`}</em></div>`;
     })
     .join('');
   return `<p class=hud3-k>${esc(f.name)} · ${f.crop}</p><div class=hud3-grid><div><span>Avg moisture</span><b>${f.m}%</b></div><div><span>Air humidity</span><b>${f.h}%</b></div><div><span>Soil temp</span><b>${T(f.st)}</b></div><div><span>Last watered</span><b>${lastWatered(f.id)}</b></div></div><div class=hud3-leg aria-hidden=true><span>Dry</span><i></i><span>Wet</span><em>${Math.round(lo)}–${Math.round(hi)}% across field</em></div><p class=hud3-z>Moisture by sensor area</p>${rows}<button class='btn sm hud3-btn' data-act=showfield data-id=${f.id} data-testid=open-field-details>See field details →</button>`;
@@ -475,7 +475,7 @@ function sync(c: Ctx) {
       const s = ss[i];
       p.el.classList.add('on');
       if (!s) return;
-      p.el.innerHTML = `<b>${s.id}</b>${s.m == null ? '—' : `${Math.round(s.m)}%`}`;
+      p.el.innerHTML = `<b>${esc(s.id)}</b>${s.m == null ? '—' : `${Math.round(s.m)}%`}`;
       p.el.style.borderColor = s.m == null ? '#b8b2a2' : moistureTint(s.m);
     });
   }

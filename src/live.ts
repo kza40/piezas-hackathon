@@ -28,7 +28,7 @@ function applySensorsToField(fieldId: string, sensors: LiveSensor[]) {
   f.hl = f.m < lo - 5 ? 'cr' : f.m < lo ? 'wn' : 'ok';
 }
 
-/** Pull weather, alerts, advice, sensors, and moisture history from the API. */
+/** Pull weather, advice, sensors, then alerts (advice may open new ones). */
 export async function loadLiveData() {
   S.liveWeather = null;
   S.liveAdvice = {};
@@ -39,22 +39,15 @@ export async function loadLiveData() {
   if (!S.farmId) return;
   const now = Date.now();
   try {
-    const weatherP = farmApi.getWeather(S.farmId).catch(() => null);
-    const alertsP = farmApi.listAlerts('open').catch(() => ({ alerts: [] }));
-    const [weather, { alerts }] = await Promise.all([weatherP, alertsP]);
+    const weather = await farmApi.getWeather(S.farmId).catch(() => null);
     if (weather) S.liveWeather = weather;
-    S.liveAlerts = alerts.map((x) => ({
-      id: x.id,
-      fieldId: x.fieldId,
-      message: x.message,
-      createdAt: x.createdAt,
-    }));
 
     await Promise.all(
       F.map(async (f) => {
         try {
           const adv = await farmApi.getAdvice(f.id);
           S.liveAdvice[f.id] = {
+            status: adv.watering.status,
             label: adv.watering.label,
             reason: adv.watering.reason,
             soilWarning: adv.soilWarning,
@@ -104,6 +97,8 @@ export async function loadLiveData() {
             hourKeys.push(new Date(now - i * 36e5).toISOString().slice(0, 13));
           }
           const idx = new Map(hourKeys.map((h, i) => [h, i]));
+          // Forecast hours are "now onward" — they barely overlap this past window,
+          // so rain bars stay mostly empty unless a past precip source is added later.
           const rainByHour = new Map<string, number>();
           for (const h of S.liveWeather?.hours ?? []) {
             rainByHour.set(h.time.slice(0, 13), h.rainMm);
@@ -151,6 +146,19 @@ export async function loadLiveData() {
         }
       }),
     );
+
+    // After getAdvice (which may open alerts), refresh so new ones show immediately.
+    try {
+      const { alerts } = await farmApi.listAlerts('open');
+      S.liveAlerts = alerts.map((x) => ({
+        id: x.id,
+        fieldId: x.fieldId,
+        message: x.message,
+        createdAt: x.createdAt,
+      }));
+    } catch {
+      S.liveAlerts = [];
+    }
   } catch {
     /* keep UI usable */
   }

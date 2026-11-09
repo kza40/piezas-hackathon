@@ -173,6 +173,7 @@ export interface LiveWeather {
   hours: { time: string; tempC: number; rainMm: number }[];
 }
 export interface LiveAdvice {
+  status: string;
   label: string;
   reason: string;
   soilWarning: string | null;

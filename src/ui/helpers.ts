@@ -27,10 +27,14 @@ export const mix = (a: number[], b: number[], t: number) => {
 };
 
 export const ws = (f: Field): WaterState => {
-  const label = S.liveAdvice[f.id]?.label;
-  if (label === 'Water today') return 'now';
-  if (label === 'Wait') return 'rain';
-  if (label === 'No recent reading') return 'soon';
+  const a = S.liveAdvice[f.id];
+  if (a) {
+    if (a.status === 'water_today' || a.label === 'Water today') return 'now';
+    if (a.status === 'no_recent_reading' || a.label === 'No recent reading') return 'soon';
+    if (a.status === 'wait' || a.label === 'Wait') {
+      return /rain/i.test(a.reason) ? 'rain' : 'none';
+    }
+  }
   const lo = f.mi[0];
   if (f.m < lo) return f.m >= lo - 3 ? 'rain' : 'now';
   return f.stMax > 20 || f.m < lo + 4 ? 'soon' : 'none';

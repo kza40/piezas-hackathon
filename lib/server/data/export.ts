@@ -6,7 +6,9 @@ import { RETENTION_DAYS } from './history';
 import { READING_TYPES, type ReadingType } from '../readings';
 
 function csvCell(value: string | number | null | undefined): string {
-  const s = value == null ? '' : String(value);
+  let s = value == null ? '' : String(value);
+  // Stop spreadsheets treating cells as formulas
+  if (/^[=+\-@]/.test(s)) s = `'${s}`;
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
@@ -36,7 +38,8 @@ export async function exportFieldCsv(
   let rainNext48hMm: number | '' = '';
   let overnightLowC: number | '' = '';
   try {
-    const advice = await fieldAdvice(ownerId, fieldId, now);
+    // Read-only: do not open watering alerts from a CSV download
+    const advice = await fieldAdvice(ownerId, fieldId, now, { openAlerts: false });
     adviceLabel = advice.watering.label;
     adviceReason = advice.watering.reason;
     rainNext48hMm = advice.weather.rainNext48hMm;

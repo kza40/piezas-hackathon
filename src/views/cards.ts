@@ -88,7 +88,7 @@ export function fieldCard(): string {
   const zones = posts
     .map((s) => {
       const tone = s.m == null ? '#b8b2a2' : moistureTint(s.m);
-      return `<div class=zrow><i style='background:${tone}'></i><b>${s.id}</b><span>${s.m == null ? '—' : `${Math.round(s.m)}%`}</span><em class=mut>${s.online ? 'live' : `${s.age}h ago`}</em></div>`;
+      return `<div class=zrow><i style='background:${tone}'></i><b>${esc(s.id)}</b><span>${s.m == null ? '—' : `${Math.round(s.m)}%`}</span><em class=mut>${s.online ? 'live' : `${s.age}h ago`}</em></div>`;
     })
     .join('');
   const hero = `<div class=fhero style='background:${look.bg};color:${look.fg}'><div><div class=fn style='color:${look.n}'>${f.m}<span>%</span></div><div class=fsub>Soil moisture · ${trend}</div></div><button class=cb data-act=op data-id=${f.id} aria-label='Watering details'>${can(k, 48)}</button><p class=chip style='background:${look.fg};color:${look.bg}'><i style='background:${WS[k].h}'></i>${look.c}</p></div>`;
@@ -149,7 +149,7 @@ export function alertsCard(): string {
           const field = F.find((f) => f.id === a.fieldId);
           const where = field ? `<button class=lnk data-act=pk data-id=${field.id}>${esc(field.name)}</button> · ` : '';
           const when = new Date(a.createdAt).toLocaleString('en', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-          return `<div class=item><div style='flex:1'>${pill('wn')} <b>Watering alert</b><div class='mut tiny'>${where}${when}</div><div class=mut>${esc(a.message)}</div></div><button class='btn alt sm' data-act=dis data-aid=${a.id} aria-label='Mark alert done'>✕</bun></div>`;
+          return `<div class=item><div style='flex:1'>${pill('wn')} <b>Watering alert</b><div class='mut tiny'>${where}${when}</div><div class=mut>${esc(a.message)}</div></div><button class='btn alt sm' data-act=dis data-aid=${a.id} aria-label='Mark alert done'>✕</button></div>`;
         }).join('') + (open.length > 3 ? `<button class='btn alt sm' data-act=go data-p=alerts>See all ${open.length}</button>` : '')
       : '<p class=mut>Nothing needs your attention.</p>';
     return mapCard('alerts', 'Alerts', items, { count: open.length, sum: open.length ? `${open.length} open` : '', panel: 'alerts' });
@@ -161,7 +161,7 @@ export function alertsCard(): string {
         const where = field?.id ? `<button class=lnk data-act=pk data-id=${field.id}>${esc(field.name)}</button> · ` : '';
         return `<div class=item><div style='flex:1'>${pill(a.l)} <b>${a.t}</b><div class='mut tiny'>${where}${a.ago}</div><div class=mut>${a.d}</div></div><button class='btn alt sm' data-act=dis data-aid=${a.id} aria-label='Dismiss ${a.t}'>✕</button></div>`;
       }).join('') + (open.length > 3 ? `<button class='btn alt sm' data-act=go data-p=alerts>See all ${open.length}</button>` : '')
-    : '<p class=>Nothing needs your attention.</p>';
+    : '<p class=mut>Nothing needs your attention.</p>';
   const crit = open.filter((a) => a.l === 'cr').length;
   return mapCard('alerts', 'Alerts', items, { count: open.length, sum: crit ? `${crit} critical` : '', panel: 'alerts' });
 }

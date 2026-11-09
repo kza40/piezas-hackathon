@@ -166,7 +166,7 @@ const history = (f: Field) => {
               : (x.m ?? 99) < 20
                 ? `<span class='pill wn'>! Reads dry</span>`
                 : `<span class='pill ok'>✓ Online</span>`;
-        return `<tr><td><i style='dis:inline-block;width:12px;height:12px;background:${station ? '#232a33' : SERIES_COLORS[j % 4]};margin-right:6px'></i>${esc(x.name)}</td><td>${status}</td><td>${v ?? '—'}${met.unit}</td></tr>`;
+        return `<tr><td><i style='display:inline-block;width:12px;height:12px;background:${station ? '#232a33' : SERIES_COLORS[j % 4]};margin-right:6px'></i>${esc(x.name)}</td><td>${status}</td><td>${v ?? '—'}${met.unit}</td></tr>`;
       })
     : S.farmerId
       ? []
