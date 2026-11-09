@@ -11,4 +11,8 @@ test('S-021 sign out leaves the farm', async ({ page }) => {
   await page.getByTestId('settings-sign-out').click();
   await expect(page.getByTestId('login-page')).toBeVisible();
   await expect(page.getByTestId('topbar')).toHaveCount(0);
+  // Not just hidden: after a reload the server no longer knows the session, so the farm stays unreachable.
+  await page.reload();
+  await expect(page.getByTestId('login-page')).toBeVisible();
+  await expect(page.getByTestId('topbar')).toHaveCount(0);
 });

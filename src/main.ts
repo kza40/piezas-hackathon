@@ -365,9 +365,11 @@ document.addEventListener('input', (e) => {
 document.addEventListener('change', (e) => {
   const input = e.target as HTMLSelectElement;
   const key = input.dataset?.bind;
+  // Only the selects re-render. Text inputs are already stored on every keystroke (above), and
+  // re-rendering when one loses focus would replace the input the farmer is moving into.
   if (key === 'role') S.role = input.value;
   else if (key === 'units') S.units = input.value as Units;
-  else if (key !== 'farm' && key !== 'name' && key !== 'phone') return;
+  else return;
   render();
 });
 

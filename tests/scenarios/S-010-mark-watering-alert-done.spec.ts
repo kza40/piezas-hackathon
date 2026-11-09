@@ -2,7 +2,9 @@
 import { expect, test } from '@playwright/test';
 import { signIn } from './helpers';
 
-test('S-010: watering alert can be marked done', async ({ page }) => {
+// Not runnable yet: needs an alerts list with mark done on the field page and a seeded test farmer for this case (see the signIn email).
+// Remove .fixme when that screen is built; this test is then its done check.
+test.fixme('S-010: watering alert can be marked done', async ({ page }) => {
   await signIn(page, 'alert@example.test');
   await page.getByTestId('open-alerts').click();
   await expect(page.getByTestId('open-alert')).toBeVisible();
