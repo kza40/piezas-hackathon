@@ -71,7 +71,7 @@ export const openAlerts = () => {
       l: 'wn' as const,
       t: 'Watering alert',
       f: a.fieldId,
-      d: a.message,
+      d: esc(a.message), // holds farmer-typed sensor names; every view inserts d as HTML
       ago: new Date(a.createdAt).toLocaleString('en', { month: 'short', day: 'numeric', hour: 'numeric' }),
     }));
   }
