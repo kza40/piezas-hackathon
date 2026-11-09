@@ -17,7 +17,7 @@ const HOUR = 3_600_000;
 const LON = -122.3; // Fraser Valley
 const NOW = new Date('2026-11-12T19:20:00Z'); // 11:20 am farm time
 const crop = (name: string, phMin: number, phMax: number): CropAdviceProfile => ({ name, moistureMin: null, moistureMax: null, phMin, phMax, ecMax: null, frostRiskC: null });
-const CROPS = { blueberry: crop('Blueberries', 4.5, 5.2), alfalfa: crop('Alfalfa', 6.5, 7.5), wheat: crop('Wheat', 5.8, 6.5), barley: crop('Barley', 5.8, 6.5), canola: crop('Canola', NaN, NaN) };
+const CROPS = { blueberry: crop('Blueberries', 4.5, 5.2), alfalfa: crop('Alfalfa', 6.5, 7.5), wheat: crop('Wheat', 5.8, 6.5), barley: crop('Barley', 5.8, 6.5), canola: { ...crop('Canola', 0, 0), phMin: null, phMax: null } };
 
 const start = Math.floor(NOW.getTime() / HOUR) * HOUR;
 const dryOutlook: ForecastHour[] = Array.from({ length: 120 }, (_, i) => ({ time: new Date(start + (i + 1) * HOUR).toISOString(), tempC: 8, rainMm: 0, et0Mm: 0.04 }));

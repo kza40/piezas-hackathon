@@ -161,11 +161,13 @@ A soil-moisture reading through `/api/ingest` that is below an irrigated field's
 Weather comes from Open-Meteo (temperature, rain and FAO-56 ET0, the last 14 days and the next 5, cached for 30 minutes per location). Set `WEATHER_STUB_DIR=data/weather` (and optional `WEATHER_STUB_FORECAST`, `WEATHER_STUB_HISTORY`, `WEATHER_STUB_RECENT`) to use fixed files instead: the forecast file is moved to start at the current hour, and `recent.json` gives rain as hours before now. Planting history currently needs the stub `history.json` (live Open-Meteo history is not wired yet).
 ## Demo accounts (test app)
 
-`scripts/seed-demo.ts` has created the two demo farmers with their farms and fields, two sensors per field ("North probe", "South probe") and 14 days of simulated readings. Run it again right before a demo so the readings end at "now":
+`scripts/seed-demo.ts` creates the two demo farmers with their farms, fields, sensors and 14 days of simulated readings. Run it again right before a demo: readings end at "now" and Sam's farm is reset to its scenarios.
+
+Sam's farm is the showcase. Each field has a demo scenario (`lib/server/demo.ts`) and re-simulates itself when read after 3 hours, so it shows the same situations at any time of day. Its weather is a scripted dry spell (`lib/weather/demo.ts`, `farm.demoWeather`; the weather route returns `simulated: true`), so "Water today" shows whatever the real sky does. Jordan's farm uses the live forecast.
 
 | Email | Password | Farm | Fields |
 |---|---|---|---|
-| sam@willowcreekfarm.ca | `farm123-demo` | Willow Creek Farm | North Wheat, East Canola, South Barley |
+| sam@willowcreekfarm.ca | `farm123-demo` | Willow Creek Farm (Fraser Valley) | Bluecrop Block (Water today + alert), Duke Block (stuck probe), East Canola (offline), New Alfalfa (suggested trigger), River Alfalfa (water-by window), North Wheat (rain-fed, fine) |
 | jordan@mapleridge.ca | `oats456-demo` | Maple Ridge Farm | West Oats, Creek Alfalfa, Blueberry Hill |
 
 ## Changes the frontend needs to work with this (frontend's decision and code)

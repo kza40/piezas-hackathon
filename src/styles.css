@@ -335,5 +335,5 @@ svg g.ffield:hover .fzone {
 .chip-btn{border:2px solid var(--line);background:var(--card);color:var(--ink);border-radius:99px;padding:3px 12px;font-size:.85rem;font-weight:600;min-height:32px}
 .chip-btn[aria-pressed=true]{background:var(--g);border-color:var(--g);color:var(--bg)}
 .mtnote{display:block;margin-top:8px}
-/* Phones: an open page fills the screen under the top bar; the map keeps only the controls a thumb needs (pinch zooms, and the side panel already sits under the map). */
-@media(max-width:760px){.panel{position:fixed;top:40px;bottom:0;left:0;right:0;width:auto;max-width:none;transform:none;z-index:30;box-shadow:none;border:0}.mtr,.mpc:has(>[data-act=ed]),.mpc.note{display:none}}
+/* Phones: an open page fills the screen under the top bar (pop-ups and toasts stay above it); the map keeps only the controls a thumb needs (pinch zooms, and the side panel already sits under the map). */
+@media(max-width:760px){.panel{position:fixed;top:40px;bottom:0;left:0;right:0;width:auto;max-width:none;transform:none;z-index:30;box-shadow:none;border:0}.mtr,.mpc:has(>[data-act=ed]),.mpc.note{display:none}.mdl{z-index:40}.toast{z-index:41}}

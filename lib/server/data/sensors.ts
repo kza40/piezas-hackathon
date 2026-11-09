@@ -121,7 +121,8 @@ export async function deleteFieldSensors(ownerId: string, fieldId: string): Prom
 export async function simulateField(ownerId: string, fieldId: string, now = new Date()): Promise<Sensor[]> {
   const { field, farm, sensor } = await db();
   const f = await getOwned(field, fieldId, ownerId, 'Field');
-  const sensors = await listAll(sensor, { ownerId, fieldId });
+  // Oldest first: a demo scenario acts on sensors by position (the stuck probe is the third one registered).
+  const sensors = (await listAll(sensor, { ownerId, fieldId })).sort(oldestFirst);
   if (!sensors.length) throw badRequest('Register a sensor on this field first.');
   // A deleted crop profile simulates with generic ranges; any other failure is a real error.
   const crop = await getCropProfile(str(f.data.cropProfileId)).catch((e) => {
