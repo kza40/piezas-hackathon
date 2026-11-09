@@ -15,7 +15,7 @@ Provenance: idea and decisions from the team's planning chat, 2026-11-07.
 - R-006: A built-in simulator can generate realistic readings of all six reading types for a field's sensors in the same format as real devices. (source: team decision, simulated data first)
 - R-007: A field page shows, for each sensor, its latest reading of each type it reports and a trend over the last 7 days. (source: team decision, each sensor shown separately)
 - R-008: The app shows the weather forecast for the farm's location, including expected rain over the next 48 hours and the overnight low. (source: team decision, uses weather data)
-- R-009: A field shows "Water today" or "Wait" only when a field-specific soil-moisture trigger has been calibrated and saved. The recommendation uses the 48-hour rain forecast and the driest fresh reading from the calibrated sensor depth; its reason names that sensor. Without a configured trigger, show the reading and explain that irrigation guidance is not configured. (source: BC irrigation guidance; see `docs/crop-guidance.md`)
+- R-009: An irrigated field shows "Water today" or "Wait" only when the farmer has saved a soil-moisture trigger for that field, either typed in or by confirming the suggested one (R-024). The recommendation uses the 48-hour rain forecast and the driest fresh reading from a trusted sensor (R-022); its reason names that sensor. Without a saved trigger, the field shows the reading and explains that irrigation guidance is not configured. (source: BC irrigation guidance; see `docs/crop-guidance.md`)
 - R-010: Each field shows a ranked list of the best weeks to plant its crop, with the reason for each, based on typical historical weather at the farm's location (frost risk, temperature and rain). This is a recommendation only; the app does not store planting dates. The method is rule-based for now and can be replaced later without changing the page. (source: team decision, review fix 5)
 - R-011: When a field's recommendation becomes "Water today", the farmer sees one in-app alert for that field and can mark it done. Opening the page again does not create a second open alert for the same field. (source: team decision, review fix 6)
 - R-012: A farmer can see only their own farms, fields, sensors and alerts. (source: platform rule)
@@ -27,6 +27,11 @@ Provenance: idea and decisions from the team's planning chat, 2026-11-07.
 - R-018: Signing out returns the farmer to the sign-in screen and hides the farm. (source: frontend branch)
 - R-019: A signed-in farmer can remove one of their fields, and it no longer appears on their farm. (source: frontend branch)
 - R-020: A farmer can keep a name and a phone number on their profile. (source: frontend branch)
+- R-021: Each field is marked irrigated or rain-fed by the farmer; new fields are rain-fed. A rain-fed field never shows "Water today" or a watering alert; it shows its soil moisture and a note when no rain is forecast. (source: owner decision, field crops are often not irrigated)
+- R-022: A sensor whose soil moisture is stuck on one value, jumps sharply without rain and falls back, or reads outside a physically possible range is marked "Check sensor" with the reason, and is left out of the watering recommendation. A sensor that reads very differently from the field's other sensors is marked "Check sensor" but still counts. (source: owner decision, one faulty sensor must not drive watering advice)
+- R-023: The app detects when a field's soil moisture rose sharply and labels each rise as rain or irrigation from the farm's recorded rain. The field shows when it was last watered, how much each sensor rose, and lets the farmer confirm or correct each label; a correction replaces the app's label. (source: owner decision, watering log without manual entry)
+- R-024: After at least one soaking rain or irrigation, the app estimates the field's field capacity from how the soil drained, and suggests a soil-moisture trigger from it, the field's soil type and the crop's allowable depletion. The suggestion shows what it was based on and is used only after the farmer saves it. Until then, the field explains what the app is still waiting for. (source: FAO Irrigation and Drainage Paper 56, Tables 19 and 22; see `docs/crop-guidance.md`)
+- R-025: An irrigated field with a saved trigger shows the time window in which its driest trusted sensor is expected to reach the trigger, from how fast that soil has been drying, the forecast evapotranspiration and the forecast rain; or that it is not expected within the next 5 days. (source: owner decision, farmers plan watering ahead)
 
 ## Data
 
@@ -35,7 +40,7 @@ Farmer accounts (name, email, password) are held by Piezas's user service and ar
 - Crop profile: crop name and sourced guidance where available (soil-moisture min/max, pH min/max, EC max with measurement method, frost-risk temperature with crop stage); unset thresholds are omitted
 - Farm: name, location (latitude, longitude)
 - Profile: name, phone
-- Field: name, farm, crop profile, acres, growth stage, soil type
+- Field: name, farm, crop profile, acres, growth stage, soil type, irrigated or rain-fed, saved soil-moisture trigger (value, how it was set, when), the farmer's labels for detected wetting events
 - Sensor: name, field, device key status (active or revoked)
 - Reading: sensor, type (soil moisture, soil temperature, soil EC, soil pH, air temperature, air humidity), value, unit, time, source (real or simulated)
 - Alert: field, message, created time, status (open or done)
@@ -80,15 +85,15 @@ Then each sensor on the field page shows its own latest reading of every type it
 
 ### S-007: Calibrated dry soil and no rain gives Water today
 covers: R-008, R-009
-needs: calibrated field moisture trigger and weather forecast service
-Given a blueberry field with two calibrated sensors, one below its configured trigger and one within range, and a forecast with no rain in the next 48 hours
+needs: weather forecast service
+Given an irrigated blueberry field with a saved trigger and two sensors, one below the trigger and one above it, and a forecast with no rain in the next 48 hours
 When the farmer opens the field page
 Then the field shows "Water today" and a reason that names the dry sensor, the low moisture and the dry forecast
 
 ### S-008: Calibrated dry soil but rain coming gives Wait
 covers: R-008, R-009
-needs: calibrated field moisture trigger and weather forecast service
-Given a blueberry field whose latest calibrated soil moisture is below its configured trigger, and a forecast with heavy rain in the next 48 hours
+needs: weather forecast service
+Given an irrigated blueberry field with a saved trigger whose latest soil moisture is below the trigger, and a forecast with heavy rain in the next 48 hours
 When the farmer opens the field page
 Then the field shows "Wait" and a reason that mentions the coming rain
 
@@ -187,6 +192,60 @@ covers: R-020
 Given a signed-in farmer on their profile
 When they save a name and a phone number and reload the page
 Then the same name and phone number are shown
+
+### S-024: A stuck sensor is left out of the watering advice
+covers: R-022
+Given an irrigated field with a saved trigger, one sensor whose soil moisture has read the same value for a day below the trigger, and one healthy sensor above the trigger
+When the farmer opens the field page
+Then the stuck sensor is marked "Check sensor" with the reason, and the field shows "Wait" based on the healthy sensor
+
+### S-025: A rain-fed field never says Water today
+covers: R-021
+Given a rain-fed field whose soil moisture is low and a forecast with no rain
+When the farmer opens the field page
+Then the field shows its soil moisture and a dry-forecast note, and no "Water today" and no watering alert
+
+### S-026: An irrigation is detected and sets Last watered
+covers: R-023
+needs: weather history service
+Given a field whose soil moisture rose sharply on a morning with no recorded rain
+When the farmer opens the field page
+Then the rise is listed as irrigation with each sensor's rise, and the field shows it as last watered
+
+### S-027: A rise during rain is labelled rain
+covers: R-023
+needs: weather history service
+Given a field whose soil moisture rose during a recorded rain of several millimetres
+When the farmer opens the field page
+Then the rise is listed as rain and does not change when the field was last watered
+
+### S-028: The farmer corrects a detected event
+covers: R-023
+needs: weather history service
+Given a field with a rise the app labelled irrigation
+When the farmer marks it as rain
+Then the rise is listed as rain, marked as the farmer's label, and last watered no longer uses it
+
+### S-029: Irrigated field without a trigger explains what is missing
+covers: R-009, R-024
+needs: weather history service
+Given an irrigated field with no saved trigger and no soaking rain or irrigation in its readings
+When the farmer opens the field page
+Then the field shows its reading, says irrigation guidance is not configured, and says it is waiting for a soaking rain or irrigation to suggest a trigger
+
+### S-030: A suggested trigger is shown and saved
+covers: R-024, R-009
+needs: weather history service
+Given an irrigated field with a soil type, no saved trigger, and a soaking irrigation followed by two dry days in its readings
+When the farmer opens the field page and saves the suggested trigger
+Then the suggestion showed its field capacity and the event it came from, and the field then shows "Water today" or "Wait"
+
+### S-031: The field shows when to water next
+covers: R-025
+needs: weather forecast service
+Given an irrigated field with a saved trigger, a sensor drying steadily above the trigger, and a dry forecast
+When the farmer opens the field page
+Then the field shows a time window in the coming days by which to water
 
 ## Open Conflicts
 
