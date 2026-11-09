@@ -1,6 +1,6 @@
 import './styles.css';
 import { ApiError, farmApi, profileApi, setUnauthorizedHandler } from './api';
-import { refreshLiveData } from './live';
+import { onLiveDataLoaded, refreshLiveData } from './live';
 import { refreshFields, restoreSession, signIn, signOut, signUp } from './auth';
 import { F, fld } from './seed/simulate';
 import { S, saveCards, saveLog, saveOffsets } from './state';
@@ -53,6 +53,14 @@ function keepScroll(paint: () => void) {
   });
 }
 
+// Live data loaded in the background: redraw, unless the farmer is typing in a form (a redraw would
+// replace the input and lose what they typed); the next redraw shows it instead.
+onLiveDataLoaded(() => {
+  const a = document.activeElement;
+  if (a && (a.tagName === 'INPUT' || a.tagName === 'SELECT' || a.tagName === 'TEXTAREA')) return;
+  render();
+});
+
 setUnauthorizedHandler(() => {
   if (S.page === 'login') return;
   void signOut().then(() => render());
@@ -88,11 +96,13 @@ function render() {
 }
 
 function pickField(id: FieldId) {
-  S.sel = id;
   if (!id) {
+    S.hud = '';
     S.wm = null;
     return render();
   }
+  S.hud = S.hud === id ? '' : id;
+  S.sel = id;
   if (S.min.field) {
     delete S.min.field;
     saveCards();
@@ -208,6 +218,7 @@ async function act(node: ActionElement, target: Element) {
     }
     case 'pk':
       if (S.moved) return;
+      if (!target.closest('[data-w]')) S.hud = S.hud === d.id ? '' : (d.id as FieldId);
       S.sel = d.id as FieldId;
       if (S.min.field) {
         delete S.min.field;
@@ -362,6 +373,11 @@ async function act(node: ActionElement, target: Element) {
 document.addEventListener('click', (e) => {
   const target = e.target as Element;
   const node = target.closest<ActionElement>('[data-act]');
+  // 2D: a tap on empty map (not the end of a drag) closes the open field card.
+  if (!node && S.hud && !S.moved && target.closest('#fmap')) {
+    S.hud = '';
+    return render();
+  }
   if (!node) return;
   if (node.dataset.act === 'login' || node.dataset.act === 'signup') return;
   void act(node, target).then(() => {
@@ -393,6 +409,10 @@ document.addEventListener('keydown', (e) => {
       S.wm = null;
       render();
     } else if (S.panel) go('map');
+    else if (S.hud) {
+      S.hud = '';
+      render();
+    }
     return;
   }
   if (e.key !== 'Enter') return;

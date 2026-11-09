@@ -1,7 +1,7 @@
 import { farmApi } from './api';
 import { F } from './seed/simulate';
 import { S } from './state';
-import type { LiveHistory, LiveSensor, MetricKey } from './types';
+import type { AppState, LiveHistory, LiveSensor, LiveWeather, MetricKey } from './types';
 
 function ageHours(iso: string | undefined, now: number): number {
   if (!iso) return 999;
@@ -28,25 +28,48 @@ function applySensorsToField(fieldId: string, sensors: LiveSensor[]) {
   f.hl = f.m < lo - 5 ? 'cr' : f.m < lo ? 'wn' : 'ok';
 }
 
-/** Pull weather, advice, sensors, then alerts (advice may open new ones). */
-export async function loadLiveData() {
-  S.liveWeather = null;
-  S.liveAdvice = {};
-  S.liveAlerts = [];
-  S.liveSensors = {};
-  S.liveMoistureSeries = {};
-  S.liveHistory = {};
-  if (!S.farmId) return;
+let generation = 0;
+let onLoaded: (() => void) | null = null;
+/** Called after live data arrives in the background (main.ts redraws). */
+export const onLiveDataLoaded = (fn: () => void) => {
+  onLoaded = fn;
+};
+
+/**
+ * Pull weather, advice, sensors, then alerts (advice may open new ones). Everything is gathered first and
+ * swapped into the state in one step, and only by the newest load for the same farm: a slow load never
+ * overwrites a newer one, and nothing arrives for a farm after the farmer signs out or switches.
+ */
+export async function loadLiveData(): Promise<boolean> {
+  const gen = ++generation;
+  const farmId = S.farmId;
+  const fields = [...F];
+  if (!farmId) {
+    S.liveWeather = null;
+    S.liveAdvice = {};
+    S.liveAlerts = [];
+    S.liveSensors = {};
+    S.liveMoistureSeries = {};
+    S.liveHistory = {};
+    return true;
+  }
   const now = Date.now();
+  const next = {
+    weather: null as LiveWeather | null,
+    advice: {} as AppState['liveAdvice'],
+    alerts: [] as AppState['liveAlerts'],
+    sensors: {} as AppState['liveSensors'],
+    series: {} as AppState['liveMoistureSeries'],
+    history: {} as AppState['liveHistory'],
+  };
   try {
-    const weather = await farmApi.getWeather(S.farmId).catch(() => null);
-    if (weather) S.liveWeather = weather;
+    next.weather = await farmApi.getWeather(farmId).catch(() => null);
 
     await Promise.all(
-      F.map(async (f) => {
+      fields.map(async (f) => {
         try {
           const adv = await farmApi.getAdvice(f.id);
-          S.liveAdvice[f.id] = {
+          next.advice[f.id] = {
             status: adv.watering.status,
             label: adv.watering.label,
             reason: adv.watering.reason,
@@ -76,8 +99,7 @@ export async function loadLiveData() {
               ageHours: Math.round(age),
             };
           });
-          S.liveSensors[f.id] = live;
-          applySensorsToField(f.id, live);
+          next.sensors[f.id] = live;
         } catch {
           /* ignore */
         }
@@ -100,7 +122,7 @@ export async function loadLiveData() {
           // No past rain yet: the farm weather endpoint is a forecast (now onward), so it would draw
           // "Rain 0 mm" over every past week. The chart leaves rain out until a rain history exists.
           const rain: number[] = [];
-          const liveSens = S.liveSensors[f.id] ?? [];
+          const liveSens = next.sensors[f.id] ?? [];
           const histSensors = sensors.map((block) => {
             const meta = liveSens.find((s) => s.id === block.sensorId);
             const vals: LiveHistory['sensors'][0]['vals'] = {};
@@ -121,7 +143,7 @@ export async function loadLiveData() {
               vals,
             };
           });
-          S.liveHistory[f.id] = { hours: hourKeys, rain, sensors: histSensors };
+          next.history[f.id] = { hours: hourKeys, rain, sensors: histSensors };
 
           const byHour = new Map<string, number[]>();
           for (const block of sensors) {
@@ -136,7 +158,7 @@ export async function loadLiveData() {
             .sort((a, b) => a[0].localeCompare(b[0]))
             .map(([, vs]) => vs.reduce((x, y) => x + y, 0) / vs.length);
           const step = Math.max(1, Math.floor(series.length / 56));
-          S.liveMoistureSeries[f.id] = series.filter((_, i) => i % step === 0);
+          next.series[f.id] = series.filter((_, i) => i % step === 0);
         } catch {
           /* ignore */
         }
@@ -146,20 +168,37 @@ export async function loadLiveData() {
     // After getAdvice (which may open alerts), refresh so new ones show immediately.
     try {
       const { alerts } = await farmApi.listAlerts('open');
-      S.liveAlerts = alerts.map((x) => ({
+      next.alerts = alerts.map((x) => ({
         id: x.id,
         fieldId: x.fieldId,
         message: x.message,
         createdAt: x.createdAt,
       }));
     } catch {
-      S.liveAlerts = [];
+      next.alerts = [];
     }
   } catch {
     /* keep UI usable */
   }
+  if (gen !== generation || S.farmId !== farmId) return false; // a newer load, or another farm, owns the state
+  S.liveWeather = next.weather;
+  S.liveAdvice = next.advice;
+  S.liveAlerts = next.alerts;
+  S.liveSensors = next.sensors;
+  S.liveMoistureSeries = next.series;
+  S.liveHistory = next.history;
+  for (const [id, live] of Object.entries(next.sensors)) applySensorsToField(id, live);
+  return true;
 }
 
+/** Wait for fresh live data (after the farmer changes something whose result they expect to see). */
 export async function refreshLiveData() {
   await loadLiveData();
+}
+
+/** Show what is already known now and fill in live data when it arrives (sign-in, adding a field). */
+export function loadLiveDataInBackground() {
+  void loadLiveData().then((applied) => {
+    if (applied) onLoaded?.();
+  });
 }

@@ -427,6 +427,8 @@ function create(onPick: (id: FieldId) => void): Ctx {
   renderer.domElement.addEventListener('pointerup', (e) => {
     if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
     const id = fieldIdAt(e.clientX, e.clientY);
+    // Touch and pen have no hover: a tap's position must not keep a card open after the next tap.
+    if (e.pointerType !== 'mouse') c.hover = '';
     if (!id) c.onPick('' as FieldId);
     else c.onPick(id);
   });
@@ -514,9 +516,9 @@ function frame(c: Ctx) {
     const lab = toScreen(n.anchor.x + n.group.position.x, n.h + 36, n.anchor.z + n.group.position.z, true);
     n.label.style.display = lab.off ? 'none' : '';
     if (!lab.off) n.label.style.transform = `translate(-50%,-100%) translate(${lab.tx}px,${lab.ty}px)`;
-    // The hovered field, or with nothing hovered the selected one: a tap opens it on touch screens and
-    // it stays while the pointer moves onto its "See field details" button. Tapping empty ground closes it.
-    const hot = c.hover ? c.hover === n.id : n.id === S.sel;
+    // The hovered field, or with nothing hovered the one the farmer tapped open: so it works on touch
+    // screens and stays while the pointer moves onto its "See field details" button. Never opens by itself.
+    const hot = c.hover ? c.hover === n.id : n.id === S.hud;
     n.hud.style.display = hot && !lab.off ? '' : 'none';
     if (hot && !lab.off) n.hud.style.transform = `translate(18px,-100%) translate(${lab.tx}px,${lab.ty}px)`;
     if (hot) {

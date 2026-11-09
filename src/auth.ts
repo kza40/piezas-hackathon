@@ -1,7 +1,7 @@
 import { ApiError, authApi, farmApi, type ApiUser, type ApiProfile } from './api';
 import { clearFarmScope, F, hydrateFields } from './seed/simulate';
 import { S } from './state';
-import { loadLiveData } from './live';
+import { loadLiveDataInBackground } from './live';
 import type { Crop } from './types';
 
 function applyProfile(user: ApiUser, profile: ApiProfile) {
@@ -40,7 +40,7 @@ async function loadFarmData() {
   hydrateFields(fields);
   S.sel = fields[0]?.id ?? '';
   S.fd = fields[0]?.id ?? null;
-  await loadLiveData();
+  loadLiveDataInBackground(); // the map shows at once; weather, advice and sensors fill in when they arrive
 }
 
 function authFail(e: unknown, fallback: string) {
@@ -128,6 +128,7 @@ export async function signOut() {
   S.liveSensors = {};
   S.liveMoistureSeries = {};
   S.liveHistory = {};
+  S.hud = '';
   clearFarmScope();
 }
 
@@ -141,5 +142,5 @@ export async function refreshFields() {
   hydrateFields(fields);
   if (!F.some((f) => f.id === S.sel)) S.sel = fields[0]?.id ?? '';
   if (S.fd && !F.some((f) => f.id === S.fd)) S.fd = fields[0]?.id ?? null;
-  await loadLiveData();
+  loadLiveDataInBackground(); // the new or removed field shows at once; its live data follows
 }

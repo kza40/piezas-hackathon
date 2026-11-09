@@ -49,6 +49,7 @@ export const S: AppState = {
   name: '',
   role: 'Owner',
   wm: null,
+  hud: '',
   fd: null,
   edit: false,
   moved: false,

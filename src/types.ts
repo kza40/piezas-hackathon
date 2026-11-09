@@ -153,6 +153,8 @@ export interface AppState {
   name: string;
   role: string;
   wm: FieldId | null;
+  /** The field whose info card the farmer opened on the map ('' = none). Unlike sel, never set automatically. */
+  hud: FieldId | '';
   fd: FieldId | null;
   edit: boolean;
   moved: boolean;
