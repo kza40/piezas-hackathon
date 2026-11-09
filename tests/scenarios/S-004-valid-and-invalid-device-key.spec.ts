@@ -2,7 +2,9 @@
 import { expect, test } from '@playwright/test';
 import { createFarmAndField, registerSensor, signUp } from './helpers';
 
-test('S-004: valid device key accepts a reading and a bad key is rejected', async ({ page }) => {
+// Not runnable yet: the field page has no sensor panel yet (register sensor, one-time device key, send a reading, revoke, simulate).
+// Remove .fixme when that screen is built; this test is then its done check.
+test.fixme('S-004: valid device key accepts a reading and a bad key is rejected', async ({ page }) => {
   await signUp(page);
   await createFarmAndField(page);
   await page.getByTestId('field-card').filter({ hasText: 'Blueberry Field' }).getByTestId('open-field').click();
@@ -16,5 +18,5 @@ test('S-004: valid device key accepts a reading and a bad key is rejected', asyn
   await page.getByTestId('device-key-input').fill('fwk_invalid');
   await page.getByTestId('send-device-reading').click();
   await expect(page.getByTestId('ingest-error')).toBeVisible();
-  expect(key).toBeTruthy();
+  expect(key).toMatch(/^fwk_[A-Za-z0-9_-]{43}$/); // the real key, shown once
 });

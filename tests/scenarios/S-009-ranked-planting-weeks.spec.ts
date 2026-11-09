@@ -2,7 +2,9 @@
 import { expect, test } from '@playwright/test';
 import { signIn } from './helpers';
 
-test('S-009: planting weeks are ranked with reasons', async ({ page }) => {
+// Not runnable yet: needs the planting advice view on the field page and a seeded test farmer for this case (see the signIn email).
+// Remove .fixme when that screen is built; this test is then its done check.
+test.fixme('S-009: planting weeks are ranked with reasons', async ({ page }) => {
   await signIn(page, 'planting@example.test');
   await page.getByTestId('field-card').filter({ hasText: 'Blueberry Field' }).getByTestId('open-field').click();
   await page.getByTestId('open-planting-advice').click();
