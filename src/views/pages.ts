@@ -161,7 +161,7 @@ export function field(): string {
   }).join('');
   const rec = r ? `<div class='blk orange'><h2>Recommended action</h2><p><b>${r.t}</b></p><p>${r.w}</p><p>${r.c}</p></div>` : `<div class='blk lime'><h2>Recommended action</h2><p>No action needed for this field right now.</p></div>`;
   const metricTabs = MET.map((m) => `<button aria-pressed=${m.key === S.mk} data-act=mk data-k=${m.key}>${m.name}</button>`).join('');
-  return `${demo}<h1>Fields &amp; sensors</h1><p class=mut>Readings, history and watering for each parcel — in one place.</p>${fieldTabs()}${feat(f)}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>Sensor history</h2><div class=tabs>${metricTabs}</div>${history(f)}${waterLog(f)}`;
+  return `${demo}<h1>Fields &amp; sensors</h1><p class=mut>Readings, history and watering for each parcel — in one place.</p><p><button class='btn alt sm' data-act=export data-testid=export-csv>Download last 14 days (CSV)</button></p>${fieldTabs()}${feat(f)}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>Sensor history</h2><div class=tabs>${metricTabs}</div>${history(f)}${waterLog(f)}`;
 }
 
 export function weather(): string {

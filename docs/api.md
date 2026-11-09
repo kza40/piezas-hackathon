@@ -126,6 +126,7 @@ Farmers do not create alerts; the advice rule does, on the server, with `openAle
 | `GET /api/farms/:farmId/weather` | `{ rainNext48hMm, overnightLowC, hours }` |
 | `GET /api/fields/:fieldId/advice` | `{ watering, soilWarning, frostWarning, weather, alert }` — may create one open watering alert when status is Water today |
 | `GET /api/fields/:fieldId/planting` | `{ weeks: [{ week, reason, score }] }` recommendation only; no planting date is stored |
+| `GET /api/fields/:fieldId/export` | CSV download: last **14** days of sensor readings plus the latest watering advice / weather snapshot on each row |
 `watering.label` is `Water today`, `Wait`, or `No recent reading`. `soilWarning` and `frostWarning` are strings or `null`. The farm must have latitude and longitude or these return 400.
 Set `WEATHER_STUB_DIR=data/weather` (and optional `WEATHER_STUB_FORECAST` / `WEATHER_STUB_HISTORY`) to use fixed forecast files instead of Open-Meteo. Planting history currently needs the stub `history.json` (live Open-Meteo history is nowired yet).
 ## Demo accounts (test app)

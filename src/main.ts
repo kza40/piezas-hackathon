@@ -294,6 +294,15 @@ async function act(node: ActionElement, target: Element) {
         return say(e instanceof ApiError ? e.message : 'Could not add field');
       }
     }
+    case 'export': {
+      if (!S.farmerId || !S.sel) return say('Pick a field first');
+      try {
+        await farmApi.exportCsv(S.sel);
+        return say('Downloaded CSV (last 14 days)');
+      } catch (e) {
+        return say(e instanceof ApiError ? e.message : 'Could not export');
+      }
+    }
     case 'rmf': {
       if (!S.farmerId || !d.id) return;
       const id = d.id as FieldId;

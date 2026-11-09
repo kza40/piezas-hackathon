@@ -126,4 +126,20 @@ export const farmApi = {
     body: { name: string; cropProfileId: string; acres?: number; stage?: string; soil?: string },
   ) => api<{ field: ApiField }>(`/api/farms/${farmId}/fields`, { method: 'POST', body: JSON.stringify(body) }),
   deleteField: (fieldId: string) => api<void>(`/api/fields/${fieldId}`, { method: 'DELETE' }),
+  exportCsv: async (fieldId: string) => {
+    const res = await fetch(`/api/fields/${fieldId}/export`, { credentials: 'same-origin' });
+    if (!res.ok) {
+      if (res.status === 401) onUnauthorized?.();
+      throw await parseError(res);
+    }
+    const blob = await res.blob();
+    const match = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '');
+    const filename = match?.[1] ?? 'field-export.csv';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 };
