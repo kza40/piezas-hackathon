@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { createStubWeather } from './stub';
+import { summarizeForecast } from './types';
 
 const dir = join(process.cwd(), 'data', 'weather');
 const stub = (forecast: string, recent = 'recent.json') =>
@@ -31,4 +32,12 @@ test('no recent file means 14 dry days', async () => {
   const r = await stub('mild-forecast.json', 'missing.json').getRecent(0, 0, now);
   assert.equal(r.length, 14 * 24);
   assert.ok(r.every((h) => h.rainMm === 0));
+});
+
+test('the 48-hour fallback never uses past hours', () => {
+  const h = (hoursFromNow: number, rainMm: number) => ({ time: new Date(now.getTime() + hoursFromNow * 3_600_000).toISOString(), rainMm, et0Mm: 0, tempC: 5 });
+  // Odd timestamps: nothing inside the window itself, a wet past and a dry far future.
+  const f = summarizeForecast([h(-200, 30), h(-100, 30), h(60, 0), h(61, 0)], now);
+  assert.equal(f.rainNext48hMm, 0);
+  assert.equal(f.hours.length, 2);
 });

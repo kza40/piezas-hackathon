@@ -595,6 +595,28 @@ describe('field models in the advice over HTTP (R-009, R-021 to R-025)', () => {
     assert.equal(a.watering.driestSensorName, 'North probe', 'the stuck 12% does not drive the advice');
   });
 
+  test('R-021: switching the field to rain-fed closes its open alert; switching back raises it again at once', async () => {
+    const openFor = async () => (await sam('GET', '/api/alerts?status=open')).body.alerts.filter((x: any) => x.fieldId === fieldId);
+    assert.equal((await openFor()).length, 1, 'still open from S-007');
+    await sam('PATCH', `/api/fields/${fieldId}`, { irrigated: false });
+    assert.equal((await advice()).alert, null);
+    assert.equal((await openFor()).length, 0);
+    await sam('PATCH', `/api/fields/${fieldId}`, { irrigated: true });
+    const a = await advice();
+    assert.equal(a.watering.status, 'water_today');
+    assert.ok(a.alert, 'no 12-hour quiet period after a settings change');
+    assert.equal((await openFor()).length, 1);
+  });
+
+  test('R-023: a later label near the same event replaces the earlier one', async () => {
+    const start = (await advice()).events.at(-1).start; // the watering 60 hours ago (newest first)
+    const shifted = new Date(Date.parse(start) + 3_600_000).toISOString();
+    await sam('POST', `/api/fields/${fieldId}/events/${encodeURIComponent(shifted)}/feedback`, { label: 'irrigation' });
+    const a = await advice();
+    assert.equal(a.events.at(-1).label, 'irrigation', 'the newer label wins over the S-028 "rain"');
+    assert.ok(a.lastWatered);
+  });
+
   test('a reading below the trigger raises the alert on ingest, without the page being opened', async () => {
     const farm = (await sam('POST', '/api/farms', { name: 'Ingest Farm', latitude: 49.05, longitude: -122.3 })).body.farm;
     const crop = (await sam('GET', '/api/crop-profiles')).body.cropProfiles.find((c: any) => c.key === 'blueberry');

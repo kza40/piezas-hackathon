@@ -28,25 +28,24 @@ function settledAfter(points: { time: string; value: number }[], peak: number, n
 export function estimateFieldCapacity(sensors: SensorSeries[], events: WettingEvent[]): { capacity: FieldCapacity | null; needs: string | null } {
   const soakings = events.filter((e) => e.label !== 'none');
   if (!soakings.length) return { capacity: null, needs: 'a soaking rain or irrigation' };
-  const values: number[] = [];
-  let newest: WettingEvent | null = null;
-  let sensorsUsed = 0;
+  // Per event, the median across sensors. A light rain that never filled the soil settles lower than
+  // field capacity, while every real soaking settles at it, so the highest event is the measurement.
+  let best: { e: WettingEvent; value: number; n: number } | null = null;
   soakings.forEach((e, i) => {
     const next = i + 1 < soakings.length ? Date.parse(soakings[i + 1].start) : Infinity;
     const vs = sensors.map((s) => settledAfter(s.points, Date.parse(e.peak), next)).filter((v): v is number => v !== null);
     if (!vs.length) return;
-    values.push(...vs);
-    newest = e;
-    sensorsUsed = vs.length;
+    const value = median(vs);
+    if (!best || value > best.value) best = { e, value, n: vs.length };
   });
-  if (!newest) return { capacity: null, needs: 'a dry day or two after a soaking, to see where the soil settles' };
-  const e = newest as WettingEvent;
+  if (!best) return { capacity: null, needs: 'a dry day or two after a soaking, to see where the soil settles' };
+  const { e, value, n } = best as { e: WettingEvent; value: number; n: number };
   return {
     capacity: {
-      value: round1(median(values)),
+      value: round1(value),
       from: e.start,
-      basis: `the ${e.label === 'rain' ? 'rain' : 'irrigation'} on ${shortDay(e.start)}, ${sensorsUsed} sensor${sensorsUsed === 1 ? '' : 's'}`,
-      samples: values.length,
+      basis: `the ${e.label === 'rain' ? 'rain' : 'irrigation'} on ${shortDay(e.start)}, ${n} sensor${n === 1 ? '' : 's'}`,
+      samples: n,
     },
     needs: null,
   };

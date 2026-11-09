@@ -170,6 +170,7 @@ test('water by: a window around the expected hour, later with forecast rain, now
   assert.ok(wet.kind === 'window' && wet.window.ifNoRain !== null && hoursTo(wet.window.ifNoRain) === 60, 'rain pushes it later');
 
   assert.equal(waterBy(23, 24, fit, outlook).kind, 'now');
+  assert.notEqual(waterBy(24, 24, fit, outlook).kind, 'now', 'exactly at the trigger is still Wait, as in the advice');
   assert.deepEqual(waterBy(40, 24, fit, outlook), { kind: 'beyond', days: 5 });
   assert.equal(waterBy(30, 24, null, outlook).kind, 'learning');
 });
@@ -203,4 +204,27 @@ test('simulated fields: the recorded rain is labelled rain, and the 6 am waterin
 test('simulated fields: a rain-fed field is never watered', () => {
   const rain = weather({ 100: 4, 99: 6, 98: 4 });
   assert.deepEqual(detectWettingEvents(simulatedField(rain, false), rain, {}).map((e) => e.label), ['rain']);
+});
+
+// ---- review fixes ----
+
+test('drying: blocks with no net drying learn nothing, never a negative rate', () => {
+  const wx = weather();
+  wx.forEach((w, i) => (w.et0Mm = Math.max(0, 0.15 * Math.sin(((i % 24) - 6) / 24 * 2 * Math.PI))));
+  let v = 25;
+  const rising = wx.map((w) => {
+    v += 0.01; // dew or drift: the probe creeps up
+    return { time: w.time, value: v };
+  });
+  assert.equal(fitDrying(rising, wx, []), null);
+});
+
+test('capacity: a light rain that never filled the soil does not lower the measured field capacity', () => {
+  // A full soaking 200 hours ago settles at 32; a light top-up 80 hours ago only reaches 27.
+  const light = (s: SensorSeries) => replace(s, (p, ago) => (ago <= 80 ? p.value - 5 : p.value));
+  const sensors = [light(probe('A', { fc: 32, soaks: [200, 80] })), light(probe('B', { fc: 32, soaks: [200, 80] }))];
+  const events = detectWettingEvents(sensors, weather(), {});
+  assert.ok(events.length >= 2, JSON.stringify(events.map((e) => e.start)));
+  const { capacity } = estimateFieldCapacity(sensors, events);
+  assert.ok(capacity && capacity.value > 30, `got ${capacity?.value}`);
 });

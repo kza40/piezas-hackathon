@@ -28,7 +28,7 @@ export interface WettingEvent {
 const MIN_RISE = 3;
 const RISE_HOURS = 6;
 const MERGE_HOURS = 6;
-const FEEDBACK_MATCH_HOURS = 3;
+export const FEEDBACK_MATCH_HOURS = 3;
 const POINTS_PER_MM = 1; // a rough default; a rise far beyond what the rain explains points to irrigation
 
 export function smooth(points: Point[]): Point[] {

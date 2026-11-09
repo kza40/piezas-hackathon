@@ -56,6 +56,7 @@ A `field` is `{ id, farmId, name, cropProfile, acres, stage, soil, irrigated, tr
 Field settings (R-009, R-021, R-024):
 
 - `irrigated` is `false` for a new field (rain-fed: no watering advice). Send `true` for a field the farmer can water.
+- Changing `irrigated` or `trigger` closes the field's open watering alert (`closedBy: "settings"`) without the 12-hour quiet period, so the next advice raises it again only if it still applies.
 - `trigger` is `null` until the farmer saves one: `{ value, source: "suggested" | "manual", basis, savedAt }`. Save with `{ trigger: { value, source?, basis? } }` (value 1 to 80 %); to save the app's suggestion, send its `value` and `basis` with `source: "suggested"`. `{ trigger: null }` clears it.
 - `soil` is free text, but the trigger suggestion needs one of the FAO-56 textures in it: sand, loamy sand, sandy loam, loam, silt loam, silt, silty clay loam, silty clay, clay.
 - `eventFeedback` maps a detected event's `start` to the farmer's label. `:start` in the feedback URL is that event's `start` (URL-encoded); `label: null` removes the farmer's label.
@@ -142,7 +143,7 @@ The farm must have latitude and longitude or these return 400. `soilWarning` and
 
 | key | what it is |
 |---|---|
-| `watering` | `{ status, label, reason, driestSensorName, driestValue, sensors }`. `status`: `water_today`, `wait`, `no_recent_reading`, `not_configured` (irrigated, no trigger saved), `rain_fed`. Only trusted sensors count (see `sensorHealth`). |
+| `watering` | `{ status, label, reason, driestSensorName, driestValue, sensors }`. `status`: `water_today`, `wait`, `no_recent_reading`, `check_sensors` (every reporting sensor is faulty), `not_configured` (irrigated, no trigger saved), `rain_fed`. Also `driestSensorId`. Only trusted sensors count (see `sensorHealth`). |
 | `waterBy` | `null`, or for an irrigated field with a trigger: `{ kind, text, ... }`. `kind`: `window` (`window: { earliest, latest, ifNoRain }`, ISO times), `now`, `beyond` (`days`), `learning` (`needs`). `text` is ready to show, e.g. "Water by Thu–Fri." |
 | `setup` | `{ irrigated, trigger, soil }` |
 | `sensorHealth` | `[{ sensorId, sensorName, status, reason }]`. `faulty` (stuck, impossible value, spike without rain) is left out of `watering`; `check` (reads far from the others, or barely rose in the last soaking) still counts. Show `reason` as "Check sensor: …". |

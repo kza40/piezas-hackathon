@@ -14,7 +14,8 @@ export function summarizeForecast(hours: ForecastHour[], now: Date): WeatherFore
     const t = Date.parse(h.time);
     return t >= start && t <= end;
   });
-  const use = window.length > 0 ? window : hours.slice(0, 48);
+  // Fallback for odd timestamps: the first 48 hours from now on, never the past days the provider also returns.
+  const use = window.length > 0 ? window : hours.filter((h) => Date.parse(h.time) >= start).slice(0, 48);
   const rainNext48hMm = use.reduce((s, h) => s + h.rainMm, 0);
   const overnightLowC = use.length === 0 ? 0 : Math.min(...use.map((h) => h.tempC));
   const outlook = hours.filter((h) => {

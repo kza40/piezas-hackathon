@@ -73,6 +73,9 @@ export function fitDrying(points: Point[], weather: WeatherHour[], events: Wetti
     c = 0;
     k = mx > 0 ? my / mx : 0;
   }
+  // No net drying in the usable blocks (dew, a cool spell, drift): nothing learned yet, rather than a
+  // negative rate that would "wet" the soil in the forecast and hide a field that is drying.
+  if (k <= 0 && c <= 0) return null;
   const resid = Math.sqrt(rows.reduce((s, r) => s + (r.loss - (k * r.et0 + c * BLOCK)) ** 2, 0) / n);
   const spread = my > 0 ? Math.min(0.6, Math.max(0.15, resid / my)) : 0.6;
   return { k, c, spread, blocks: n };
@@ -89,7 +92,7 @@ function crossing(start: number, trigger: number, fit: DryingFit, outlook: Forec
 }
 
 export function waterBy(current: number, trigger: number, fit: DryingFit | null, outlook: ForecastHour[]): WaterByResult {
-  if (current <= trigger) return { kind: 'now' };
+  if (current < trigger) return { kind: 'now' }; // same rule as the advice: at the trigger is still Wait
   if (!fit) return { kind: 'learning', needs: 'a day of readings without rain or watering, to learn how fast this soil dries' };
   const days = Math.round(outlook.length / 24);
   const expected = crossing(current, trigger, fit, outlook, 1, true);

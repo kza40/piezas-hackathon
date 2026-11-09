@@ -2,7 +2,7 @@ import { badRequest } from '../errors';
 import { getFarm, getField, type Field } from './farms';
 import { listSensors, type Sensor } from './sensors';
 import { sensorHistory, RETENTION_DAYS } from './history';
-import { openAlert } from './alerts';
+import { hasOpenAlert, openAlert } from './alerts';
 import { wateringAdvice } from '../../domain/watering';
 import { soilWarning } from '../../domain/soil';
 import { frostWarning } from '../../domain/frost';
@@ -118,11 +118,15 @@ export async function fieldAdvice(ownerId: string, fieldId: string, now = new Da
 
   const trustedSensors = sensors.filter((s) => !insight.faulty.has(s.id)); // R-022
   const trigger = field.trigger?.value ?? null;
-  const watering = wateringAdvice(crop, moistureSamples(trustedSensors), weather, now, { irrigated: field.irrigated, trigger });
+  const watering = wateringAdvice(crop, moistureSamples(trustedSensors), weather, now, {
+    irrigated: field.irrigated,
+    trigger,
+    faultySensors: insight.faulty.size,
+  });
 
   // R-025: only for an irrigated field with a trigger and a fresh driest reading.
   let when: (WaterByResult & { text: string }) | null = null;
-  const driest = trustedSensors.find((s) => s.name === watering.driestSensorName);
+  const driest = trustedSensors.find((s) => s.id === watering.driestSensorId);
   if (field.irrigated && trigger != null && driest && watering.driestValue != null && watering.status !== 'no_recent_reading') {
     const points = insight.series.find((s) => s.sensorId === driest.id)?.points ?? [];
     const r = waterBy(watering.driestValue, trigger, fitDrying(points, recent, insight.events), weather.outlook);
@@ -131,10 +135,7 @@ export async function fieldAdvice(ownerId: string, fieldId: string, now = new Da
 
   const soil = soilWarning(crop, soilSample(sensors));
   const frost = frostWarning(crop, weather.overnightLowC);
-  const alert =
-    watering.status === 'water_today'
-      ? await openAlert(ownerId, fieldId, when?.kind === 'window' ? `${watering.reason} ${when.text}` : watering.reason, now)
-      : null;
+  const alert = watering.status === 'water_today' ? await openAlert(ownerId, fieldId, watering.reason, now) : null;
   return {
     watering,
     waterBy: when,
@@ -164,8 +165,9 @@ export async function adviseAfterIngest(ctx: { ownerId: string; fieldId: string;
   if (!moisture.length) return;
   try {
     const field = await getField(ctx.ownerId, ctx.fieldId);
-    if (!field.irrigated || !field.trigger) return;
+    if (!field.irrigated || !field.trigger || !field.cropProfile) return;
     if (moisture.every((r) => r.value >= field.trigger!.value)) return; // the common case: nothing to do
+    if (await hasOpenAlert(ctx.ownerId, ctx.fieldId)) return; // already raised: skip the full models every hour
     await fieldAdvice(ctx.ownerId, ctx.fieldId, now);
   } catch (e) {
     console.error('advice after ingest failed', e);

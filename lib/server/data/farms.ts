@@ -7,7 +7,8 @@ import { withLock } from '../lock';
 import { getCropProfile, type CropProfile } from './crops';
 import { getOwned, listAll, num, oldestFirst, str } from './records';
 import { deleteFieldSensors } from './sensors';
-import { deleteFieldAlerts, withFieldAlertsLock } from './alerts';
+import { closeOpenAlertForSettings, deleteFieldAlerts, withFieldAlertsLock } from './alerts';
+import { FEEDBACK_MATCH_HOURS } from '../../ml/events';
 
 export interface Farm {
   id: string;
@@ -164,10 +165,13 @@ export function parseFieldSettings(body: unknown, now: Date) {
 export async function updateFieldSettings(ownerId: string, fieldId: string, body: unknown, now = new Date()): Promise<Field> {
   const patch = parseFieldSettings(body, now);
   const { field } = await db();
-  return withFieldLock(fieldId, async () => {
+  const updated = await withFieldLock(fieldId, async () => {
     await getOwned(field, fieldId, ownerId, 'Field');
     return (await withCrops([await field.update(fieldId, { data: patch })]))[0];
   });
+  // After the field lock is released: deleteField takes the alerts lock first, so never hold both.
+  if ('irrigated' in patch || 'trigger' in patch) await closeOpenAlertForSettings(ownerId, fieldId, now);
+  return updated;
 }
 
 const FEEDBACK_DAYS = 14; // detected events only go back as far as the reading history
@@ -184,7 +188,9 @@ export async function setEventFeedback(ownerId: string, fieldId: string, startPa
   return withFieldLock(fieldId, async () => {
     const r = await getOwned(field, fieldId, ownerId, 'Field');
     const cutoff = now.getTime() - FEEDBACK_DAYS * 86_400_000;
-    const feedback = Object.fromEntries(Object.entries(storedFeedback(r.data.eventFeedback)).filter(([k]) => Date.parse(k) >= cutoff && k !== start));
+    // A new label replaces any within the matching window, so an older one can never shadow it.
+    const near = (k: string) => Math.abs(Date.parse(k) - t) <= FEEDBACK_MATCH_HOURS * 3_600_000;
+    const feedback = Object.fromEntries(Object.entries(storedFeedback(r.data.eventFeedback)).filter(([k]) => Date.parse(k) >= cutoff && !near(k)));
     if (raw !== null) feedback[start] = raw as EventLabel;
     return (await withCrops([await field.update(fieldId, { data: { eventFeedback: feedback } })]))[0];
   });

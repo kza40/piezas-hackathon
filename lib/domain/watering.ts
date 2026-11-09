@@ -6,12 +6,13 @@ import {
   type WeatherForecast,
 } from './types';
 
-export type WateringStatus = 'water_today' | 'wait' | 'no_recent_reading' | 'not_configured' | 'rain_fed';
+export type WateringStatus = 'water_today' | 'wait' | 'no_recent_reading' | 'check_sensors' | 'not_configured' | 'rain_fed';
 
 export interface WateringAdvice {
   status: WateringStatus;
-  label: 'Water today' | 'Wait' | 'No recent reading' | 'Not configured' | 'Rain-fed';
+  label: 'Water today' | 'Wait' | 'No recent reading' | 'Check sensors' | 'Not configured' | 'Rain-fed';
   reason: string;
+  driestSensorId: string | null;
   driestSensorName: string | null;
   driestValue: number | null;
   sensors: { sensorId: string; sensorName: string; fresh: boolean }[];
@@ -21,6 +22,7 @@ export interface WateringAdvice {
 export interface FieldSetup {
   irrigated: boolean;
   trigger: number | null; // the farmer's saved soil-moisture trigger, %
+  faultySensors?: number; // sensors left out as faulty (R-022), so "no reading" is not claimed when they report
 }
 
 export function wateringAdvice(
@@ -39,12 +41,16 @@ export function wateringAdvice(
     status,
     label,
     reason,
+    driestSensorId: driest?.sensorId ?? null,
     driestSensorName: driest?.sensorName ?? null,
     driestValue: driest?.value ?? null,
     sensors,
   });
 
   const fresh = samples.filter((_, i) => sensors[i].fresh);
+  if (fresh.length === 0 && (setup.faultySensors ?? 0) > 0) {
+    return result('check_sensors', 'Check sensors', 'Every soil moisture sensor in this field needs checking, so there is no watering advice until one reads normally.', null);
+  }
   if (fresh.length === 0) return result('no_recent_reading', 'No recent reading', 'No soil moisture reading in the last 6 hours.', null);
 
   let driest = fresh[0];

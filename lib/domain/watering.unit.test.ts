@@ -74,3 +74,14 @@ test('S-029: an irrigated field without a saved trigger is not configured, and s
   assert.deepEqual([r.status, r.label, r.driestValue], ['not_configured', 'Not configured', 12]);
   assert.match(r.reason, /Irrigation guidance is not configured/);
 });
+
+test('R-022: when every reporting sensor is faulty, the field says Check sensors, not No recent reading', () => {
+  const r = wateringAdvice(blueberry, [], forecast(0), now, { ...irrigated, faultySensors: 2 });
+  assert.deepEqual([r.status, r.label, r.driestSensorId], ['check_sensors', 'Check sensors', null]);
+});
+
+test('the driest sensor is named by id as well, so two probes with one name are told apart', () => {
+  const a = { ...sample('Probe', 33, 1), sensorId: 's1' };
+  const b = { ...sample('Probe', 30, 1), sensorId: 's2' };
+  assert.equal(wateringAdvice(blueberry, [a, b], forecast(0), now, irrigated).driestSensorId, 's2');
+});
