@@ -88,13 +88,14 @@ export function chart(f: Field, k: MetricKey): string {
   let lastDay = '';
   for (let i = 0; i < n; i++) {
     const label = dayLabel(i);
-    const isMidnight = hist ? hist.hours[i].endsWith('T00') : HOD(i) === 0;
+    // Hour keys are UTC; the day lines and their labels follow the farmer's own clock.
+    const isMidnight = hist ? new Date(hist.hours[i] + ':00:00.000Z').getHours() === 0 : HOD(i) === 0;
     if (isMidnight || (hist && label !== lastDay && i % 24 === 0)) {
       o += `<path d='M${X(i)} 20V200' stroke=#d9d0bd /><text x=${X(i) + 3} y=216 font-size=10 fill=#5b6470>${label}</text>`;
       lastDay = label;
     }
   }
-  o += `<text x=${X(Math.floor(n * 0.38))} y=14 text-anchor=middle font-size=10 fill=#3d5f8f>Rain ${rainTotal} mm</text>`;
+  if (rain.length) o += `<text x=${X(Math.floor(n * 0.38))} y=14 text-anchor=middle font-size=10 fill=#3d5f8f>Rain ${rainTotal} mm</text>`;
   lines.forEach((l, j) => {
     let d = '';
     let on = false;

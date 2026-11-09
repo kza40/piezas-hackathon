@@ -5,10 +5,11 @@ import { fieldAdvice } from './advice';
 import { RETENTION_DAYS } from './history';
 import { READING_TYPES, type ReadingType } from '../readings';
 
-function csvCell(value: string | number | null | undefined): string {
+export function csvCell(value: string | number | null | undefined): string {
   let s = value == null ? '' : String(value);
-  // Stop spreadsheets treating cells as formulas
-  if (/^[=+\-@]/.test(s)) s = `'${s}`;
+  // Stop spreadsheets running text as a formula (a sensor named "=HYPERLINK(...)"). Numbers are left
+  // alone: a guard on "-" would turn every below-zero temperature into text.
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }

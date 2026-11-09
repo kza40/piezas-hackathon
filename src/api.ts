@@ -166,7 +166,7 @@ export const farmApi = {
     a.href = url;
     a.download = filename;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 10_000); // revoking at once can cancel the download
   },
 };
 

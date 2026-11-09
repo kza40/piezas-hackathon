@@ -295,13 +295,17 @@ main.auth{padding:0;max-width:none;width:100%;min-height:100vh}
 @media(max-width:1100px){.mtop{left:12px;right:12px}.col{top:48px}.mscale{left:12px}.tb-wx,.tb-sync{display:none}}
 @media(max-width:760px){.mtl{flex-wrap:wrap}.topbar{gap:8px;padding:0 8px;height:40px}.tb-farm span,.tb-un,.dock .dl{display:none}.tb-farm{padding-left:8px}.tb-brand span{display:none}.col-r,.mscale{display:none}.col-l{top:auto;bottom:58px;max-height:48%;width:calc(100% - 24px)}.dock button{min-width:40px;padding:6px 8px}.panel{top:6px;bottom:56px}}
 
-/* 2D: field card + pin % only while hovered */
+/* 2D: field card + pin % while hovered, selected (tap on touch screens) or focused (keyboard) */
 svg .fhud,
 svg .fpin {
   opacity: 0;
 }
 svg g.ffield:hover .fhud,
-svg g.ffield:hover .fpin {
+svg g.ffield:hover .fpin,
+svg g.ffield.on .fhud,
+svg g.ffield.on .fpin,
+svg g.ffield:focus .fhud,
+svg g.ffield:focus .fpin {
   opacity: 1;
 }
 svg g.ffield:hover .fzone {

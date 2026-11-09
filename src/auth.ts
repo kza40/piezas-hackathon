@@ -125,6 +125,9 @@ export async function signOut() {
   S.liveWeather = null;
   S.liveAdvice = {};
   S.liveAlerts = [];
+  S.liveSensors = {};
+  S.liveMoistureSeries = {};
+  S.liveHistory = {};
   clearFarmScope();
 }
 

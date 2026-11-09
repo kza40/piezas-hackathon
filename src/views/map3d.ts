@@ -514,7 +514,9 @@ function frame(c: Ctx) {
     const lab = toScreen(n.anchor.x + n.group.position.x, n.h + 36, n.anchor.z + n.group.position.z, true);
     n.label.style.display = lab.off ? 'none' : '';
     if (!lab.off) n.label.style.transform = `translate(-50%,-100%) translate(${lab.tx}px,${lab.ty}px)`;
-    const hot = c.hover === n.id;
+    // The hovered field, or with nothing hovered the selected one: a tap opens it on touch screens and
+    // it stays while the pointer moves onto its "See field details" button. Tapping empty ground closes it.
+    const hot = c.hover ? c.hover === n.id : n.id === S.sel;
     n.hud.style.display = hot && !lab.off ? '' : 'none';
     if (hot && !lab.off) n.hud.style.transform = `translate(18px,-100%) translate(${lab.tx}px,${lab.ty}px)`;
     if (hot) {

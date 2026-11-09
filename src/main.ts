@@ -7,7 +7,7 @@ import { S, saveCards, saveLog, saveOffsets } from './state';
 import type { AlertFilter, CardId, Crop, FieldId, MapLayer, MetricKey, PanelId, Units } from './types';
 import { esc, openAlerts } from './ui/helpers';
 import { IC } from './ui/icons';
-import { actionsCard, alertsCard, fieldCard, legendCard, profileCard, todayCard, topBar, weatherCard } from './views/cards';
+import { alertsCard, fieldCard, legendCard, profileCard, todayCard, topBar, weatherCard } from './views/cards';
 import { map, onMapPointerDown, onMapWheel, resetView, zoom } from './views/map';
 import { dispose3D, mount3D, reset3D, zoom3D } from './views/map3d';
 import * as pages from './views/pages';
@@ -330,9 +330,10 @@ async function act(node: ActionElement, target: Element) {
       }
     }
     case 'export': {
-      if (!S.farmerId || !S.sel) return say('Pick a field first');
+      const id = fld(S.sel).id; // the field the page shows (the first one when none is picked)
+      if (!S.farmerId || !id) return say('Add a field first');
       try {
-        await farmApi.exportCsv(S.sel);
+        await farmApi.exportCsv(id);
         return say('Downloaded CSV (last 14 days)');
       } catch (e) {
         return say(e instanceof ApiError ? e.message : 'Could not export');

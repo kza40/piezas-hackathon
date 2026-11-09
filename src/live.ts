@@ -97,13 +97,9 @@ export async function loadLiveData() {
             hourKeys.push(new Date(now - i * 36e5).toISOString().slice(0, 13));
           }
           const idx = new Map(hourKeys.map((h, i) => [h, i]));
-          // Forecast hours are "now onward" — they barely overlap this past window,
-          // so rain bars stay mostly empty unless a past precip source is added later.
-          const rainByHour = new Map<string, number>();
-          for (const h of S.liveWeather?.hours ?? []) {
-            rainByHour.set(h.time.slice(0, 13), h.rainMm);
-          }
-          const rain = hourKeys.map((h) => rainByHour.get(h) ?? 0);
+          // No past rain yet: the farm weather endpoint is a forecast (now onward), so it would draw
+          // "Rain 0 mm" over every past week. The chart leaves rain out until a rain history exists.
+          const rain: number[] = [];
           const liveSens = S.liveSensors[f.id] ?? [];
           const histSensors = sensors.map((block) => {
             const meta = liveSens.find((s) => s.id === block.sensorId);

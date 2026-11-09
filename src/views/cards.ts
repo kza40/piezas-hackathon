@@ -79,8 +79,8 @@ export function fieldCard(): string {
   const k = ws(f);
   const look = FB[k];
   const h = moistureHistory(f);
-  const d24 = Math.round((h[h.length - 1] - h[h.length - 9]) * 10) / 10;
-  const trend = `<span class=trend>${d24 > 0 ? '▲' : d24 < 0 ? '▼' : '■'} ${Math.abs(d24)} pts / 24 h</span>`;
+  const d24 = h.length >= 9 ? Math.round((h[h.length - 1] - h[h.length - 9]) * 10) / 10 : null;
+  const trend = d24 == null ? 'no 24 h trend yet' : `<span class=trend>${d24 > 0 ? '▲' : d24 < 0 ? '▼' : '■'} ${Math.abs(d24)} pts / 24 h</span>`;
   const r = recFor(f);
   const posts = sensorsOf(f.id);
   const live = posts.filter((s) => s.m != null).map((s) => s.m!);
@@ -164,33 +164,6 @@ export function alertsCard(): string {
     : '<p class=mut>Nothing needs your attention.</p>';
   const crit = open.filter((a) => a.l === 'cr').length;
   return mapCard('alerts', 'Alerts', items, { count: open.length, sum: crit ? `${crit} critical` : '', panel: 'alerts' });
-}
-
-export function actionsCard(): string {
-  if (S.farmerId) {
-    const todo = F.map((field) => {
-      const a = S.liveAdvice[field.id];
-      if (!a || a.label === 'No action') return null;
-      return { field, a };
-    }).filter(Boolean) as { field: Field; a: NonNullable<(typeof S.liveAdvice)[string]> }[];
-    const items = todo.length
-      ? todo.slice(0, 3).map(({ field, a }) =>
-          '<div class=item>' + can(ws(field), 24) + "<div style='flex:1'><b>" + esc(a.label) + "</b><div class='mut tiny'>" + esc(field.name) + "</div></div><button class='btn sm' data-act=go data-p=field data-id=" + field.id + '>Open</button></div>'
-        ).join('') + (todo.length > 3 ? "<button class='btn alt sm' data-act=go data-p=recs>See all " + todo.length + '</button>' : '')
-      : '<p class=mut>All caught up.</p>';
-    return mapCard('recs', 'Recommended actions', items, { count: todo.length, sum: todo.length ? 'next: ' + todo[0].a.label.toLowerCase() : 'all done', panel: 'recs' });
-  }
-  const todo = mine(REC).filter((r) => r.p !== 'in' && !S.done[r.id]);
-  const items = todo.length
-    ? todo
-        .slice(0, 3)
-        .map(
-          (r) =>
-            `<div class=item>${can(ws(fieldForSeed(r.f)), 24)}<div style='flex:1'><b>${r.t}</b><div class='mut tiny'>${esc(fieldForSeed(r.f).name)} · ${r.p === 'cr' ? 'Today' : 'This week'}</div></div><button class='btn sm' data-act=done data-rid=${r.id}>Done</button></div>`,
-        )
-        .join('') + (todo.length > 3 ? `<button class='btn alt sm' data-act=go data-p=recs>See all ${todo.length}</button>` : '')
-    : '<p class=mut>All caught up.</p>';
-  return mapCard('recs', 'Recommended actions', items, { count: todo.length, sum: todo.length ? `next: ${todo[0].t.toLowerCase()}` : 'all done', panel: 'recs' });
 }
 
 // ---- top bar ---------------------------------------------------------------

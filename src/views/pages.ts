@@ -46,6 +46,22 @@ const tile = (f: Field) => {
   return `<button class=tile data-act=sf data-id=${f.id} style='background:${b.bg};color:${b.fg};${outline}'><span class=ti>${fieldNo(f.id)}</span>${cropG(f.crop, 34)}<span class=tn style='color:${b.n}'>${f.m}%</span><span class=tl>${esc(f.name)}</span><span class=ts>${can(k, 30, b.fg)}${WS[k].t}</span></button>`;
 };
 
+/** Forecast hours grouped into the farmer's local days: total rain, average and lowest temperature. */
+function byLocalDay(hours: { time: string; tempC: number; rainMm: number }[]) {
+  const days = new Map<string, { label: string; rain: number; temp: number; low: number; n: number }>();
+  for (const h of hours) {
+    const d = new Date(h.time);
+    const key = d.toLocaleDateString('en-CA'); // local YYYY-MM-DD
+    const cur = days.get(key) ?? { label: d.toLocaleDateString('en', { weekday: 'short' }), rain: 0, temp: 0, low: Infinity, n: 0 };
+    cur.rain += h.rainMm;
+    cur.temp += h.tempC;
+    cur.low = Math.min(cur.low, h.tempC);
+    cur.n += 1;
+    days.set(key, cur);
+  }
+  return [...days.values()];
+}
+
 const alertItems = (n: number) =>
   openAlerts()
     .slice(0, n)
@@ -111,18 +127,7 @@ export function dashboard(): string {
   const healthy = F.filter((x) => x.hl === 'ok').length;
   const avg = Math.round(sum((x) => x.m) / F.length);
   const liveWx = S.liveWeather;
-  const dayBuckets = (liveWx?.hours ?? []).reduce<Record<string, { rain: number; temp: number; n: number; label: string }>>((acc, h) => {
-    const d = new Date(h.time);
-    const key = d.toISOString().slice(0, 10);
-    const label = d.toLocaleDateString('en', { weekday: 'short' });
-    const cur = acc[key] ?? { rain: 0, temp: 0, n: 0, label };
-    cur.rain += h.rainMm;
-    cur.temp += h.tempC;
-    cur.n += 1;
-    acc[key] = cur;
-    return acc;
-  }, {});
-  const weekDays = Object.values(dayBuckets).slice(0, 7);
+  const weekDays = byLocalDay(liveWx?.hours ?? []).slice(0, 7);
   const weekBars = weekDays.length
     ? weekDays
         .map((d) => {
@@ -185,7 +190,7 @@ const history = (f: Field) => {
       })
   ).join('');
   const note = S.liveHistory[f.id]
-    ? 'nd is the ideal range. Blue bars are rain hours from the farm forecast when they overlap. Gaps mean no sensor data.'
+    ? 'Green band is the ideal range for the crop. Each line is one sensor. Gaps mean no sensor data.'
     : 'Green band is the ideal range for the crop. Blue bars are rain. Red dots are odd readings we ignored. Gaps mean no data.';
   return `<div class=card><h3>${met.name}, last 7 days</h3><p class=mut>${note}</p>${chart(f, k)}</div><div class=card style='margin-top:14px'><h3>Sensors in ${esc(f.name)}</h3><table><tr><th>Sensor</th><th>Status</th><th>${station ? 'Field now' : met.name}</th></tr>${rows || '<tr><td colspan=3 class=mut>No sensors yet</td></tr>'}</table></div>`;
 };
@@ -228,12 +233,13 @@ export function weather(): string {
     return `${demo}<h1>Weather and your fields</h1><p class=mut>Sign in and set a farm location to load the forecast.</p>`;
   }
   const now = live.hours[0];
-  const days = live.hours.filter((_, i) => i % 24 === 0).slice(0, 7);
-  const dayCards = (days.length ? days : live.hours.slice(0, 7))
-    .map((h) => {
-      const label = new Date(h.time).toLocaleDateString('en', { weekday: 'short' });
-      return `<div class="day"><b>${label}</b><div class="big" style="font-size:1.3rem">${T(h.tempC)}</div><div>${h.rainMm.toFixed(1)} mm</div></div>`;
-    })
+  // One card per local day of the forecast (a whole day's rain and its low, not one hour's reading).
+  const dayCards = byLocalDay(live.hours)
+    .slice(0, 7)
+    .map(
+      (d) =>
+        `<div class="day"><b>${d.label}</b><div class="big" style="font-size:1.3rem">${T(Math.round((d.temp / d.n) * 10) / 10)}</div><div>low ${T(d.low)}</div><div>${d.rain.toFixed(1)} mm</div></div>`,
+    )
     .join('');
   const frost = live.overnightLowC <= 2
     ? `Frost risk: overnight low ${T(live.overnightLowC)}.`
