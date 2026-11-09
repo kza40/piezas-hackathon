@@ -70,7 +70,8 @@ function render() {
   const left = (F.length ? fieldCard() : '') + todayCard() + legendCard(S.ly);
   const right = profileCard() + alertsCard() + actionsCard() + weatherCard();
   keepScroll(() => {
-    main.innerHTML = `<div class=board>${topBar()}<div class=stage>${map(left, right)}${S.panel ? panel(S.panel) : ''}${dock()}</div></div>${modal}${toast}`;
+    const overlays = `${S.panel ? panel(S.panel) : ''}${dock()}`;
+    main.innerHTML = `<div class=board>${topBar()}<div class='stage${S.bare ? ' bare' : ''}'>${map(left, right, overlays)}</div></div>${modal}${toast}`;
   });
   const host = document.getElementById('m3');
   if (host) mount3D(host, pickField);
