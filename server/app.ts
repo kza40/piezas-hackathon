@@ -1,6 +1,7 @@
 // The /api routes. Thin on purpose: parse the request, find the farmer, call lib/server, return JSON.
 // See docs/api.md for the contract with the frontend.
 import { Hono, type Context } from 'hono';
+import { createReportProblemRoute } from '@piezas/sdk';
 import { createMiddleware } from 'hono/factory';
 import { bodyLimit } from 'hono/body-limit';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
@@ -15,6 +16,7 @@ import { listAlerts, markAlertDone } from '../lib/server/data/alerts';
 import { adviseAfterIngest, farmWeather, fieldAdvice, plantingAdvice } from '../lib/server/data/advice';
 import { exportFieldCsv } from '../lib/server/data/export';
 import { object } from '../lib/server/validate';
+import { piezas } from '../lib/server/piezas';
 
 type Env = { Variables: { user: SessionUser } };
 
@@ -90,7 +92,19 @@ api.post('/auth/sign-out', async (c) => {
   return c.body(null, 204);
 });
 
-api.get('/auth/me', signedIn, async (c) => c.json({ user: c.var.user, profile: await getProfile(c.var.user.id) }));
+// Who is signed in. Signed out is a normal answer here (200 with user null), not an error: the app asks
+// on every load, and a 401 would put a red error in the console of every visitor's sign-in screen.
+api.get('/auth/me', async (c) => {
+  c.header('cache-control', 'no-store');
+  const token = getCookie(c, SESSION_COOKIE);
+  const s = await getSessionUser(token);
+  if (!s) {
+    if (token) deleteCookie(c, SESSION_COOKIE, { path: '/' }); // expired or revoked: stop sending it
+    return c.json({ user: null, profile: null });
+  }
+  if (s.refreshedToken) setSession(c, s.refreshedToken);
+  return c.json({ user: s.user, profile: await getProfile(s.user.id) });
+});
 
 api.patch('/me/profile', signedIn, async (c) => c.json({ profile: await updateProfile(c.var.user.id, await body(c)) }));
 
@@ -156,6 +170,21 @@ const ingestLimit = bodyLimit({
 api.post('/ingest', ingestLimit, async (c) =>
   c.json(await ingest(c.req.header('x-device-key'), await body(c), (saved) => void adviseAfterIngest(saved)), 202),
 );
+
+// "Report a problem" (Piezas SDK, src/report-problem.ts is the button). Public on purpose: it has to work
+// on the sign-in screen and when the app is broken. The SDK rate-limits per visitor, and names the
+// reporter by verifying our piezas_session cookie itself, never from what the browser sends. GET says
+// whether the button is on (hosted setting PIEZAS_REPORT_BUTTON); POST saves a report, with an optional
+// screenshot, to the app's problem_reports records. Built on first use: piezas() needs the API key.
+let reportRoute: ReturnType<typeof createReportProblemRoute> | undefined;
+const report = () => (reportRoute ??= createReportProblemRoute({ piezas: piezas() }));
+// The SDK refuses reports over 800 KB, but only after reading the body when no length is declared; cap it here first.
+const reportLimit = bodyLimit({
+  maxSize: 900 * 1024,
+  onError: (c) => c.json({ error: 'payload_too_large', message: 'The report is too large.' }, 413),
+});
+api.get('/piezas/report', (c) => report().GET(c.req.raw));
+api.post('/piezas/report', reportLimit, (c) => report().POST(c.req.raw));
 
 // Anything else under /api is a JSON 404, never the frontend's index.html.
 api.all('/*', () => {

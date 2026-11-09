@@ -1,3 +1,4 @@
+import './report-problem'; // first, so it records errors from the start
 import './styles.css';
 import { ApiError, farmApi, profileApi, setUnauthorizedHandler } from './api';
 import { onLiveDataLoaded, refreshFieldAdvice, refreshLiveData } from './live';

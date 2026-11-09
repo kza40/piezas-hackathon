@@ -55,10 +55,17 @@ function authFail(e: unknown, fallback: string) {
 export async function restoreSession(): Promise<boolean> {
   try {
     const { user, profile } = await authApi.me();
+    if (!user || !profile) {
+      S.farmerId = null;
+      S.page = 'login';
+      clearFarmScope();
+      return false;
+    }
     applyProfile(user, profile);
     await loadFarmData();
     return true;
   } catch (e) {
+    // The session ran out between the check and loading the farm.
     if (e instanceof ApiError && e.status === 401) {
       S.farmerId = null;
       S.page = 'login';
