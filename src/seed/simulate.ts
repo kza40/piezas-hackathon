@@ -134,6 +134,8 @@ export const lastV = (s: Sensor, k: SensorKey): number | null => {
 /** One reading post in a field, with its last good values and where it sits. */
 export interface FieldSensor {
   id: string;
+  /** The server's sensor id, for live sensors (id above is the display name). */
+  sensorId?: string;
   m: number | null;
   st: number | null;
   online: boolean;
@@ -149,6 +151,7 @@ export const sensorsOf = (id: FieldId): FieldSensor[] => {
   if (live?.length) {
     return live.map((s, i) => ({
       id: s.name || s.id.slice(0, 4),
+      sensorId: s.id,
       m: s.m,
       st: s.st,
       online: s.online,

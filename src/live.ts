@@ -1,7 +1,7 @@
 import { farmApi } from './api';
 import { F } from './seed/simulate';
 import { S } from './state';
-import type { AppState, LiveHistory, LiveSensor, LiveWeather, MetricKey } from './types';
+import type { AdviceResponse, AppState, Health, LiveAdvice, LiveHistory, LiveSensor, LiveWeather, MetricKey } from './types';
 
 function ageHours(iso: string | undefined, now: number): number {
   if (!iso) return 999;
@@ -24,8 +24,57 @@ function applySensorsToField(fieldId: string, sensors: LiveSensor[]) {
   if (hs.length) f.h = Math.round(hs.reduce((a, b) => a + b, 0) / hs.length);
   const online = sensors.filter((s) => s.online).length;
   f.s = [online, sensors.length];
-  const lo = f.mi[0];
-  f.hl = f.m < lo - 5 ? 'cr' : f.m < lo ? 'wn' : 'ok';
+  const a = S.liveAdvice[fieldId];
+  if (a) f.hl = healthFromAdvice(a);
+  else {
+    const lo = f.mi[0];
+    f.hl = f.m < lo - 5 ? 'cr' : f.m < lo ? 'wn' : 'ok';
+  }
+}
+
+// With live advice, a field's colour follows the server, never the seed's crop range (R-009, R-021):
+// red when it needs water today, yellow when a sensor needs checking.
+function healthFromAdvice(a: LiveAdvice): Health {
+  if (a.status === 'water_today') return 'cr';
+  if (a.status === 'check_sensors' || a.sensorHealth.some((h) => h.status !== 'ok')) return 'wn';
+  return 'ok';
+}
+
+function toLiveAdvice(adv: AdviceResponse): LiveAdvice {
+  return {
+    status: adv.watering.status,
+    label: adv.watering.label,
+    reason: adv.watering.reason,
+    soilWarning: adv.soilWarning,
+    frostWarning: adv.frostWarning,
+    driestValue: adv.watering.driestValue,
+    rainNext48hMm: adv.weather.rainNext48hMm,
+    waterBy: adv.waterBy,
+    setup: adv.setup,
+    sensorHealth: adv.sensorHealth ?? [],
+    events: adv.events ?? [],
+    lastWatered: adv.lastWatered,
+    fieldCapacity: adv.fieldCapacity,
+    triggerSuggestion: adv.triggerSuggestion,
+    learning: adv.learning ?? [],
+  };
+}
+
+async function loadAlerts() {
+  try {
+    const { alerts } = await farmApi.listAlerts('open');
+    S.liveAlerts = alerts.map((x) => ({ id: x.id, fieldId: x.fieldId, message: x.message, createdAt: x.createdAt }));
+  } catch {
+    S.liveAlerts = [];
+  }
+}
+
+/** After the farmer changes a field's setup or labels an event: that field's advice, then alerts (advice may open or the change may close one). */
+export async function refreshFieldAdvice(fieldId: string) {
+  S.liveAdvice[fieldId] = toLiveAdvice(await farmApi.getAdvice(fieldId));
+  const f = F.find((x) => x.id === fieldId);
+  if (f) f.hl = healthFromAdvice(S.liveAdvice[fieldId]);
+  await loadAlerts();
 }
 
 let generation = 0;
@@ -68,14 +117,7 @@ export async function loadLiveData(): Promise<boolean> {
     await Promise.all(
       fields.map(async (f) => {
         try {
-          const adv = await farmApi.getAdvice(f.id);
-          next.advice[f.id] = {
-            status: adv.watering.status,
-            label: adv.watering.label,
-            reason: adv.watering.reason,
-            soilWarning: adv.soilWarning,
-            frostWarning: adv.frostWarning,
-          };
+          next.advice[f.id] = toLiveAdvice(await farmApi.getAdvice(f.id));
         } catch {
           /* ignore */
         }

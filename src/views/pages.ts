@@ -21,6 +21,7 @@ import {
   ws,
 } from '../ui/helpers';
 import { can, cropG } from '../ui/icons';
+import { chipText, eventsCard, healthOf, healthPill, setupCard, triggerOf, triggerShort, wateringBlock } from './watering';
 
 const ORDER: Record<WaterState, number> = { now: 0, soon: 1, rain: 2, none: 3 };
 const byUrgency = () => [...F].sort((a, b) => ORDER[ws(a)] - ORDER[ws(b)]);
@@ -28,15 +29,20 @@ const sum = (fn: (f: Field) => number) => F.reduce((a, f) => a + fn(f), 0);
 
 const fieldTabs = () =>
   `<div class=tabs role=group aria-label='Choose field'>${F.map(
-    (x) => `<button aria-pressed=${x.id === S.sel} data-act=sel data-id=${x.id}>${x.id}. ${esc(x.name)}</button>`,
+    (x) => `<button aria-pressed=${x.id === S.sel} data-act=sel data-id=${x.id}>${fieldNo(x.id)}. ${esc(x.name)}</button>`,
   ).join('')}</div>`;
 
 const feat = (f: Field) => {
   const k = ws(f);
   const b = FB[k];
   const advice = S.liveAdvice[f.id];
-  const next = advice ? esc(advice.label) + (advice.reason ? ' · ' + esc(advice.reason) : '') : (S.farmerId ? 'Advice loading…' : 'Check sensors and the forecast before you water.');
-  return `<section class=feat style='background:${b.bg};color:${b.fg}'><div class=ft><p class=fk>FIELD ${fieldNo(f.id)} — ${f.crop.toUpperCase()}</p><div class=fn style='color:${b.n}'>${f.m}<span>%</span></div><p class=fk>SOIL MOISTURE · IDEAL ${f.mi[0]}–${f.mi[1]}%</p><p class=chip style='background:${b.fg};color:${b.bg}'><i style='background:${WS[k].h}'></i>${b.c}</p><p class=fw>${next}</p><p class=fa><button class=btn style='background:${b.fg};color:${b.bg}' data-act=op data-id=${f.id}>Why?</button> <button class='btn alt' style='border-color:${b.fg};color:${b.fg}' data-act=pkm data-id=${f.id}>Show on map</button></p></div><div class=fr>${soil(f)}</div></section>`;
+  const next = advice
+    ? esc(advice.label) + (advice.reason ? ' · ' + esc(advice.reason) : '') + (advice.waterBy ? ' ' + esc(advice.waterBy.text) : '')
+    : S.farmerId
+      ? 'Advice loading…'
+      : 'Check sensors and the forecast before you water.';
+  const target = advice ? triggerShort(advice).toUpperCase() : `IDEAL ${f.mi[0]}–${f.mi[1]}%`;
+  return `<section class=feat style='background:${b.bg};color:${b.fg}'><div class=ft><p class=fk>FIELD ${fieldNo(f.id)} — ${f.crop.toUpperCase()}</p><div class=fn style='color:${b.n}'>${f.m}<span>%</span></div><p class=fk>SOIL MOISTURE · ${target}</p><p class=chip style='background:${b.fg};color:${b.bg}'><i style='background:${WS[k].h}'></i>${esc(chipText(f, b.c))}</p><p class=fw>${next}</p><p class=fa><button class=btn style='background:${b.fg};color:${b.bg}' data-act=op data-id=${f.id}>Why?</button> <button class='btn alt' style='border-color:${b.fg};color:${b.fg}' data-act=pkm data-id=${f.id}>Show on map</button></p></div><div class=fr>${soil(f)}</div></section>`;
 };
 
 const tile = (f: Field) => {
@@ -159,18 +165,18 @@ const history = (f: Field) => {
   const met = metric(k);
   const station = isStation(k);
   const live = S.liveSensors[f.id];
+  const adv = S.liveAdvice[f.id];
   const rows = (live?.length
     ? live.map((x, j) => {
         const a = x.ageHours;
         const v = station ? f[k] : k === 'm' ? x.m : k === 'st' ? x.st : k === 'ph' ? x.ph : null;
         const status =
-          a >= 24
+          healthPill(healthOf(adv, x.id)) ??
+          (a >= 24
             ? `<span class='pill cr'>▲ No readings for ${Math.round(a / 24)} days</span>`
             : a > 6
               ? `<span class='pill wn'>! Last reading ${a} h ago</span>`
-              : (x.m ?? 99) < 20
-                ? `<span class='pill wn'>! Reads dry</span>`
-                : `<span class='pill ok'>✓ Online</span>`;
+              : `<span class='pill ok'>✓ Online</span>`);
         return `<tr><td><i style='display:inline-block;width:12px;height:12px;background:${station ? '#232a33' : SERIES_COLORS[j % 4]};margin-right:6px'></i>${esc(x.name)}</td><td>${status}</td><td>${v ?? '—'}${met.unit}</td></tr>`;
       })
     : S.farmerId
@@ -190,7 +196,7 @@ const history = (f: Field) => {
       })
   ).join('');
   const note = S.liveHistory[f.id]
-    ? 'Green band is the ideal range for the crop. Each line is one sensor. Gaps mean no sensor data.'
+    ? `Each line is one sensor.${S.liveAdvice[f.id]?.setup.trigger ? ' The dashed line is your trigger.' : ''} Gaps mean no sensor data.`
     : 'Green band is the ideal range for the crop. Blue bars are rain. Red dots are odd readings we ignored. Gaps mean no data.';
   return `<div class=card><h3>${met.name}, last 7 days</h3><p class=mut>${note}</p>${chart(f, k)}</div><div class=card style='margin-top:14px'><h3>Sensors in ${esc(f.name)}</h3><table><tr><th>Sensor</th><th>Status</th><th>${station ? 'Field now' : met.name}</th></tr>${rows || '<tr><td colspan=3 class=mut>No sensors yet</td></tr>'}</table></div>`;
 };
@@ -210,7 +216,13 @@ export function field(): string {
   }
   const f = fld(S.sel);
   const r = S.farmerId ? null : REC.find((x) => x.f === f.id || x.f === f.layout);
+  const liveA = S.liveAdvice[f.id];
   const tiles = MET.map((m) => {
+    if (m.key === 'm' && liveA) {
+      const t = triggerOf(f);
+      const o = t == null ? triggerShort(liveA).toLowerCase() : f.m < t ? `below your ${t}% trigger` : `above your ${t}% trigger`;
+      return `<div class='mt ${t != null && f.m < t ? 'off' : ''}'><div class=mv>${f.m}<small>%</small></div><b>${m.name}</b><span class=mtnote>${o}</span></div>`;
+    }
     const rg = idealRange(f, m);
     const v = f[m.key];
     const o = v < rg[0] ? 'low' : v > rg[1] ? 'high' : 'in range';
@@ -219,12 +231,12 @@ export function field(): string {
   }).join('');
   const live = S.liveAdvice[f.id];
   const rec = live
-    ? `<div class='blk orange'><h2>Recommended action</h2><p><b>${esc(live.label)}</b></p><p>${esc(live.reason)}</p>${live.soilWarning ? `<p>${esc(live.soilWarning)}</p>` : ''}${live.frostWarning ? `<p>${esc(live.frostWarning)}</p>` : ''}</div>`
+    ? wateringBlock(f, live) + setupCard(f, live)
     : r
       ? `<div class='blk orange'><h2>Recommended action</h2><p><b>${r.t}</b></p><p>${r.w}</p><p>${r.c}</p></div>`
       : `<div class='blk lime'><h2>Recommended action</h2><p class=mut>Advice loading…</p></div>`;
   const metricTabs = MET.map((m) => `<button aria-pressed=${m.key === S.mk} data-act=mk data-k=${m.key}>${m.name}</button>`).join('');
-  return `${demo}<h1>Fields &amp; sensors</h1><p class=mut>Readings, history and watering for each parcel — in one place.</p><p><button class='btn alt sm' data-act=export data-testid=export-csv>Download last 14 days (CSV)</button></p>${fieldTabs()}${feat(f)}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>Sensor history</h2><div class=tabs>${metricTabs}</div>${history(f)}${waterLog(f)}`;
+  return `${demo}<h1>Fields &amp; sensors</h1><p class=mut>Readings, history and watering for each parcel — in one place.</p><p><button class='btn alt sm' data-act=export data-testid=export-csv>Download last 14 days (CSV)</button></p>${fieldTabs()}${feat(f)}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>Sensor history</h2><div class=tabs>${metricTabs}</div>${history(f)}${live ? eventsCard(f, live) : waterLog(f)}`;
 }
 
 export function weather(): string {
@@ -347,7 +359,10 @@ export function wateringModal(f: Field): string {
     ? `${S.liveWeather.rainNext48hMm.toFixed(1)} mm rain next 48h · overnight ${T(S.liveWeather.overnightLowC)}`
     : 'Forecast loads with your farm location.';
   const whyText = live?.reason ?? why[k];
-  const nextText = live?.label ?? next[k];
-  return `<div class=mdl data-act=cm><div class=sheet role=dialog aria-modal=true aria-label='Watering details' style='border-top-color:${w.h}'><div class=row><div style='display:flex;gap:12px;align-items:center'>${can(k, 60)}<div><h2>${esc(f.name)}</h2><b style='color:${w.c};font-size:1.15rem'>${w.t}</b></div></div><button class='btn alt' data-act=cm>Close</button></div><div class=item style='display:block'><div class=row><span>Soil moisture now</span><b>${f.m}%</b></div>${rng(f.m, f.mi)}<div class=mut>Recommended for ${f.crop.toLowerCase()}: ${lo}–${hi}%</div></div><p><b>Weather:</b> ${wx}</p><p><b>Why:</b> ${esc(whyText)}</p><div class=nx><span class=mut>Next step</span><br>${esc(nextText)}</div><p style='margin-top:14px'><button class=btn data-act=gf data-id=${f.id}>Open field details</button></p></div></div>`;
+  const nextText = live ? live.label + (live.waterBy ? ` · ${live.waterBy.text}` : '') : next[k];
+  const target = live
+    ? `<div class=mut>${esc(triggerShort(live))}${live.setup.trigger ? ' · water when the driest trusted probe drops below it' : ''}</div>`
+    : `${rng(f.m, f.mi)}<div class=mut>Recommended for ${f.crop.toLowerCase()}: ${lo}–${hi}%</div>`;
+  return `<div class=mdl data-act=cm><div class=sheet role=dialog aria-modal=true aria-label='Watering details' style='border-top-color:${w.h}'><div class=row><div style='display:flex;gap:12px;align-items:center'>${can(k, 60)}<div><h2>${esc(f.name)}</h2><b style='color:${w.c};font-size:1.15rem'>${w.t}</b></div></div><button class='btn alt' data-act=cm>Close</button></div><div class=item style='display:block'><div class=row><span>Soil moisture now</span><b>${f.m}%</b></div>${target}</div><p><b>Weather:</b> ${wx}</p><p><b>Why:</b> ${esc(whyText)}</p><div class=nx><span class=mut>Next step</span><br>${esc(nextText)}</div><p style='margin-top:14px'><button class=btn data-act=gf data-id=${f.id}>Open field details</button></p></div></div>`;
 }
 

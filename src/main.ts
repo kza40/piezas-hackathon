@@ -1,6 +1,6 @@
 import './styles.css';
 import { ApiError, farmApi, profileApi, setUnauthorizedHandler } from './api';
-import { onLiveDataLoaded, refreshLiveData } from './live';
+import { onLiveDataLoaded, refreshFieldAdvice, refreshLiveData } from './live';
 import { refreshFields, restoreSession, signIn, signOut, signUp } from './auth';
 import { F, fld } from './seed/simulate';
 import { S, saveCards, saveLog, saveOffsets } from './state';
@@ -158,6 +158,24 @@ function logWater(mm: number) {
 }
 
 type ActionElement = Element & { dataset: DOMStringMap };
+
+// Field setup and event labels (R-009, R-021, R-023, R-024): save, then reload that field's advice so the
+// page shows what the change means right away. One change at a time per field, so double taps don't race.
+const saving = new Set<string>();
+async function saveField(fieldId: string, change: () => Promise<unknown>, done: string) {
+  if (!S.farmerId || !fieldId || saving.has(fieldId)) return;
+  saving.add(fieldId);
+  say('Saving…');
+  try {
+    await change();
+    await refreshFieldAdvice(fieldId);
+    say(done);
+  } catch (e) {
+    say(e instanceof ApiError ? e.message : 'Could not save that change');
+  } finally {
+    saving.delete(fieldId);
+  }
+}
 
 async function act(node: ActionElement, target: Element) {
   const d = node.dataset;
@@ -340,6 +358,34 @@ async function act(node: ActionElement, target: Element) {
         return say(e instanceof ApiError ? e.message : 'Could not add field');
       }
     }
+    case 'irr': {
+      const id = d.id ?? '';
+      const on = !S.liveAdvice[id]?.setup.irrigated;
+      return saveField(id, () => farmApi.updateField(id, { irrigated: on }), on ? 'Marked as irrigated' : 'Marked as rain-fed');
+    }
+    case 'usesug': {
+      const id = d.id ?? '';
+      const s = S.liveAdvice[id]?.triggerSuggestion;
+      if (!s) return;
+      return saveField(id, () => farmApi.updateField(id, { trigger: { value: s.value, source: 'suggested', basis: s.basis } }), `Trigger saved: ${s.value}%`);
+    }
+    case 'savetrig': {
+      const id = d.id ?? '';
+      const input = document.getElementById(`trig-${id}`) as HTMLInputElement | null;
+      const value = Number(input?.value);
+      if (!input?.value || !Number.isInteger(value) || value < 1 || value > 80) return say('Enter a whole number from 1 to 80');
+      return saveField(id, () => farmApi.updateField(id, { trigger: { value, source: 'manual' } }), `Trigger saved: ${value}%`);
+    }
+    case 'clrtrig': {
+      const id = d.id ?? '';
+      return saveField(id, () => farmApi.updateField(id, { trigger: null }), 'Trigger cleared');
+    }
+    case 'evl': {
+      const id = d.id ?? '';
+      const label = d.l === 'irrigation' || d.l === 'rain' || d.l === 'none' ? d.l : null;
+      if (!d.start) return;
+      return saveField(id, () => farmApi.eventFeedback(id, d.start!, label), label ? 'Label saved' : 'Back to the detected label');
+    }
     case 'export': {
       const id = fld(S.sel).id; // the field the page shows (the first one when none is picked)
       if (!S.farmerId || !id) return say('Add a field first');
@@ -428,6 +474,11 @@ document.addEventListener('input', (e) => {
 
 document.addEventListener('change', (e) => {
   const input = e.target as HTMLSelectElement;
+  const soilFor = input.dataset?.fsoil;
+  if (soilFor) {
+    void saveField(soilFor, () => farmApi.updateField(soilFor, { soil: input.value }), 'Soil type saved');
+    return;
+  }
   const key = input.dataset?.bind;
   // Only the selects re-render. Text inputs are already stored on every keystroke (above), and
   // re-rendering when one loses focus would replace the input the farmer is moving into.

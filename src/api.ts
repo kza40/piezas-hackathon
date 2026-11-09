@@ -1,4 +1,5 @@
 /** Relative `/api` calls (Vite proxies to localhost:8787 in dev). Cookie session. */
+import type { AdviceResponse, EventLabel } from './types';
 
 let onUnauthorized: (() => void) | null = null;
 export function setUnauthorizedHandler(fn: () => void) {
@@ -130,14 +131,18 @@ export const farmApi = {
     api<{ rainNext48hMm: number; overnightLowC: number; hours: { time: string; tempC: number; rainMm: number }[] }>(
       `/api/farms/${farmId}/weather`,
     ),
-  getAdvice: (fieldId: string) =>
-    api<{
-      watering: { status: string; label: string; reason: string };
-      soilWarning: string | null;
-      frostWarning: string | null;
-      weather: { rainNext48hMm: number; overnightLowC: number };
-      alert: { id: string; message: string } | null;
-    }>(`/api/fields/${fieldId}/advice`),
+  getAdvice: (fieldId: string) => api<AdviceResponse>(`/api/fields/${fieldId}/advice`),
+  // R-009/R-021: the field's watering setup. trigger: null clears it.
+  updateField: (
+    fieldId: string,
+    body: { irrigated?: boolean; soil?: string; trigger?: { value: number; source?: 'suggested' | 'manual'; basis?: string } | null },
+  ) => api<{ field: ApiField }>(`/api/fields/${fieldId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  // R-023: the farmer's label for a detected wetting event; null removes it.
+  eventFeedback: (fieldId: string, start: string, label: EventLabel | null) =>
+    api<{ field: ApiField }>(`/api/fields/${fieldId}/events/${encodeURIComponent(start)}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify({ label }),
+    }),
   listAlerts: (status?: 'open' | 'done') =>
     api<{ alerts: { id: string; fieldId: string; message: string; status: string; createdAt: string; doneAt: string | null }[] }>(
       status ? `/api/alerts?status=${status}` : '/api/alerts',
