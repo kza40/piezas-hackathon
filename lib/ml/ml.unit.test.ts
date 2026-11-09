@@ -7,7 +7,7 @@ import { fitDrying, waterBy } from './drydown';
 import { detectWettingEvents, lastWatered } from './events';
 import { sensorHealth } from './health';
 import { suggestTrigger } from './trigger';
-import { simulateSensor } from '../server/simulate';
+import { simulateSpots } from '../server/simulate';
 import { HOUR, type ForecastHour, type Point, type SensorSeries, type WeatherHour } from './types';
 
 const now = new Date('2026-11-20T12:00:00Z');
@@ -176,16 +176,17 @@ test('water by: a window around the expected hour, later with forecast rain, now
 
 // ---- the simulator and the labeller agree (the demo depends on it) ----
 
-test('simulated fields: the recorded rain is labelled rain, and the 6 am waterings are labelled irrigation', () => {
-  const crop = { moistureMin: 35, moistureMax: 50, phMin: 4.5, phMax: 5.5, ecMax: 1 };
-  const rain = weather({ 100: 4, 99: 6, 98: 4 }); // 14 mm about four days ago
-  const sensors = ['north', 'south'].map((id) => ({
-    sensorId: id,
-    sensorName: id,
-    points: simulateSensor(id, crop, -122.3, now, 14, rain)
-      .filter((r) => r.type === 'soil_moisture')
-      .map((r) => ({ time: r.time, value: r.value })),
+const simCrop = { moistureMin: 35, moistureMax: 50, phMin: 4.5, phMax: 5.5, ecMax: 1 };
+const simulatedField = (rain: WeatherHour[], irrigated: boolean): SensorSeries[] =>
+  simulateSpots(['north', 'south'], simCrop, -122.3, now, 14, { rain, irrigated }).map((readings, i) => ({
+    sensorId: ['north', 'south'][i],
+    sensorName: ['north', 'south'][i],
+    points: readings.filter((r) => r.type === 'soil_moisture').map((r) => ({ time: r.time, value: r.value })),
   }));
+
+test('simulated fields: the recorded rain is labelled rain, and the 6 am waterings are labelled irrigation', () => {
+  const rain = weather({ 100: 4, 99: 6, 98: 4 }); // 14 mm about four days ago
+  const sensors = simulatedField(rain, true);
   const events = detectWettingEvents(sensors, rain, {});
   const rains = events.filter((e) => e.label === 'rain');
   assert.equal(rains.length, 1, JSON.stringify(events.map((e) => [e.start, e.label, e.rainMm])));
@@ -193,5 +194,13 @@ test('simulated fields: the recorded rain is labelled rain, and the 6 am waterin
   const waterings = events.filter((e) => e.label === 'irrigation');
   assert.ok(waterings.length >= 1, 'the dry spell is broken by irrigation');
   const localHour = (iso: string) => (new Date(iso).getUTCHours() - 122.3 / 15 + 24) % 24;
-  for (const e of waterings) assert.ok(localHour(e.start) >= 3 && localHour(e.start) <= 7, `irrigation starts near 6 am local, got ${e.start}`);
+  for (const e of waterings) {
+    assert.ok(localHour(e.start) >= 3 && localHour(e.start) <= 7, `irrigation starts near 6 am local, got ${e.start}`);
+    assert.ok(e.rises.every((r) => r.rise > 3), 'the whole field is watered at once, so every probe rises');
+  }
+});
+
+test('simulated fields: a rain-fed field is never watered', () => {
+  const rain = weather({ 100: 4, 99: 6, 98: 4 });
+  assert.deepEqual(detectWettingEvents(simulatedField(rain, false), rain, {}).map((e) => e.label), ['rain']);
 });

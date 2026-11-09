@@ -36,7 +36,7 @@ export function suggestTrigger(
       fieldCapacity: fc,
       wiltingPoint: wp,
       depletion: crop.p,
-      basis: `field capacity ${fc}% after ${capacity.basis}; ${texture.name} wilting point; ${crop.row} can use ${crop.p * 100}% of the available water (FAO-56)`,
+      basis: `field capacity ${fc}% after ${capacity.basis}; ${texture.name} wilting point; ${crop.row} can use ${Math.round(crop.p * 100)}% of the available water (FAO-56)`,
     },
     needs: null,
   };

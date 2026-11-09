@@ -11,7 +11,7 @@ import { READING_TYPES, parseIngestBody, type Reading, type ReadingType } from '
 import { getOwned, listAll, num, oldestFirst, str } from './records';
 import { getCropProfile } from './crops';
 import { appendHistory, deleteSensorHistory, replaceHistory, RETENTION_DAYS, sensorHistory, type Series } from './history';
-import { simulateSensor } from '../simulate';
+import { simulateSpots } from '../simulate';
 import { getWeather } from '../../weather/index';
 import type { WeatherHour } from '../../domain/types';
 
@@ -125,11 +125,14 @@ export async function simulateField(ownerId: string, fieldId: string, now = new 
         return [];
       });
   }
+  // All the field's sensors together: the farmer waters the whole field, and only if it is irrigated.
+  const simCrop = crop ?? { moistureMin: null, moistureMax: null, phMin: null, phMax: null, ecMax: null };
+  const simulated = simulateSpots(sensors.map((s) => s.id), simCrop, longitude, now, RETENTION_DAYS, { rain, irrigated: f.data.irrigated === true });
   const out: Sensor[] = [];
-  for (const s of sensors) {
+  for (const [i, s] of sensors.entries()) {
     out.push(
       await withLock(`device:${str(s.data.keyHash)}`, async () => {
-        const readings = simulateSensor(s.id, crop ?? { moistureMin: null, moistureMax: null, phMin: null, phMax: null, ecMax: null }, longitude, now, RETENTION_DAYS, rain);
+        const readings = simulated[i];
         await replaceHistory(ownerId, s.id, readings, 'simulated', now);
         return toSensor(await sensor.update(s.id, { data: { latest: mergeLatest({}, readings).latest } }));
       }),
