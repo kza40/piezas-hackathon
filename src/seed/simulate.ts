@@ -228,6 +228,7 @@ const PARCEL_ORDER: FieldId[] = ['A', 'B', 'F', 'C', 'D', 'E'];
 
 export function clearFarmScope() {
   F.splice(0, F.length);
+  S.liveFields = []; // the next farm, even the same one again, shows Loading until its own load lands
 }
 
 /** Match a server crop profile name to the frontend Crop labels. */

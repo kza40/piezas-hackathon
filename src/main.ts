@@ -198,6 +198,7 @@ async function act(node: ActionElement, target: Element) {
   switch (d.act) {
     case 'out':
       await signOut();
+      railTop = 0; // the next farmer's rail starts at the top
       dispose3D();
       location.hash = 'login';
       return render();
