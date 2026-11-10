@@ -2,7 +2,7 @@ import { FARM, FB, NXT, W, WS } from '../seed/farm';
 import { DN, F, ownsSeedRef, REC, RT, SEN, fld, sensorsOf } from '../seed/simulate';
 import { S } from '../state';
 import type { CardId, Field, MapLayer, PanelId, WaterState } from '../types';
-import { decision, esc, farmVerdict, fieldNo, firstName, initials, lastWatered, liveLoading, moistureTint, noAdviceText, noWeatherText, openAlerts, pending, pill, SK, T, ws } from '../ui/helpers';
+import { decision, esc, farmVerdict, fieldNo, firstName, hasReading, initials, lastWatered, liveLoading, moistureTint, mText, noAdviceText, noWeatherText, openAlerts, pending, pill, SK, T, ws } from '../ui/helpers';
 import { can } from '../ui/icons';
 import { healthOf, lastWateredText, triggerShort } from './watering';
 
@@ -100,7 +100,7 @@ export function fieldCard(): string {
   const r = recFor(f);
   const posts = sensorsOf(f.id);
   const live = posts.filter((s) => s.m != null).map((s) => s.m!);
-  const span = live.length ? `${Math.round(Math.min(...live))}–${Math.round(Math.max(...live))}%` : `${f.m}%`;
+  const span = live.length ? `${Math.round(Math.min(...live))}–${Math.round(Math.max(...live))}%` : mText(f);
   const zones = posts
     .map((s) => {
       const tone = s.m == null ? '#b8b2a2' : moistureTint(s.m);
@@ -109,10 +109,10 @@ export function fieldCard(): string {
       return `<div class=zrow><i style='background:${tone}'></i><b>${esc(s.id)}</b><span>${s.m == null ? '—' : `${Math.round(s.m)}%`}</span>${state}</div>`;
     })
     .join('');
-  const hero = `<div class=fhero style='background:${look.bg};color:${look.fg}'><div><div class=fdec style='color:${look.n}'>${esc(decision(f))}</div><div class=fsub>${f.m}% soil moisture · ${trend}</div></div><button class=cb data-act=op data-id=${f.id} aria-label='Watering details'>${can(k, 48)}</button></div>`;
-  const grid = `<div class='kvs g2'>${kv('Crop', `${f.crop} · ${esc(f.stage)}`)}${kv('Area', `${f.ac} ac`)}${kv('Soil', esc(f.soil))}${kv('Air humidity', `${f.h}%`)}${kv('Soil temp', T(f.st))}${kv('pH', String(f.ph))}${kv('Last watered', a ? lastWateredText(a) : lastWatered(f.id))}${kv('Across field', span)}</div>`;
+  const hero = `<div class=fhero style='background:${look.bg};color:${look.fg}'><div><div class=fdec style='color:${look.n}'>${esc(decision(f))}</div><div class=fsub>${hasReading(f, 'm') ? `${f.m}% soil moisture` : 'No moisture reading yet'} · ${trend}</div></div><button class=cb data-act=op data-id=${f.id} aria-label='Watering details'>${can(k, 48)}</button></div>`;
+  const grid = `<div class='kvs g2'>${kv('Crop', `${f.crop} · ${esc(f.stage)}`)}${kv('Area', `${f.ac} ac`)}${kv('Soil', esc(f.soil))}${kv('Air humidity', hasReading(f, 'h') ? `${f.h}%` : '—')}${kv('Soil temp', hasReading(f, 'st') ? T(f.st) : '—')}${kv('pH', hasReading(f, 'ph') ? String(f.ph) : '—')}${kv('Last watered', a ? lastWateredText(a) : lastWatered(f.id))}${kv('Across field', span)}</div>`;
   const body = `${hero}${spark(f)}${grid}<p class=sub>Moisture by area</p><div class=zrows>${zones}</div><div class=nx><span class=mut>Recommended action</span><br>${a ? esc(a.label) : r ? r.t : S.farmerId ? noAdviceText(f) : 'No action needed right now'}${a?.waterBy ? `<div class=wby>${esc(a.waterBy.text)}</div>` : ''}${a?.reason ? `<div class='mut tiny'>${esc(a.reason)}</div>` : ''}</div><div class=btns><button class='btn sm' data-act=go data-p=field data-id=${f.id} data-testid=open-field-panel>Open field &amp; sensors</button><button class='btn alt sm' data-act=op data-id=${f.id}>Why this advice?</button></div>`;
-  return mapCard('field', `Field ${fieldNo(f.id)} · ${esc(f.name)}`, body, { sum: `${f.m}% · ${esc(decision(f))}`, panel: 'field', cls: 'fcard' });
+  return mapCard('field', `Field ${fieldNo(f.id)} · ${esc(f.name)}`, body, { sum: `${mText(f)} · ${esc(decision(f))}`, panel: 'field', cls: 'fcard' });
 }
 
 export function legendCard(layer: MapLayer): string {
@@ -130,17 +130,20 @@ export function todayCard(): string {
   const list = [...F].sort((a, b) => ORDER[ws(a)] - ORDER[ws(b)]);
   const n = list.filter((x) => ws(x) === 'now').length;
   const [on, total] = sensorsOnline();
-  const avg = totalAcres() ? Math.round(F.reduce((a, x) => a + x.m * x.ac, 0) / totalAcres()) : 0;
+  // Averaged over the fields that have a reading, by area; a dash when none has one yet.
+  const read = F.filter((x) => hasReading(x, 'm'));
+  const readAc = read.reduce((a, x) => a + x.ac, 0);
+  const avg = readAc ? `${Math.round(read.reduce((a, x) => a + x.m * x.ac, 0) / readAc)}%` : '—';
   const crit = openAlerts().filter((a) => a.l === 'cr').length;
   const loading = liveLoading();
   const kpi = (v: string, l: string, tone = '') => `<div class='kpi ${loading ? '' : tone}'><b>${loading ? SK : v}</b><span>${l}</span></div>`;
   const rows = list
     .map((x) => {
       const k = ws(x);
-      return `<button class=mrow data-act=pk data-id=${x.id} aria-pressed=${x.id === S.sel}>${can(k, 24)}<span class=mrn>${esc(x.name)}<span class=mut> · ${x.crop}, ${x.ac} ac</span></span><span class=mrv style='color:${WS[k].c}'>${pending(x) ? SK : `${x.m}%`}</span></button>`;
+      return `<button class=mrow data-act=pk data-id=${x.id} aria-pressed=${x.id === S.sel}>${can(k, 24)}<span class=mrn>${esc(x.name)}<span class=mut> · ${x.crop}, ${x.ac} ac</span></span><span class=mrv style='color:${WS[k].c}'>${pending(x) ? SK : mText(x)}</span></button>`;
     })
     .join('');
-  const body = `<p class=kick>Good morning, ${esc(firstName())}</p>${loading ? '' : `<p class=verdict data-testid=farm-verdict>${esc(farmVerdict())}</p>`}<div class=kpis>${kpi(String(n), n === 1 ? 'field to water' : 'fields to water', n ? 'bad' : '')}${kpi(avg + '%', 'avg moisture')}${kpi(`${on}/${total}`, 'sensors online', on < total ? 'warn' : '')}${kpi(String(crit), 'critical alerts', crit ? 'bad' : '')}</div><div class='row tiny mut thead'><span>Field</span><span>Moisture</span></div>${rows}`;
+  const body = `<p class=kick>Good morning, ${esc(firstName())}</p>${loading ? '' : `<p class=verdict data-testid=farm-verdict>${esc(farmVerdict())}</p>`}<div class=kpis>${kpi(String(n), n === 1 ? 'field to water' : 'fields to water', n ? 'bad' : '')}${kpi(avg, 'avg moisture')}${kpi(`${on}/${total}`, 'sensors online', on < total ? 'warn' : '')}${kpi(String(crit), 'critical alerts', crit ? 'bad' : '')}</div><div class='row tiny mut thead'><span>Field</span><span>Moisture</span></div>${rows}`;
   return mapCard('today', 'Farm overview', body, { sum: loading ? 'Loading readings' : `${n} to water · ${on}/${total} sensors`, panel: 'dashboard' });
 }
 

@@ -1,7 +1,7 @@
 import { DN, HOD, RAIN, RT, SEN } from '../seed/simulate';
 import { S } from '../state';
 import type { Field, MetricKey } from '../types';
-import { esc, idealRange, isStation, metric, ws } from './helpers';
+import { esc, hasReading, idealRange, isStation, metric, ws } from './helpers';
 import { canIn, cropIn } from './icons';
 
 export const SERIES_COLORS = ['#232a33', '#4a78b5', '#cf7f3a', '#6f9a7c'];
@@ -153,5 +153,5 @@ export function soil(f: Field): string {
           )
           .join('')
       : '';
-  return `<svg viewBox='0 0 320 340' style='width:100%;height:100%;display:block' preserveAspectRatio='xMaxYMid slice' role=img aria-label='Soil moisture cross-section for ${esc(f.name)}: ${f.m}%'><rect width=320 height=110 fill=#bfe3f2 /><circle cx=60 cy=36 r=20 fill=#f2c14e /><rect y=110 width=320 height=60 fill=#6b4423 /><rect y=170 width=320 height=70 fill=#523319 /><rect y=240 width=320 height=100 fill=#3b2411 /><path d='M0 110H320V${d}Q280 ${d + 10} 240 ${d}T160 ${d}T80 ${d}T0 ${d}z' fill=#5b8ec9 fill-opacity=.6 />${roots}${marks}<path d='M320 ${d - 14}L284 ${d}L320 ${d + 14}z' fill=#fff /><text x=316 y=${d + 4} text-anchor=end font-size=12 font-weight=800 fill=#222a33>${f.m}</text>${canArt}${drops}</svg>`;
+  return `<svg viewBox='0 0 320 340' style='width:100%;height:100%;display:block' preserveAspectRatio='xMaxYMid slice' role=img aria-label='Soil moisture cross-section for ${esc(f.name)}: ${hasReading(f, 'm') ? `${f.m}%` : 'no reading yet'}'><rect width=320 height=110 fill=#bfe3f2 /><circle cx=60 cy=36 r=20 fill=#f2c14e /><rect y=110 width=320 height=60 fill=#6b4423 /><rect y=170 width=320 height=70 fill=#523319 /><rect y=240 width=320 height=100 fill=#3b2411 /><path d='M0 110H320V${d}Q280 ${d + 10} 240 ${d}T160 ${d}T80 ${d}T0 ${d}z' fill=#5b8ec9 fill-opacity=.6 />${roots}${marks}<path d='M320 ${d - 14}L284 ${d}L320 ${d + 14}z' fill=#fff /><text x=316 y=${d + 4} text-anchor=end font-size=12 font-weight=800 fill=#222a33>${hasReading(f, 'm') ? f.m : '—'}</text>${canArt}${drops}</svg>`;
 }

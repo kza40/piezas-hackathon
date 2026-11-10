@@ -47,6 +47,18 @@ export const noAdviceText = (f: Field) =>
 /** Why there is no forecast: still loading, the load failed, or (signed out) there is no farm to forecast for. */
 export const noWeatherText = () =>
   !S.farmerId ? 'Sign in to see your farm’s forecast.' : liveLoading() ? 'Loading forecast…' : 'Couldn’t load the forecast right now.';
+/**
+ * Whether a field has a real reading of k. Signed out, the demo always does. Signed in, only a probe that
+ * reported it counts: a field's starting values are the demo simulator's, so a field with no probes (one
+ * just added) or a quantity no probe measures (EC, air temperature, sunlight) has nothing to show.
+ */
+export const hasReading = (f: Field, k: MetricKey): boolean => {
+  if (!S.farmerId) return true;
+  if (k === 'm' || k === 'st' || k === 'ph' || k === 'h') return !!S.liveSensors[f.id]?.some((s) => s[k] != null);
+  return false;
+};
+/** Soil moisture for small spaces: "34%", or a dash while the field has no reading. */
+export const mText = (f: Field) => (hasReading(f, 'm') ? `${f.m}%` : '—');
 /** A skeleton bar where a number will be. */
 export const SK = '<i class=sk aria-hidden=true></i>';
 

@@ -7,10 +7,10 @@ import { POLY, RIDGES, TREES } from '../seed/farm';
 import { F, sensorsOf } from '../seed/simulate';
 import { S } from '../state';
 import type { Field, FieldId, MapLayer, WaterState } from '../types';
-import { esc, lastWatered, moistureTint, pending, T, ws } from '../ui/helpers';
+import { esc, hasReading, lastWatered, moistureTint, mText, pending, T, ws } from '../ui/helpers';
 import { can, polyPoints } from '../ui/icons';
 import { plantField } from './crops3d';
-import { center, fillFor, valueFor } from './map';
+import { center, fillFor, layerKnown, valueFor } from './map';
 
 const MID_X = 400;
 const MID_Y = 260;
@@ -23,7 +23,7 @@ const HEALTH_H = { cr: 34, wn: 22, ok: 12 } as const;
 
 /** Block height shows the active layer, so the worst fields stand tallest. */
 function heightFor(f: Field, layer: MapLayer): number {
-  if (pending(f)) return WATER_H.load; // flat until real readings say otherwise
+  if (pending(f) || !layerKnown(f, layer)) return WATER_H.load; // flat until real readings say otherwise
   if (layer === 'water') return WATER_H[ws(f)];
   if (layer === 'health') return HEALTH_H[f.hl];
   if (layer === 'moisture') return 4 + f.m * 0.75;
@@ -290,7 +290,7 @@ function hudHtml(f: Field): string {
       return `<div class=z3><i style='background:${tone}'></i><b>${esc(s.id)}</b><span>${v}</span><em>${s.online ? 'live' : `${s.age}h ago`}</em></div>`;
     })
     .join('');
-  return `<p class=hud3-k>${esc(f.name)} · ${f.crop}</p><div class=hud3-grid><div><span>Avg moisture</span><b>${f.m}%</b></div><div><span>Air humidity</span><b>${f.h}%</b></div><div><span>Soil temp</span><b>${T(f.st)}</b></div><div><span>Last watered</span><b>${lastWatered(f.id)}</b></div></div><div class=hud3-leg aria-hidden=true><span>Dry</span><i></i><span>Wet</span><em>${Math.round(lo)}–${Math.round(hi)}% across field</em></div><p class=hud3-z>Moisture by sensor area</p>${rows}<button class='btn sm hud3-btn' data-act=showfield data-id=${f.id} data-testid=open-field-details>See field details →</button>`;
+  return `<p class=hud3-k>${esc(f.name)} · ${f.crop}</p><div class=hud3-grid><div><span>Avg moisture</span><b>${mText(f)}</b></div><div><span>Air humidity</span><b>${hasReading(f, 'h') ? `${f.h}%` : '—'}</b></div><div><span>Soil temp</span><b>${hasReading(f, 'st') ? T(f.st) : '—'}</b></div><div><span>Last watered</span><b>${lastWatered(f.id)}</b></div></div><div class=hud3-leg aria-hidden=true><span>Dry</span><i></i><span>Wet</span><em>${live.length || !S.farmerId ? `${Math.round(lo)}–${Math.round(hi)}% across field` : 'No reading yet'}</em></div><p class=hud3-z>Moisture by sensor area</p>${rows}<button class='btn sm hud3-btn' data-act=showfield data-id=${f.id} data-testid=open-field-details>See field details →</button>`;
 }
 
 function fieldNode(f: Field, labels: HTMLDivElement): FieldNode {

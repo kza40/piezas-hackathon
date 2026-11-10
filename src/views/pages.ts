@@ -10,6 +10,8 @@ import {
   demo,
   esc,
   farmVerdict,
+  hasReading,
+  mText,
   fieldNo,
   firstName,
   idealRange,
@@ -47,14 +49,14 @@ const feat = (f: Field) => {
       ? noAdviceText(f)
       : 'Check sensors and the forecast before you water.';
   const target = advice ? triggerShort(advice).toUpperCase() : `IDEAL ${f.mi[0]}–${f.mi[1]}%`;
-  return `<section class=feat style='background:${b.bg};color:${b.fg}'><div class=ft><p class=fk>FIELD ${fieldNo(f.id)} — ${f.crop.toUpperCase()}</p><h2 class=fdec style='color:${b.n}'>${esc(decision(f))}</h2><p class=fk>${f.m}% SOIL MOISTURE · ${target}</p><p class=fw>${next}</p><p class=fa><button class=btn style='background:${b.fg};color:${b.bg}' data-act=op data-id=${f.id}>Why?</button> <button class='btn alt' style='border-color:${b.fg};color:${b.fg}' data-act=pkm data-id=${f.id}>Show on map</button></p></div><div class=fr>${soil(f)}</div></section>`;
+  return `<section class=feat style='background:${b.bg};color:${b.fg}'><div class=ft><p class=fk>FIELD ${fieldNo(f.id)} — ${f.crop.toUpperCase()}</p><h2 class=fdec style='color:${b.n}'>${esc(decision(f))}</h2><p class=fk>${hasReading(f, 'm') ? `${f.m}% SOIL MOISTURE` : 'NO MOISTURE READING YET'} · ${target}</p><p class=fw>${next}</p><p class=fa><button class=btn style='background:${b.fg};color:${b.bg}' data-act=op data-id=${f.id}>Why?</button> <button class='btn alt' style='border-color:${b.fg};color:${b.fg}' data-act=pkm data-id=${f.id}>Show on map</button></p></div><div class=fr>${soil(f)}</div></section>`;
 };
 
 const tile = (f: Field) => {
   const k = ws(f);
   const b = FB[k];
   const outline = S.fd === f.id ? 'outline:4px solid #f0d6a0;outline-offset:3px' : '';
-  return `<button class=tile data-act=sf data-id=${f.id} style='background:${b.bg};color:${b.fg};${outline}'><span class=ti>${fieldNo(f.id)}</span>${cropG(f.crop, 34)}<span class=tn style='color:${b.n}'>${f.m}%</span><span class=tl>${esc(f.name)}</span><span class=ts>${can(k, 30, b.fg)}${WS[k].t}</span></button>`;
+  return `<button class=tile data-act=sf data-id=${f.id} style='background:${b.bg};color:${b.fg};${outline}'><span class=ti>${fieldNo(f.id)}</span>${cropG(f.crop, 34)}<span class=tn style='color:${b.n}'>${mText(f)}</span><span class=tl>${esc(f.name)}</span><span class=ts>${can(k, 30, b.fg)}${esc(decision(f))}</span></button>`;
 };
 
 /** Forecast hours grouped into the farmer's local days: total rain, average and lowest temperature. */
@@ -136,7 +138,8 @@ export function dashboard(): string {
   const n = F.filter((x) => ws(x) === 'now').length;
   const open = openAlerts();
   const healthy = F.filter((x) => x.hl === 'ok').length;
-  const avg = Math.round(sum((x) => x.m) / F.length);
+  const readM = F.filter((x) => hasReading(x, 'm'));
+  const avg = readM.length ? `${Math.round(readM.reduce((a, x) => a + x.m, 0) / readM.length)}%` : 'not read yet';
   const liveWx = S.liveWeather;
   const weekDays = byLocalDay(liveWx?.hours ?? []).slice(0, 7);
   const weekBars = weekDays.length
@@ -162,7 +165,7 @@ export function dashboard(): string {
     : 'Blue bars show the chance of rain. Set a farm location to load your forecast.';
   return `${demo()}<p class=kick>Good morning, ${esc(firstName())} · ${esc(S.farm)}</p><h1 class=mast>${n ? `Water ${n} field${n > 1 ? 's' : ''} today.` : 'Nothing to water today.'}</h1>${feat(f)}<h2 class=sh>All fields at a glance</h2><div class=tiles>${Ls.map(tile).join('')}</div><h2 class=sh>The week ahead</h2><div class='blk cream'><div class=wk>${weekBars}</div><p>${weekNote}</p></div><div class='grid g2' style='margin-top:14px'><div class='blk orange' style='margin:0'><h2>Needs you</h2>${alertItems(3)}<button class=btn data-act=go data-p=alerts>All ${open.length} alerts</button></div><div class='blk lime row' style='margin:0;justify-content:flex-start;gap:20px'><div class=ring style='background:conic-gradient(#1b2229 0 ${(healthy / F.length) * 100}%,rgba(6,33,15,.2) 0)'><b>${healthy}/${F.length}</b></div><div><h2>Fields healthy</h2><p>${F.filter((x) => x.hl !== 'ok')
     .map((x) => x.name)
-    .join(', ')} need a look.</p></div></div></div><h2 class=sh>Fields &amp; sensors</h2><div class=row style='justify-content:flex-start;gap:24px'><div class=fn style='font-size:clamp(4rem,10vw,7rem);color:var(--g)'>${sum((x) => x.s[0])}<span>/${sum((x) => x.s[1])}</span></div><div><p>${sum((x) => x.s[0])} of ${sum((x) => x.s[1])} sensors reporting · average soil moisture ${avg}%.</p><button class='btn alt' data-act=go data-p=field>Open fields &amp; sensors</button></div></div>`;
+    .join(', ')} need a look.</p></div></div></div><h2 class=sh>Fields &amp; sensors</h2><div class=row style='justify-content:flex-start;gap:24px'><div class=fn style='font-size:clamp(4rem,10vw,7rem);color:var(--g)'>${sum((x) => x.s[0])}<span>/${sum((x) => x.s[1])}</span></div><div><p>${sum((x) => x.s[0])} of ${sum((x) => x.s[1])} sensors reporting · average soil moisture ${avg}.</p><button class='btn alt' data-act=go data-p=field>Open fields &amp; sensors</button></div></div>`;
 }
 
 const history = (f: Field) => {
@@ -174,7 +177,7 @@ const history = (f: Field) => {
   const rows = (live?.length
     ? live.map((x, j) => {
         const a = x.ageHours;
-        const v = station ? f[k] : k === 'm' ? x.m : k === 'st' ? x.st : k === 'ph' ? x.ph : null;
+        const v = station ? (hasReading(f, k) ? f[k] : null) : k === 'm' ? x.m : k === 'st' ? x.st : k === 'ph' ? x.ph : null;
         const status =
           healthPill(healthOf(adv, x.id)) ??
           (a >= 24
@@ -223,6 +226,7 @@ export function field(): string {
   const r = S.farmerId ? null : REC.find((x) => x.f === f.id || x.f === f.layout);
   const liveA = S.liveAdvice[f.id];
   const tiles = MET.map((m) => {
+    if (!hasReading(f, m.key)) return `<div class=mt><div class=mv>—</div><b>${m.name}</b><span class=mtnote>No reading yet</span></div>`;
     if (m.key === 'm' && liveA) {
       const t = triggerOf(f);
       const o = t == null ? triggerShort(liveA).toLowerCase() : f.m < t ? `below your ${t}% trigger` : `above your ${t}% trigger`;
