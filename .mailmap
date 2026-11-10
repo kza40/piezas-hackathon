@@ -1,0 +1,3 @@
+# One person per contributor in git shortlog / git log --use-mailmap.
+# Format: Canonical Name <canonical email> Name in commit <email in commit>
+kza40 <kiarash.zmn2@gmail.com> KiarashZ <101245568+kza40@users.noreply.github.com>
