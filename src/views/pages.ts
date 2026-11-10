@@ -6,8 +6,10 @@ import type { AlertFilter, Field, Level, WaterState } from '../types';
 import { CROPS } from '../types';
 import { SERIES_COLORS, chart, soil } from '../ui/charts';
 import {
+  decision,
   demo,
   esc,
+  farmVerdict,
   fieldNo,
   firstName,
   idealRange,
@@ -24,7 +26,7 @@ import {
   ws,
 } from '../ui/helpers';
 import { can, cropG } from '../ui/icons';
-import { chipText, eventsCard, healthOf, healthPill, setupCard, triggerOf, triggerShort, wateringBlock } from './watering';
+import { eventsCard, healthOf, healthPill, setupCard, triggerOf, triggerShort, wateringBlock } from './watering';
 
 const ORDER: Record<WaterState, number> = { now: 0, check: 1, soon: 2, rain: 3, none: 4, load: 5 };
 const byUrgency = () => [...F].sort((a, b) => ORDER[ws(a)] - ORDER[ws(b)]);
@@ -40,12 +42,12 @@ const feat = (f: Field) => {
   const b = FB[k];
   const advice = S.liveAdvice[f.id];
   const next = advice
-    ? esc(advice.label) + (advice.reason ? ' · ' + esc(advice.reason) : '') + (advice.waterBy ? ' ' + esc(advice.waterBy.text) : '')
+    ? esc(advice.reason) + (advice.waterBy ? ' ' + esc(advice.waterBy.text) : '')
     : S.farmerId
       ? noAdviceText(f)
       : 'Check sensors and the forecast before you water.';
   const target = advice ? triggerShort(advice).toUpperCase() : `IDEAL ${f.mi[0]}–${f.mi[1]}%`;
-  return `<section class=feat style='background:${b.bg};color:${b.fg}'><div class=ft><p class=fk>FIELD ${fieldNo(f.id)} — ${f.crop.toUpperCase()}</p><div class=fn style='color:${b.n}'>${f.m}<span>%</span></div><p class=fk>SOIL MOISTURE · ${target}</p><p class=chip style='background:${b.fg};color:${b.bg}'><i style='background:${WS[k].h}'></i>${esc(chipText(f, b.c))}</p><p class=fw>${next}</p><p class=fa><button class=btn style='background:${b.fg};color:${b.bg}' data-act=op data-id=${f.id}>Why?</button> <button class='btn alt' style='border-color:${b.fg};color:${b.fg}' data-act=pkm data-id=${f.id}>Show on map</button></p></div><div class=fr>${soil(f)}</div></section>`;
+  return `<section class=feat style='background:${b.bg};color:${b.fg}'><div class=ft><p class=fk>FIELD ${fieldNo(f.id)} — ${f.crop.toUpperCase()}</p><h2 class=fdec style='color:${b.n}'>${esc(decision(f))}</h2><p class=fk>${f.m}% SOIL MOISTURE · ${target}</p><p class=fw>${next}</p><p class=fa><button class=btn style='background:${b.fg};color:${b.bg}' data-act=op data-id=${f.id}>Why?</button> <button class='btn alt' style='border-color:${b.fg};color:${b.fg}' data-act=pkm data-id=${f.id}>Show on map</button></p></div><div class=fr>${soil(f)}</div></section>`;
 };
 
 const tile = (f: Field) => {
@@ -129,8 +131,8 @@ export function dashboard(): string {
     return `${demo()}<p class=kick>Welcome, ${esc(firstName())}</p><h1 class=mast>No farm yet.</h1><p class=mut>Create a farm with a map pin (latitude and longitude) from your profile, then add fields.</p><p><button class=btn data-act=go data-p=profile data-testid=empty-goto-profile>Set up my farm</button></p>`;
   }
   const Ls = byUrgency();
-  if (!S.fd) S.fd = Ls[0].id;
-  const f = fld(S.fd);
+  // The most urgent field, unless the farmer picked a tile. Never saved: urgency changes as readings arrive.
+  const f = S.fd ? fld(S.fd) : Ls[0];
   const n = F.filter((x) => ws(x) === 'now').length;
   const open = openAlerts();
   const healthy = F.filter((x) => x.hl === 'ok').length;
@@ -274,14 +276,11 @@ export function recs(): string {
       if (!a) return '';
       return `<div class="card" style="margin-bottom:12px"><div class="row"><div style="display:flex;gap:8px;align-items:center">${can(ws(field), 34)}${pill(a.label === 'Water today' ? 'cr' : a.label === 'Wait' ? 'wn' : 'ok')}</div><button class="btn alt" data-act="go" data-p="field" data-id="${field.id}">${esc(field.name)}</button></div><h2 style="margin:8px 0">${esc(a.label)}</h2><p>${esc(a.reason)}</p>${a.soilWarning ? `<p class="mut">${esc(a.soilWarning)}</p>` : ''}${a.frostWarning ? `<p class="mut">${esc(a.frostWarning)}</p>` : ''}</div>`;
     }).join('');
-    const act = F.filter((f) => ws(f) === 'now' || ws(f) === 'check').length;
     const lead = !F.length
       ? 'Add a field to get watering advice.'
       : !cards
         ? 'Couldn’t load advice right now. Reload the page to try again.'
-        : act
-          ? `${act} ${act === 1 ? 'field needs' : 'fields need'} you today. The rest are fine.`
-          : 'All fields are fine today. Nothing to do.';
+        : esc(farmVerdict());
     return `${demo()}<h1>Recommended actions</h1><p class=lead data-testid=recs-lead>${lead}</p>${cards}`;
   }
   const cards = REC.filter((r) => ownsSeedRef(r.f)).map((r) => {

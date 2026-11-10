@@ -421,7 +421,7 @@ async function act(node: ActionElement, target: Element) {
         await farmApi.deleteField(id);
         await refreshFields();
         if (!F.some((f) => f.id === S.sel)) S.sel = F[0]?.id ?? '';
-        if (S.fd && !F.some((f) => f.id === S.fd)) S.fd = F[0]?.id ?? null;
+        if (S.fd && !F.some((f) => f.id === S.fd)) S.fd = null;
         if (S.wm === id) S.wm = null;
         dispose3D();
         return say(`Removed ${label} from your farm`);

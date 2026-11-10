@@ -69,6 +69,31 @@ export const ws = (f: Field): WaterState => {
   return f.stMax > 20 || f.m < lo + 4 ? 'soon' : 'none';
 };
 
+/** What to do with a field, in a few words: the headline wherever a field's state is shown. */
+export function decision(f: Field): string {
+  const k = ws(f);
+  if (k === 'load') return 'Loading';
+  if (k === 'now') return 'Water today';
+  if (k === 'check') return 'Check sensors';
+  if (k === 'rain') return 'Hold off: rain coming';
+  if (k === 'soon') return 'Water soon';
+  const status = S.liveAdvice[f.id]?.status;
+  if (status === 'rain_fed') return 'Rain-fed';
+  if (status === 'not_configured') return 'Set a trigger';
+  return 'No water needed';
+}
+
+/** The farm in one or two sentences: which fields need the farmer today, or that none do. */
+export function farmVerdict(): string {
+  const named = (k: WaterState) => F.filter((f) => ws(f) === k).map((f) => f.name);
+  const list = (xs: string[]) => (xs.length <= 2 ? xs.join(' and ') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+  const water = named('now');
+  const check = named('check');
+  const parts = [water.length ? `Water ${list(water)} today.` : '', check.length ? `Check the sensors in ${list(check)}.` : ''].filter(Boolean);
+  if (!parts.length) return 'All fields are fine today. Nothing to do.';
+  return water.length + check.length < F.length ? `${parts.join(' ')} The rest are fine.` : parts.join(' ');
+}
+
 export const metric = (k: MetricKey): Metric => MET.find((m) => m.key === k) ?? MET[0];
 export const idealRange = (f: Field, m: Metric): Range => (m.key === 'ph' && f.phr) || m.range || f.mi;
 export const isStation = (k: MetricKey): k is StationKey => k === 'at' || k === 'h' || k === 'l';

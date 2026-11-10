@@ -14,8 +14,6 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 export const advice = (f: Field): LiveAdvice | undefined => S.liveAdvice[f.id];
 
 /** The status chip: the server's advice when there is some, never the seed's guess (e.g. "Not configured"). */
-export const chipText = (f: Field, fallback: string) => S.liveAdvice[f.id]?.label.toUpperCase() ?? fallback;
-
 /** The farmer's saved trigger for an irrigated field, or null. */
 export const triggerOf = (f: Field): number | null => {
   const a = S.liveAdvice[f.id];

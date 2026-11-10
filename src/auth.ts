@@ -39,7 +39,7 @@ async function loadFarmData() {
   const { fields } = await farmApi.fields(farm.id);
   hydrateFields(fields);
   S.sel = fields[0]?.id ?? '';
-  S.fd = fields[0]?.id ?? null;
+  S.fd = null; // the Farm page leads with the most urgent field until the farmer picks one
   loadLiveDataInBackground(); // the map shows at once; weather, advice and sensors fill in when they arrive
 }
 
@@ -148,6 +148,6 @@ export async function refreshFields() {
   const { fields } = await farmApi.fields(S.farmId);
   hydrateFields(fields);
   if (!F.some((f) => f.id === S.sel)) S.sel = fields[0]?.id ?? '';
-  if (S.fd && !F.some((f) => f.id === S.fd)) S.fd = fields[0]?.id ?? null;
+  if (S.fd && !F.some((f) => f.id === S.fd)) S.fd = null;
   loadLiveDataInBackground(); // the new or removed field shows at once; its live data follows
 }
