@@ -6,7 +6,8 @@ import { refreshFields, restoreSession, signIn, signOut, signUp } from './auth';
 import { F, fld } from './seed/simulate';
 import { S, saveCards, saveLog, saveOffsets } from './state';
 import type { AlertFilter, CardId, Crop, FieldId, MapLayer, MetricKey, PanelId, Units } from './types';
-import { esc, openAlerts } from './ui/helpers';
+import { esc, liveLoading, openAlerts } from './ui/helpers';
+import { onRailKey, onRailPointerDown, railGrip, railStyle, resetRail } from './ui/rail';
 import { IC } from './ui/icons';
 import { alertsCard, fieldCard, legendCard, profileCard, todayCard, topBar, weatherCard } from './views/cards';
 import { map, onMapPointerDown, onMapWheel, resetView, zoom } from './views/map';
@@ -32,26 +33,39 @@ function dock(): string {
     .map((k) => {
       const p = PANELS[k];
       const icon = IC[k] ?? p.icon;
-      const badge = k === 'alerts' ? `<span class=badge>${openAlerts().length}</span>` : '';
+      const n = k === 'alerts' && !liveLoading() ? openAlerts().length : 0;
+      const badge = n ? `<span class=badge>${n}</span>` : '';
       return `<button data-act=go data-p=${k} data-testid=dock-${k} aria-pressed=${S.panel === k}><span aria-hidden=true class=di>${icon}</span><span class=dl>${p.title}</span>${badge}</button>`;
     })
     .join('')}</nav>`;
 }
 
+/** Panels built from live readings: until they arrive these show a loading page, never seed numbers. */
+const LIVE_PANELS: ReadonlySet<PanelId> = new Set(['dashboard', 'field', 'weather', 'recs', 'alerts']);
+
 function panel(id: PanelId): string {
-  const narrow = id === 'settings' || id === 'profile' ? ' panel-center' : '';
-  return `<section class='panel${narrow}' data-testid=panel-${id} data-scroll=p role=dialog aria-label='${PANELS[id].title}'><button class='btn alt sm pclose' data-act=go data-p=map aria-label='Close and show the map'>✕ Back to map</button><div class=panel-body>${PANELS[id].view()}</div></section>`;
+  // Narrow for forms, medium for lists of text, full width for the field and farm views.
+  const narrow = id === 'settings' || id === 'profile' ? ' panel-center' : id === 'recs' || id === 'alerts' ? ' panel-mid' : '';
+  const view = LIVE_PANELS.has(id) && liveLoading() ? () => pages.loadingPage(PANELS[id].title) : PANELS[id].view;
+  return `<section class='panel${narrow}' data-testid=panel-${id} data-scroll=p role=dialog aria-label='${PANELS[id].title}'><button class='btn alt sm pclose' data-act=go data-p=map aria-label='Close and show the map'>✕ Back to map</button><div class=panel-body>${view()}</div></section>`;
 }
+
+/** Where the rail was scrolled to; kept while a panel takes its place, so closing the panel brings it back as it was. */
+let railTop = 0;
 
 /** Re-rendering replaces the overlays, so keep each scrolled area where the farmer left it. */
 function keepScroll(paint: () => void) {
   const before = new Map<string, number>();
+  const rail = document.querySelector<HTMLElement>('[data-scroll=rail]');
+  if (rail) railTop = rail.scrollTop;
   document.querySelectorAll<HTMLElement>('[data-scroll]').forEach((n) => before.set(n.dataset.scroll! + (n.dataset.testid ?? ''), n.scrollTop));
   paint();
   document.querySelectorAll<HTMLElement>('[data-scroll]').forEach((n) => {
     const top = before.get(n.dataset.scroll! + (n.dataset.testid ?? ''));
     if (top) n.scrollTop = top;
   });
+  const railNow = document.querySelector<HTMLElement>('[data-scroll=rail]');
+  if (railNow && railTop) railNow.scrollTop = railTop;
 }
 
 // Live data loaded in the background: redraw, unless the farmer is typing in a form (a redraw would
@@ -87,10 +101,11 @@ function render() {
   );
   keepScroll(() => {
     const overlays = `${S.panel ? panel(S.panel) : ''}${dock()}`;
-    const side = S.bare
+    // An open panel is the focus and repeats what the rail says, so the rail steps aside until it closes.
+    const side = S.bare || S.panel
       ? ''
-      : `<aside class='rail' data-scroll=rail data-testid=side-rail>${rail}</aside>`;
-    main.innerHTML = `<div class='board${S.bare ? ' bare' : ''}'>${topBar()}<div class=workspace><div class=stage>${map()}${overlays}</div>${side}</div></div>${modal}${toast}`;
+      : `${railGrip()}<aside class='rail' data-scroll=rail data-testid=side-rail>${rail}</aside>`;
+    main.innerHTML = `<div class='board${S.bare || S.panel ? ' bare' : ''}'>${topBar()}<div class=workspace style='${railStyle()}'><div class=stage>${map()}${overlays}</div>${side}</div></div>${modal}${toast}`;
   });
   const host = document.getElementById('m3');
   if (host) mount3D(host, pickField);
@@ -183,6 +198,7 @@ async function act(node: ActionElement, target: Element) {
   switch (d.act) {
     case 'out':
       await signOut();
+      railTop = 0; // the next farmer's rail starts at the top
       dispose3D();
       location.hash = 'login';
       return render();
@@ -211,7 +227,8 @@ async function act(node: ActionElement, target: Element) {
       S.bare = false;
       delete S.min.profile;
       saveCards();
-      render();
+      if (S.panel) go('map');
+      else render();
       return document.querySelector('[data-testid=card-profile]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     case 'sel':
       S.sel = d.id as FieldId;
@@ -231,7 +248,8 @@ async function act(node: ActionElement, target: Element) {
       S.bare = false;
       if (S.min.field) delete S.min.field;
       saveCards();
-      render();
+      if (S.panel) go('map');
+      else render();
       document.querySelector('[data-testid=card-field]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       return;
     }
@@ -406,7 +424,7 @@ async function act(node: ActionElement, target: Element) {
         await farmApi.deleteField(id);
         await refreshFields();
         if (!F.some((f) => f.id === S.sel)) S.sel = F[0]?.id ?? '';
-        if (S.fd && !F.some((f) => f.id === S.fd)) S.fd = F[0]?.id ?? null;
+        if (S.fd && !F.some((f) => f.id === S.fd)) S.fd = null;
         if (S.wm === id) S.wm = null;
         dispose3D();
         return say(`Removed ${label} from your farm`);
@@ -451,6 +469,7 @@ document.addEventListener('submit', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
+  if ((e.target as Element | null)?.closest?.('.rail-grip') && onRailKey(e)) return e.preventDefault();
   if (e.key === 'Escape') {
     if (S.wm) {
       S.wm = null;
@@ -491,8 +510,13 @@ document.addEventListener('change', (e) => {
 
 const main = el('main');
 main.addEventListener('pointerdown', (e) => {
+  const grip = (e.target as Element).closest<HTMLElement>('.rail-grip');
+  if (grip) return onRailPointerDown(e, grip);
   const svg = (e.target as Element).closest('#fmap');
   if (svg) onMapPointerDown(e, svg);
+});
+main.addEventListener('dblclick', (e) => {
+  if ((e.target as Element).closest('.rail-grip')) resetRail();
 });
 main.addEventListener(
   'wheel',

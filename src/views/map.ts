@@ -2,7 +2,7 @@ import { FB, HL, MEADOWS, POLY, RIDGES, SENSOR_XY, TREES, WS } from '../seed/far
 import { F, sensorsOf } from '../seed/simulate';
 import { S, saveOffsets } from '../state';
 import type { Field, FieldId, Health, MapLayer } from '../types';
-import { esc, lastWatered, mix, moistureTint, T, ws } from '../ui/helpers';
+import { decision, esc, hasReading, lastWatered, mix, moistureTint, pending, T, ws } from '../ui/helpers';
 import { canIn, fieldNumberLabel, plants, polyKey, polyPoints } from '../ui/icons';
 
 const VIEW_W = 800;
@@ -17,7 +17,13 @@ export const center = (id: FieldId): [number, number] => {
   return [p.reduce((a, q) => a + q[0], 0) / p.length, p.reduce((a, q) => a + q[1], 0) / p.length];
 };
 
+/** Whether the field has what this layer shows: signed in, a live reading, or for health the server's advice. */
+export const layerKnown = (x: Field, layer: MapLayer) =>
+  layer === 'water' ? true : layer === 'health' ? !S.farmerId || !!S.liveAdvice[x.id] : hasReading(x, layer === 'moisture' ? 'm' : 'st');
+
 export const fillFor = (x: Field, layer: MapLayer) => {
+  if (pending(x)) return FB.load.bg;
+  if (!layerKnown(x, layer)) return FB.err.bg;
   if (layer === 'water') return FB[ws(x)].bg;
   if (layer === 'health') return HEALTH_FILL[x.hl];
   if (layer === 'moisture') return mix([207, 227, 238], [47, 120, 168], x.m / 55);
@@ -25,7 +31,9 @@ export const fillFor = (x: Field, layer: MapLayer) => {
 };
 
 export const valueFor = (x: Field, layer: MapLayer) => {
-  if (layer === 'water') return WS[ws(x)].t;
+  if (pending(x)) return 'Loading…';
+  if (layer === 'water') return decision(x);
+  if (!layerKnown(x, layer)) return layer === 'health' ? decision(x) : 'No reading yet';
   if (layer === 'health') return HL[x.hl][0];
   if (layer === 'moisture') return x.m + '% moisture';
   return T(x.st);
@@ -45,14 +53,22 @@ const fieldShape = (x: Field, layer: MapLayer) => {
     .map((s) => {
       const label =
         s.m != null
-          ? `<text class=fpin x='${cx + s.dx}' y='${cy + s.dy - 12}' text-anchor='middle' font-size='11' font-weight='800' fill='#1b2229'>${esc(s.id)} ${Math.round(s.m)}%</text>`
+          ? `<text class=fpin x='${cx + s.dx}' y='${cy + s.dy - 12}' text-anchor='middle' font-size='11' font-weight='800' fill='#1b2229'><title>${esc(s.id)}</title>${Math.round(s.m)}%</text>`
           : '';
       return `<circle cx='${cx + s.dx}' cy='${cy + s.dy}' r='6' fill='${s.online ? '#1f3d27' : '#fff'}' stroke='${s.online ? '#fff' : '#b97a00'}' stroke-width='${s.online ? 2 : 3}'/>${label}`;
     })
     .join('');
-  const hud = `<g class=fhud pointer-events='none'><rect x='${cx - 92}' y='${cy + 64}' width='184' height='52' fill='#fffef8' stroke='#1b2229' stroke-width='1.5'/><text x='${cx}' y='${cy + 82}' text-anchor='middle' font-size='11' font-weight='800' fill='#1b2229'>Humidity ${x.h}% · ${T(x.st)}</text><text x='${cx}' y='${cy + 98}' text-anchor='middle' font-size='11' font-weight='700' fill='#434e3a'>Last watered: ${lastWatered(x.id)}</text><text x='${cx}' y='${cy + 112}' text-anchor='middle' font-size='10' fill='#434e3a'>Moisture ${Math.min(...posts.map((s) => s.m ?? x.m))}-${Math.max(...posts.map((s) => s.m ?? x.m))}% across the field</text></g>`;
+  // The spread of the probes' readings. A signed-in field with no probe reading yet (one just added) has none
+  // to show: Math.min of nothing is Infinity.
+  const ms = posts.map((s) => s.m).filter((v): v is number => v != null);
+  const across = ms.length
+    ? `Moisture ${Math.round(Math.min(...ms))}–${Math.round(Math.max(...ms))}% across the field`
+    : S.farmerId
+      ? 'No moisture reading yet'
+      : `Moisture ${x.m}% across the field`;
+  const hud = `<g class=fhud pointer-events='none'><rect x='${cx - 92}' y='${cy + 64}' width='184' height='52' fill='#fffef8' stroke='#1b2229' stroke-width='1.5'/><text x='${cx}' y='${cy + 82}' text-anchor='middle' font-size='11' font-weight='800' fill='#1b2229'>${[hasReading(x, 'h') ? `Humidity ${x.h}%` : '', hasReading(x, 'st') ? T(x.st) : ''].filter(Boolean).join(' · ') || 'No sensor readings yet'}</text><text x='${cx}' y='${cy + 98}' text-anchor='middle' font-size='11' font-weight='700' fill='#434e3a'>Last watered: ${lastWatered(x.id)}</text><text x='${cx}' y='${cy + 112}' text-anchor='middle' font-size='10' fill='#434e3a'>${across}</text></g>`;
   const pk = polyKey(x.id);
-  return `<g class='ffield${S.hud === x.id ? ' on' : ''}' data-act=pk data-id=${x.id} transform='translate(${(S.off[x.id] ?? [0, 0]).join(' ')})' tabindex=0 role=button aria-label='${esc(x.name)}, ${HL[x.hl][0]}' style='cursor:pointer'><polygon class=fpoly points='${POLY[pk]}' fill='${fillFor(x, layer)}' stroke='${sel ? '#1b2229' : '#fff'}' stroke-width='${sel ? 7 : 3}' stroke-linejoin='round'/><polygon points='${POLY[pk]}' fill='url(#st${(pk.charCodeAt(0) || 0) % 3})' pointer-events='none'/>${zones}<polygon points='${POLY[pk]}' fill=none stroke='#7a5a3a' stroke-width=1.6 stroke-dasharray='2 6' stroke-linecap=round pointer-events=none />${fieldNumberLabel(x.id)}${plants(x.id, x.crop)}${sensors}<g data-w=1><circle cx='${cx}' cy='${cy - 8}' r='24' fill='#fff' stroke='#1b2229' stroke-width='4'/><g transform='translate(${cx - 17} ${cy - 25}) scale(1.21)'>${canIn(ws(x))}</g></g><rect x='${cx - 64}' y='${cy + 18}' width='128' height='42' fill='#1b2229'/><text x='${cx}' y='${cy + 36}' text-anchor='middle' font-size='14' font-weight='800' fill='#f6efd9'>${esc(x.name)}</text><text x='${cx}' y='${cy + 53}' text-anchor='middle' font-size='13' font-weight='800' fill='#f0d6a0'>${valueFor(x, layer)}</text>${hud}</g>`;
+  return `<g class='ffield${S.hud === x.id ? ' on' : ''}' data-act=pk data-id=${x.id} transform='translate(${(S.off[x.id] ?? [0, 0]).join(' ')})' tabindex=0 role=button aria-label='${esc(x.name)}, ${esc(decision(x))}' style='cursor:pointer'><polygon class=fpoly points='${POLY[pk]}' fill='${fillFor(x, layer)}' stroke='${sel ? '#1b2229' : '#fff'}' stroke-width='${sel ? 7 : 3}' stroke-linejoin='round'/><polygon points='${POLY[pk]}' fill='url(#st${(pk.charCodeAt(0) || 0) % 3})' pointer-events='none'/>${zones}<polygon points='${POLY[pk]}' fill=none stroke='#7a5a3a' stroke-width=1.6 stroke-dasharray='2 6' stroke-linecap=round pointer-events=none />${fieldNumberLabel(x.id)}${plants(x.id, x.crop)}${sensors}<g data-w=1><circle cx='${cx}' cy='${cy - 8}' r='24' fill='#fff' stroke='#1b2229' stroke-width='4'/><g transform='translate(${cx - 17} ${cy - 25}) scale(1.21)'>${canIn(ws(x))}</g></g><rect x='${cx - 64}' y='${cy + 18}' width='128' height='42' fill='#1b2229'/><text x='${cx}' y='${cy + 36}' text-anchor='middle' font-size='14' font-weight='800' fill='#f6efd9'>${esc(x.name)}</text><text x='${cx}' y='${cy + 53}' text-anchor='middle' font-size='13' font-weight='800' fill='#f0d6a0'>${valueFor(x, layer)}</text>${hud}</g>`;
 };
 
 const treeMark = (a: number, b: number, i: number) => {
@@ -85,7 +101,7 @@ export function map(): string {
   const hint = S.d3
     ? `<span class=hint3>Drag to rotate · right-drag to pan · scroll to zoom · taller block = ${HEIGHT_MEANS[L]}</span>`
     : `<span class=hint3>Drag to pan · scroll to zoom</span>`;
-  const controls = `<div class=mtop><div class=mtl>${dim}<div class=mpc>${LAYERS.map(([key, n]) => `<button data-act=lyr data-k=${key} aria-pressed=${L === key}>${n}</button>`).join('')}</div><div class=mpc><button aria-pressed=${S.edit} data-act=ed>${S.edit ? 'Done' : 'Adjust farm'}</button>${S.edit ? `<button data-act=rl>Standard layout</button>` : ''}</div>${S.edit ? `<span class='mpc note'>Drag parcels to match your farm · Standard layout restores the default</span>` : ''}</div><div class=mtr><div class=mpc><button aria-label='Zoom in' data-act=zm data-f=1.5>+</button><button aria-label='Zoom out' data-act=zm data-f=${1 / 1.5}>−</button><button aria-label='Reset view' data-act=rs>⟲</button></div><div class=mpc><button aria-pressed=${S.bare} data-act=bare data-testid=toggle-cards>${S.bare ? 'Show side panel' : 'Hide side panel'}</button></div></div></div>`;
+  const controls = `<div class=mtop><div class=mtl>${dim}<div class=mpc role=group aria-label='Colour the map by'><span class=mpl aria-hidden=true>Colour by</span>${LAYERS.map(([key, n]) => `<button data-act=lyr data-k=${key} aria-pressed=${L === key}>${n}</button>`).join('')}</div><div class=mpc><button aria-pressed=${S.edit} data-act=ed>${S.edit ? 'Done' : 'Adjust farm'}</button>${S.edit ? `<button data-act=rl>Standard layout</button>` : ''}</div>${S.edit ? `<span class='mpc note'>Drag parcels to match your farm · Standard layout restores the default</span>` : ''}</div><div class=mtr><div class=mpc><button aria-label='Zoom in' data-act=zm data-f=1.5>+</button><button aria-label='Zoom out' data-act=zm data-f=${1 / 1.5}>−</button><button aria-label='Reset view' data-act=rs>⟲</button></div><div class=mpc><button aria-pressed=${S.bare} data-act=bare data-testid=toggle-cards>${S.bare ? 'Show side panel' : 'Hide side panel'}</button></div></div></div>`;
   const scale = `<div class=mscale aria-hidden=true><span class=north>▲ N</span><span class=sbar><i></i>200 m</span></div>`;
   const svg = `<svg id=fmap viewBox='0 0 ${VIEW_W} ${VIEW_H}' style='width:100%;height:100%;display:block;touch-action:none;cursor:grab' role=group aria-label='Farm map'>${PATTERNS}<g id=vp transform='translate(${S.v.x} ${S.v.y}) scale(${S.v.k})'>${BASE}${F.map((x) => fieldShape(x, L)).join('')}${Object.keys(S.off).length ? '' : PIPES}</g></svg>`;
   if (S.d3) return `<div class='mapbox m3' id=m3 data-testid=map-3d></div>${controls}${hint}`;

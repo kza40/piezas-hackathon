@@ -1,13 +1,17 @@
 import { DEMO_ACCOUNTS } from '../seed/farmers';
-import { FB, MET, W, WS } from '../seed/farm';
+import { FB, MET, NXT, W, WS } from '../seed/farm';
 import { AL, DN, F, FH, HR, MI, MN, ownsSeedRef, REC, RT, SEN, fld, lastV } from '../seed/simulate';
 import { S } from '../state';
 import type { AlertFilter, Field, Level, WaterState } from '../types';
 import { CROPS } from '../types';
 import { SERIES_COLORS, chart, soil } from '../ui/charts';
 import {
+  decision,
   demo,
   esc,
+  farmVerdict,
+  hasReading,
+  mText,
   fieldNo,
   firstName,
   idealRange,
@@ -16,14 +20,17 @@ import {
   metric,
   openAlerts,
   pill,
+  noAdviceText,
+  noWeatherText,
   rng,
+  SK,
   T,
   ws,
 } from '../ui/helpers';
 import { can, cropG } from '../ui/icons';
-import { chipText, eventsCard, healthOf, healthPill, setupCard, triggerOf, triggerShort, wateringBlock } from './watering';
+import { eventsCard, healthOf, healthPill, setupCard, triggerOf, triggerShort, wateringBlock } from './watering';
 
-const ORDER: Record<WaterState, number> = { now: 0, check: 1, soon: 2, rain: 3, none: 4 };
+const ORDER: Record<WaterState, number> = { now: 0, check: 1, err: 2, soon: 3, rain: 4, none: 5, load: 6 };
 const byUrgency = () => [...F].sort((a, b) => ORDER[ws(a)] - ORDER[ws(b)]);
 const sum = (fn: (f: Field) => number) => F.reduce((a, f) => a + fn(f), 0);
 
@@ -37,19 +44,19 @@ const feat = (f: Field) => {
   const b = FB[k];
   const advice = S.liveAdvice[f.id];
   const next = advice
-    ? esc(advice.label) + (advice.reason ? ' · ' + esc(advice.reason) : '') + (advice.waterBy ? ' ' + esc(advice.waterBy.text) : '')
+    ? esc(advice.reason) + (advice.waterBy ? ' ' + esc(advice.waterBy.text) : '')
     : S.farmerId
-      ? 'Advice loading…'
+      ? noAdviceText(f)
       : 'Check sensors and the forecast before you water.';
   const target = advice ? triggerShort(advice).toUpperCase() : `IDEAL ${f.mi[0]}–${f.mi[1]}%`;
-  return `<section class=feat style='background:${b.bg};color:${b.fg}'><div class=ft><p class=fk>FIELD ${fieldNo(f.id)} — ${f.crop.toUpperCase()}</p><div class=fn style='color:${b.n}'>${f.m}<span>%</span></div><p class=fk>SOIL MOISTURE · ${target}</p><p class=chip style='background:${b.fg};color:${b.bg}'><i style='background:${WS[k].h}'></i>${esc(chipText(f, b.c))}</p><p class=fw>${next}</p><p class=fa><button class=btn style='background:${b.fg};color:${b.bg}' data-act=op data-id=${f.id}>Why?</button> <button class='btn alt' style='border-color:${b.fg};color:${b.fg}' data-act=pkm data-id=${f.id}>Show on map</button></p></div><div class=fr>${soil(f)}</div></section>`;
+  return `<section class=feat style='background:${b.bg};color:${b.fg}'><div class=ft><p class=fk>FIELD ${fieldNo(f.id)} — ${f.crop.toUpperCase()}</p><h2 class=fdec style='color:${b.n}'>${esc(decision(f))}</h2><p class=fk>${hasReading(f, 'm') ? `${f.m}% SOIL MOISTURE` : 'NO MOISTURE READING YET'} · ${target}</p><p class=fw>${next}</p><p class=fa><button class=btn style='background:${b.fg};color:${b.bg}' data-act=op data-id=${f.id}>Why?</button> <button class='btn alt' style='border-color:${b.fg};color:${b.fg}' data-act=pkm data-id=${f.id}>Show on map</button></p></div><div class=fr>${soil(f)}</div></section>`;
 };
 
 const tile = (f: Field) => {
   const k = ws(f);
   const b = FB[k];
   const outline = S.fd === f.id ? 'outline:4px solid #f0d6a0;outline-offset:3px' : '';
-  return `<button class=tile data-act=sf data-id=${f.id} style='background:${b.bg};color:${b.fg};${outline}'><span class=ti>${fieldNo(f.id)}</span>${cropG(f.crop, 34)}<span class=tn style='color:${b.n}'>${f.m}%</span><span class=tl>${esc(f.name)}</span><span class=ts>${can(k, 30, b.fg)}${WS[k].t}</span></button>`;
+  return `<button class=tile data-act=sf data-id=${f.id} style='background:${b.bg};color:${b.fg};${outline}'><span class=ti>${fieldNo(f.id)}</span>${cropG(f.crop, 34)}<span class=tn style='color:${b.n}'>${mText(f)}</span><span class=tl>${esc(f.name)}</span><span class=ts>${can(k, 30, b.fg)}${esc(decision(f))}</span></button>`;
 };
 
 /** Forecast hours grouped into the farmer's local days: total rain, average and lowest temperature. */
@@ -82,7 +89,7 @@ function authScene(): string {
     Array.from({ length: n }, (_, i) => `<path d="M${x0} ${y0 + i * 8} Q${x0 + w / 2} ${y0 + i * 8 - 4} ${x0 + w} ${y0 + i * 8}" fill="none" stroke="${color}" stroke-width="2" opacity=".45"/>`).join('');
   return `<div class="login-scene" aria-hidden="true">
     <div class="sky"><i class="sun"></i><i class="cloud c1"></i><i class="cloud c2"></i><i class="cloud c3"></i></div>
-    <div class="login-copy"><p class="login-kicker">Fieldwise</p><p class="login-headline">Know every acre.</p><p class="login-subcopy">Moisture, weather and watering advice on one farm map.</p></div>
+    <div class="login-copy"><p class="login-headline">Know every acre.</p><p class="login-subcopy">Moisture, weather and watering advice on one farm map.</p></div>
     <svg class="login-land" viewBox="0 0 900 420" preserveAspectRatio="xMidYMax slice">
       <defs>
         <linearGradient id="hill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a9a5e"/><stop offset="1" stop-color="#4f7340"/></linearGradient>
@@ -117,7 +124,7 @@ export function login(): string {
   const err = S.authError ? `<p class="auth-err" role="alert" data-testid="login-error">${esc(S.authError)}</p>` : '';
   const form = signup
     ? `<form data-act="signup" data-testid="signup-form"><label for="nm">Name <span class="mut">(optional)</span></label><input id="nm" name="name" type="text" autocomplete="name" maxlength="80" data-testid="signup-name" value=""><label for="em">Email</label><input id="em" name="email" type="email" autocomplete="username" required data-testid="signup-email" value="${esc(S.authEmail)}"><label for="pw">Password</label><input id="pw" name="password" type="password" autocomplete="new-password" required minlength="10" data-testid="signup-password" value=""><p class="mut" style="margin:6px 0 0">At least 10 characters.</p>${err}<button class="btn login-go" type="submit" data-testid="signup-submit">Create my account</button></form><p class="mut" style="margin-top:14px">Already farming here? <button type="button" class="linkish" data-act="authmode" data-m="signin" data-testid="goto-signin">Sign in</button></p>`
-    : `<form data-act="login" data-testid="login-form"><label for="em">Email</label><input id="em" name="email" type="email" autocomplete="username" required data-testid="login-email" value="${esc(S.authEmail)}"><label for="pw">Password</label><input id="pw" name="password" type="password" autocomplete="current-password" required data-testid="login-password" value="">${err}<button class="btn login-go" type="submit" data-testid="login-submit">Sign in to my farm</button></form><p class="mut" style="margin-top:14px">New here? <button type="button" class="linkish" data-act="authmode" data-m="signup" data-testid="goto-signup">Create an account</button></p><p class="sub">Try a demo farm</p><ul class="demo-list">${demos}</ul><p class="login-note">Demo passwords: farm123-demo / oats456-demo · session is a cookie, not localStorage</p>`;
+    : `<form data-act="login" data-testid="login-form"><label for="em">Email</label><input id="em" name="email" type="email" autocomplete="username" required data-testid="login-email" value="${esc(S.authEmail)}"><label for="pw">Password</label><input id="pw" name="password" type="password" autocomplete="current-password" required data-testid="login-password" value="">${err}<button class="btn login-go" type="submit" data-testid="login-submit">Sign in to my farm</button></form><p class="mut" style="margin-top:14px">New here? <button type="button" class="linkish" data-act="authmode" data-m="signup" data-testid="goto-signup">Create an account</button></p><p class="sub">Try a demo farm</p><ul class="demo-list">${demos}</ul><p class="login-note">Tap a demo farm to fill in its sign-in. Passwords: farm123-demo, oats456-demo.</p>`;
   return `<div class="login" data-testid="login-page">${authScene()}<div class="login-panel"><div class="login-card"><p class="login-brand">Fieldwise</p><h1>${signup ? 'Join the farm' : 'Open the farm gate'}</h1><p class="mut">${signup ? 'Create an account to start your own farm map.' : 'Sign in to see only the fields you own.'}</p>${form}</div></div></div>`;
 }
 
@@ -126,12 +133,13 @@ export function dashboard(): string {
     return `${demo()}<p class=kick>Welcome, ${esc(firstName())}</p><h1 class=mast>No farm yet.</h1><p class=mut>Create a farm with a map pin (latitude and longitude) from your profile, then add fields.</p><p><button class=btn data-act=go data-p=profile data-testid=empty-goto-profile>Set up my farm</button></p>`;
   }
   const Ls = byUrgency();
-  if (!S.fd) S.fd = Ls[0].id;
-  const f = fld(S.fd);
+  // The most urgent field, unless the farmer picked a tile. Never saved: urgency changes as readings arrive.
+  const f = S.fd ? fld(S.fd) : Ls[0];
   const n = F.filter((x) => ws(x) === 'now').length;
   const open = openAlerts();
   const healthy = F.filter((x) => x.hl === 'ok').length;
-  const avg = Math.round(sum((x) => x.m) / F.length);
+  const readM = F.filter((x) => hasReading(x, 'm'));
+  const avg = readM.length ? `${Math.round(readM.reduce((a, x) => a + x.m, 0) / readM.length)}%` : 'not read yet';
   const liveWx = S.liveWeather;
   const weekDays = byLocalDay(liveWx?.hours ?? []).slice(0, 7);
   const weekBars = weekDays.length
@@ -157,7 +165,7 @@ export function dashboard(): string {
     : 'Blue bars show the chance of rain. Set a farm location to load your forecast.';
   return `${demo()}<p class=kick>Good morning, ${esc(firstName())} · ${esc(S.farm)}</p><h1 class=mast>${n ? `Water ${n} field${n > 1 ? 's' : ''} today.` : 'Nothing to water today.'}</h1>${feat(f)}<h2 class=sh>All fields at a glance</h2><div class=tiles>${Ls.map(tile).join('')}</div><h2 class=sh>The week ahead</h2><div class='blk cream'><div class=wk>${weekBars}</div><p>${weekNote}</p></div><div class='grid g2' style='margin-top:14px'><div class='blk orange' style='margin:0'><h2>Needs you</h2>${alertItems(3)}<button class=btn data-act=go data-p=alerts>All ${open.length} alerts</button></div><div class='blk lime row' style='margin:0;justify-content:flex-start;gap:20px'><div class=ring style='background:conic-gradient(#1b2229 0 ${(healthy / F.length) * 100}%,rgba(6,33,15,.2) 0)'><b>${healthy}/${F.length}</b></div><div><h2>Fields healthy</h2><p>${F.filter((x) => x.hl !== 'ok')
     .map((x) => x.name)
-    .join(', ')} need a look.</p></div></div></div><h2 class=sh>Fields &amp; sensors</h2><div class=row style='justify-content:flex-start;gap:24px'><div class=fn style='font-size:clamp(4rem,10vw,7rem);color:var(--g)'>${sum((x) => x.s[0])}<span>/${sum((x) => x.s[1])}</span></div><div><p>${sum((x) => x.s[0])} of ${sum((x) => x.s[1])} sensors reporting · average soil moisture ${avg}%.</p><button class='btn alt' data-act=go data-p=field>Open fields &amp; sensors</button></div></div>`;
+    .join(', ')} need a look.</p></div></div></div><h2 class=sh>Fields &amp; sensors</h2><div class=row style='justify-content:flex-start;gap:24px'><div class=fn style='font-size:clamp(4rem,10vw,7rem);color:var(--g)'>${sum((x) => x.s[0])}<span>/${sum((x) => x.s[1])}</span></div><div><p>${sum((x) => x.s[0])} of ${sum((x) => x.s[1])} sensors reporting · average soil moisture ${avg}.</p><button class='btn alt' data-act=go data-p=field>Open fields &amp; sensors</button></div></div>`;
 }
 
 const history = (f: Field) => {
@@ -169,7 +177,7 @@ const history = (f: Field) => {
   const rows = (live?.length
     ? live.map((x, j) => {
         const a = x.ageHours;
-        const v = station ? f[k] : k === 'm' ? x.m : k === 'st' ? x.st : k === 'ph' ? x.ph : null;
+        const v = station ? (hasReading(f, k) ? f[k] : null) : k === 'm' ? x.m : k === 'st' ? x.st : k === 'ph' ? x.ph : null;
         const status =
           healthPill(healthOf(adv, x.id)) ??
           (a >= 24
@@ -218,6 +226,7 @@ export function field(): string {
   const r = S.farmerId ? null : REC.find((x) => x.f === f.id || x.f === f.layout);
   const liveA = S.liveAdvice[f.id];
   const tiles = MET.map((m) => {
+    if (!hasReading(f, m.key)) return `<div class=mt><div class=mv>—</div><b>${m.name}</b><span class=mtnote>No reading yet</span></div>`;
     if (m.key === 'm' && liveA) {
       const t = triggerOf(f);
       const o = t == null ? triggerShort(liveA).toLowerCase() : f.m < t ? `below your ${t}% trigger` : `above your ${t}% trigger`;
@@ -234,15 +243,15 @@ export function field(): string {
     ? wateringBlock(f, live) + setupCard(f, live)
     : r
       ? `<div class='blk orange'><h2>Recommended action</h2><p><b>${r.t}</b></p><p>${r.w}</p><p>${r.c}</p></div>`
-      : `<div class='blk lime'><h2>Recommended action</h2><p class=mut>Advice loading…</p></div>`;
+      : `<div class='blk lime'><h2>Recommended action</h2><p class=mut>${noAdviceText(f)}</p></div>`;
   const metricTabs = MET.map((m) => `<button aria-pressed=${m.key === S.mk} data-act=mk data-k=${m.key}>${m.name}</button>`).join('');
-  return `${demo()}<h1>Fields &amp; sensors</h1><p class=mut>Readings, history and watering for each parcel — in one place.</p><p><button class='btn alt sm' data-act=export data-testid=export-csv>Download last 14 days (CSV)</button></p>${fieldTabs()}${feat(f)}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>Sensor history</h2><div class=tabs>${metricTabs}</div>${history(f)}${live ? eventsCard(f, live) : waterLog(f)}`;
+  return `${demo()}<div class=phead><h1>Fields &amp; sensors</h1><button class='btn alt sm' data-act=export data-testid=export-csv>Download last 14 days (CSV)</button></div>${fieldTabs()}${feat(f)}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>Sensor history</h2><div class=tabs>${metricTabs}</div>${history(f)}${live ? eventsCard(f, live) : waterLog(f)}`;
 }
 
 export function weather(): string {
   const live = S.liveWeather;
   if (!live) {
-    return `${demo()}<h1>Weather and your fields</h1><p class=mut>Sign in and set a farm location to load the forecast.</p>`;
+    return `${demo()}<h1>Weather and your fields</h1><p class=mut>${noWeatherText()}</p>`;
   }
   const now = live.hours[0];
   // One card per local day of the forecast (a whole day's rain and its low, not one hour's reading).
@@ -260,18 +269,27 @@ export function weather(): string {
 <h2 style="margin:18px 0 8px">Ahead</h2><div class="days">${dayCards}</div>
 <div class="card" style="margin-top:14px"><h3>What this means for your fields</h3>${F.map((f) => {
   const a = S.liveAdvice[f.id];
-  return a ? `<div class="item"><div>${pill(a.label === 'Water today' ? 'cr' : 'ok')}</div><div><b>${esc(f.name)}</b> — ${esc(a.label)}. ${esc(a.reason)}</div></div>` : '';
-}).join('') || '<p class=mut>Advice loads with your fields.</p>'}</div>`;
+  return a ? `<div class="item"><div>${can(ws(f), 28)}</div><div><b>${esc(f.name)}</b> — ${esc(decision(f))}. ${esc(a.reason)}</div></div>` : '';
+}).join('') || `<p class=mut>${F.length ? 'No field has advice yet.' : 'Add a field to see what the weather means for it.'}</p>`}</div>`;
 }
 
 export function recs(): string {
   if (S.farmerId) {
-    const cards = F.map((field) => {
+    // Most urgent first; each field is one row that opens it.
+    const cards = byUrgency().map((field) => {
       const a = S.liveAdvice[field.id];
-      if (!a) return '';
-      return `<div class="card" style="margin-bottom:12px"><div class="row"><div style="display:flex;gap:8px;align-items:center">${can(ws(field), 34)}${pill(a.label === 'Water today' ? 'cr' : a.label === 'Wait' ? 'wn' : 'ok')}</div><button class="btn alt" data-act="go" data-p="field" data-id="${field.id}">${esc(field.name)}</button></div><h2 style="margin:8px 0">${esc(a.label)}</h2><p>${esc(a.reason)}</p>${a.soilWarning ? `<p class="mut">${esc(a.soilWarning)}</p>` : ''}${a.frostWarning ? `<p class="mut">${esc(a.frostWarning)}</p>` : ''}</div>`;
+      if (!a) {
+        return `<button class=rrow data-act=go data-p=field data-id=${field.id}>${can('err', 32)}<span class=rbody><b>${esc(field.name)} · ${esc(decision(field))}</b><span class=mut>${noAdviceText(field)}</span></span><span class=rgo aria-hidden=true>›</span></button>`;
+      }
+      const notes = [a.waterBy?.text, a.soilWarning, a.frostWarning].filter(Boolean).map((x) => `<span class=rnote>${esc(x!)}</span>`).join('');
+      return `<button class=rrow data-act=go data-p=field data-id=${field.id}>${can(ws(field), 32)}<span class=rbody><b>${esc(field.name)} · ${esc(decision(field))}</b><span class=mut>${esc(a.reason)}</span>${notes}</span><span class=rgo aria-hidden=true>›</span></button>`;
     }).join('');
-    return `${demo()}<h1>Recommended actions</h1><p class="mut">From live advice for each field.</p>${cards || '<p class=mut>No advice yet — check sensors and farm location.</p>'}`;
+    const lead = !F.length
+      ? 'Add a field to get watering advice.'
+      : !F.some((x) => S.liveAdvice[x.id])
+        ? 'Couldn’t load advice right now. Reload the page to try again.'
+        : esc(farmVerdict());
+    return `${demo()}<h1>Recommended actions</h1><p class=lead data-testid=recs-lead>${lead}</p>${cards}`;
   }
   const cards = REC.filter((r) => ownsSeedRef(r.f)).map((r) => {
     const field = F.find((f) => f.id === r.f || f.layout === r.f) ?? fld(r.f);
@@ -326,7 +344,7 @@ export function profile(): string {
   const roles = ['Owner', 'Farm manager', 'Field worker'].map((r) => `<option ${r === S.role ? 'selected' : ''}>${r}</option>`).join('');
   const fields = F.map((x) => {
     const slug = x.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || x.id.slice(0, 8);
-    return `<div class=field-row data-testid=field-row-${slug}><button class=lb data-act=pkm data-id=${x.id}><span>${esc(x.name)} <span class=mut>· ${x.crop} · ${x.ac} ac</span></span>${pill(x.hl)}</button><button class='btn alt sm' data-act=rmf data-id=${x.id} data-testid=delete-field-${slug} aria-label='Remove ${esc(x.name)}'>Remove</button></div>`;
+    return `<div class=field-row data-testid=field-row-${slug}><button class=lb data-act=pkm data-id=${x.id}><span>${esc(x.name)} <span class=mut>· ${x.crop} · ${x.ac} ac</span></span><span class=dtag>${can(ws(x), 20)}${esc(decision(x))}</span></button><button class='btn alt sm' data-act=rmf data-id=${x.id} data-testid=delete-field-${slug} aria-label='Remove ${esc(x.name)}'>Remove</button></div>`;
   }).join('');
   const cropOpts = CROPS.map((c) => `<option value="${c}">${c}</option>`).join('');
   const farmForm = S.farmId
@@ -336,6 +354,11 @@ export function profile(): string {
     ? `<div class=add-field data-testid=add-field-form><h3>Add a field</h3><p class=mut>Saved on the server. New parcels show on your map with demo sensors until real ones are wired.</p><label for=afn>Field name</label><input id=afn placeholder="South pasture" data-testid=add-field-name><label for=afc>Crop</label><select id=afc data-testid=add-field-crop>${cropOpts}</select><label for=afa>Acres</label><input id=afa type=number min=1 max=500 step=1 value=40 data-testid=add-field-acres><button class=btn type=button data-act=af data-testid=add-field-submit>Add field to my farm</button></div>`
     : '';
   return `${demo()}<h1>Your profile</h1><div class='grid g2'><div class=card><div class=row style='justify-content:flex-start;gap:16px'><div class=av>${esc(initials())}</div><div><h2>${esc(S.name)}</h2><span class=mut>${esc(S.role)} · ${esc(S.farm || 'No farm yet')}</span></div></div><label for=pn>Your name</label><input id=pn data-bind=name value="${esc(S.name)}" data-testid=profile-name><label for=pp>Phone</label><input id=pp data-bind=phone value="${esc(S.phone)}" data-testid=profile-phone><label for=pf>Farm name</label><input id=pf data-bind=farm value="${esc(S.farm)}" ${S.farmId ? 'disabled' : ''}><label for=pr>Your role</label><select id=pr data-bind=role>${roles}</select>${farmForm}<p><button class=btn data-act=savep data-testid=save-profile>Save profile</button></p></div><div class=card data-testid=my-fields><h3>My fields (${F.length})</h3><p class=mut>Open a field on the map, or remove it from your farm.</p><div class=field-list>${fields || '<p class=mut>No fields yet. Add one below.</p>'}</div>${add}<p style='margin-top:14px'><button class='btn alt' data-act=go data-p=settings>Notifications and sensors</button> <button class='btn alt' data-act=out>Sign out</button></p></div></div>`;
+}
+
+/** A data panel while the farm's live readings are still on their way. */
+export function loadingPage(title: string): string {
+  return `${demo()}<h1>${esc(title)}</h1><div class=skpage role=status><p class=mut>Loading your farm’s readings…</p>${SK}${SK}${SK}</div>`;
 }
 
 export function wateringModal(f: Field): string {
@@ -349,6 +372,8 @@ export function wateringModal(f: Field): string {
     soon: `Moisture is fine at ${f.m}%, but the soil is warm (${T(f.st)}) and will dry out fast.`,
     rain: `Moisture is ${f.m}%, just under range, with rain likely soon.`,
     none: `Moisture is ${f.m}%, inside the ${lo}–${hi}% range.`,
+    load: 'This field’s readings are still loading.',
+    err: 'Fieldwise couldn’t load advice for this field.',
   };
   const next: Record<WaterState, string> = {
     now: 'Water lightly today, then check again tonight.',
@@ -356,10 +381,12 @@ export function wateringModal(f: Field): string {
     soon: 'Check this field this afternoon. Water this evening if moisture keeps dropping.',
     rain: 'Hold off if rain is still expected.',
     none: 'Nothing to do right now.',
+    load: NXT.load,
+    err: NXT.err,
   };
   const wx = S.liveWeather
     ? `${S.liveWeather.rainNext48hMm.toFixed(1)} mm rain next 48h · overnight ${T(S.liveWeather.overnightLowC)}`
-    : 'Forecast loads with your farm location.';
+    : noWeatherText();
   const whyText = live?.reason ?? why[k];
   const nextText = live ? live.label + (live.waterBy ? ` · ${live.waterBy.text}` : '') : next[k];
   const target = live

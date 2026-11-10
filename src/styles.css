@@ -41,13 +41,13 @@ main.mp{max-width:none;padding:0}
 .board{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;background:#6f8f5a}
 .stage{position:relative;flex:1;min-width:0;min-height:0;overflow:hidden}
 /* Split view: map | full-height side pane (not floating cards) */
-.workspace{display:grid;grid-template-columns:minmax(0,1fr) 360px;flex:1;min-height:0;min-width:0}
+.workspace{display:grid;grid-template-columns:minmax(0,1fr) var(--rail,360px);flex:1;min-height:0;min-width:0;position:relative}
 .board.bare .workspace{grid-template-columns:minmax(0,1fr)}
 .workspace .stage{position:relative;min-width:0;min-height:0;overflow:hidden;grid-column:1;grid-row:1}
 .rail{
   grid-column:2;
   grid-row:1;
-  width:360px;
+  width:var(--rail,360px);
   max-width:none;
   min-height:0;
   overflow:auto;
@@ -73,7 +73,10 @@ main.mp{max-width:none;padding:0}
   background:#f4f7ef;
 }
 .rail .mc + .mc{margin-top:0}
-.stage .panel{left:12px;right:12px;transform:none;width:auto;max-width:none}
+/* With the rail aside, a panel gets the whole width: centred, and capped so lines stay readable. */
+.stage .panel{left:12px;right:12px;transform:none;width:auto;max-width:1120px;margin:0 auto}
+.stage .panel-center{max-width:560px}
+.stage .panel-mid{max-width:760px}
 /* Phones only: full-width bottom drawer spanning the screen */
 @media(max-width:640px){
   .workspace{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) 46%}
@@ -242,14 +245,13 @@ main.auth{padding:0;max-width:none;width:100%;min-height:100vh}
 .login-scene .sun{position:absolute;top:8%;right:12%;width:88px;height:88px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff6c8,#e8b84a 55%,#c4842a);box-shadow:0 0 48px rgba(232,184,74,.5);animation:sun-pulse 6s ease-in-out infinite}
 .login-scene .cloud{position:absolute;background:#fff;border-radius:40px;opacity:.88;animation:drift 28s linear infinite}
 .login-scene .cloud:before,.login-scene .cloud:after{content:'';position:absolute;background:#fff;border-radius:50%}
-.login-scene .c1{width:100px;height:30px;top:16%;left:6%;animation-duration:30s}
+.login-scene .c1{width:100px;height:30px;top:40%;left:6%;animation-duration:30s}
 .login-scene .c1:before{width:40px;height:40px;top:-20px;left:16px}.login-scene .c1:after{width:50px;height:50px;top:-26px;left:44px}
-.login-scene .c2{width:130px;height:34px;top:26%;left:38%;animation-duration:36s;animation-delay:-10s}
+.login-scene .c2{width:130px;height:34px;top:50%;left:38%;animation-duration:36s;animation-delay:-10s}
 .login-scene .c2:before{width:48px;height:48px;top:-22px;left:20px}.login-scene .c2:after{width:58px;height:58px;top:-30px;left:56px}
 .login-scene .c3{width:78px;height:24px;top:10%;left:68%;animation-duration:24s;animation-delay:-5s}
 .login-scene .c3:before{width:30px;height:30px;top:-15px;left:12px}.login-scene .c3:after{width:36px;height:36px;top:-19px;left:34px}
 .login-copy{position:absolute;z-index:2;top:clamp(28px,6vh,64px);left:clamp(24px,4vw,56px);right:24px;max-width:34rem;color:#1f2a18;text-shadow:0 1px 0 rgba(255,255,255,.35)}
-.login-kicker{margin:0 0 8px;font:700 .8rem/1 Sora,system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#2f5d3a}
 .login-headline{margin:0 0 10px;font:700 clamp(2.4rem,5.5vw,3.8rem)/1.05 Fraunces,Georgia,serif;letter-spacing:-.03em}
 .login-subcopy{margin:0;max-width:28rem;font:500 clamp(.95rem,1.5vw,1.15rem)/1.45 Sora,system-ui,sans-serif;color:#2a3524;opacity:.9}
 .login-land{position:absolute;inset:auto 0 0 0;width:100%;height:min(68%,520px);display:block}
@@ -337,3 +339,42 @@ svg g.ffield:hover .fzone {
 .mtnote{display:block;margin-top:8px}
 /* Phones: an open page fills the screen under the top bar (pop-ups and toasts stay above it); the map keeps only the controls a thumb needs (pinch zooms, and the side panel already sits under the map). */
 @media(max-width:760px){.panel{position:fixed;top:40px;bottom:0;left:0;right:0;width:auto;max-width:none;transform:none;z-index:30;box-shadow:none;border:0}.mtr,.mpc:has(>[data-act=ed]),.mpc.note{display:none}.mdl{z-index:40}.toast{z-index:41}}
+/* Drag the rail's left edge to resize it (src/ui/rail.ts). */
+.rail-grip{position:absolute;top:0;bottom:0;right:var(--rail,360px);width:10px;margin-right:-5px;cursor:col-resize;z-index:6;touch-action:none}
+.rail-grip::after{content:'';position:absolute;top:50%;left:3px;width:4px;height:44px;margin-top:-22px;border-radius:2px;background:rgba(38,48,31,.28);opacity:0;transition:opacity .15s}
+.rail-grip:hover::after,.rail-grip:focus-visible::after,.resizing .rail-grip::after{opacity:1}
+.rail-grip:focus-visible{outline:2px solid #2f5d3a;outline-offset:-2px}
+body.resizing{cursor:col-resize;user-select:none}
+body.resizing .stage{pointer-events:none}
+@media(max-width:760px){.rail-grip{display:none}}
+/* Loading: a shimmering bar where a live number will be (src/ui/helpers.ts SK). */
+.sk{display:inline-block;width:3.2em;max-width:100%;height:.8em;border-radius:4px;vertical-align:middle;background:linear-gradient(90deg,color-mix(in srgb,currentColor 9%,transparent) 25%,color-mix(in srgb,currentColor 18%,transparent) 50%,color-mix(in srgb,currentColor 9%,transparent) 75%);background-size:200% 100%;animation:sk 1.3s linear infinite}
+.fhero .sk{width:5em;height:.7em}
+.skpage .sk{display:block;width:100%;height:56px;margin:12px 0;border-radius:8px}
+.tb-sync.wait i{background:#d8c27a;box-shadow:0 0 0 2px rgba(216,194,122,.25);animation:skp 1.2s ease-in-out infinite}
+@keyframes sk{from{background-position:200% 0}to{background-position:-200% 0}}
+@keyframes skp{50%{opacity:.35}}
+@media(prefers-reduced-motion:reduce){.sk,.tb-sync.wait i{animation:none}}
+.lead{font-size:1.15rem;margin:6px 0 16px}
+/* Clouds stay out of the headline: below it on wide screens, only the far one on narrow ones. */
+@media(max-width:960px){.login-scene .cloud,.login-scene .sun{display:none}.login-scene .login-land{height:58%}}
+/* Room under the last links for the floating Report a problem button (bottom-left, src/report-problem.ts). */
+@media(max-width:960px){.login-panel{padding-bottom:88px}}
+/* The decision leads; the moisture number supports it. */
+.fdec{margin:4px 0 8px;font:800 clamp(2.4rem,5vw,4.2rem)/.95 Fraunces,Georgia,serif;letter-spacing:-.03em}
+.fhero .fdec{margin:0 0 4px;font-size:1.85rem;line-height:1}
+.verdict{margin:0 0 12px;font:700 1.05rem/1.35 Fraunces,Georgia,serif}
+.dtag{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;font-weight:700;white-space:nowrap}
+/* Advice: one row per field, most urgent first, the whole row opens the field. */
+.rrow{display:flex;align-items:center;gap:14px;width:100%;margin:0 0 8px;padding:12px 14px;border:1px solid var(--line);border-top:3px solid var(--ink);background:var(--card);text-align:left;font:inherit;color:inherit;cursor:pointer}
+.rrow:hover{border-color:var(--g)}.rrow:focus-visible{outline:2px solid #2f5d3a;outline-offset:2px}
+.rbody{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}.rbody b{font-size:1.05rem}
+.rnote{font-size:.85rem;font-weight:700;color:var(--wn)}.rgo{font-size:1.6rem;line-height:1;opacity:.5}
+/* Field and Farm heroes in a panel: shorter, the picture a fixed column, so the readings start on the first screen. */
+.panel .feat{grid-template-columns:minmax(0,1fr) 300px;min-height:280px}.panel .fr{min-height:0}.panel .fw{max-width:56ch}
+.phead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px}.phead h1{margin-bottom:0}
+@media(max-width:760px){.panel .feat{grid-template-columns:1fr}.panel .fr{height:220px}}
+/* Form controls in the farm's colours, not the browser's blue. */
+input[type=checkbox],input[type=radio],input[type=range]{accent-color:var(--g)}
+.mpl{align-self:center;padding:0 6px 0 8px;font-size:.68rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;opacity:.7;color:#e8eadf}
+@media(max-width:760px){.mpl{display:none}}

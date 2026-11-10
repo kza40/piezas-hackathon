@@ -1,4 +1,4 @@
-import { HL, MET } from '../seed/farm';
+import { HL, MET, WS } from '../seed/farm';
 import { AL, F, ownsSeedRef } from '../seed/simulate';
 import { S } from '../state';
 import type { Field, FieldId, Level, Metric, MetricKey, Range, StationKey, WaterState } from '../types';
@@ -31,7 +31,39 @@ export const mix = (a: number[], b: number[], t: number) => {
   return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * k))})`;
 };
 
+/**
+ * Signed in, a field shows its live readings or nothing: the seed's made-up numbers must never stand in
+ * for a real farm, not even for the seconds before the first load (they would say the wrong field needs water).
+ */
+export const pending = (f: Field) => !!S.farmerId && !S.liveFields.includes(f.id);
+/** Any field of a signed-in farm still waiting for its first live load. */
+export const liveLoading = () => F.some(pending);
+/**
+ * Why a field has no advice to show: still loading, or the load came back without it (a failed call).
+ * Never "loading" once the load is over, so a failure can't read as a wait that never ends.
+ */
+export const noAdviceText = (f: Field) =>
+  pending(f) ? 'Loading advice…' : 'Couldn’t load advice for this field. Reload the page to try again.';
+/** Why there is no forecast: still loading, the load failed, or (signed out) there is no farm to forecast for. */
+export const noWeatherText = () =>
+  !S.farmerId ? 'Sign in to see your farm’s forecast.' : liveLoading() ? 'Loading forecast…' : 'Couldn’t load the forecast right now.';
+/**
+ * Whether a field has a real reading of k. Signed out, the demo always does. Signed in, only a probe that
+ * reported it counts: a field's starting values are the demo simulator's, so a field with no probes (one
+ * just added) or a quantity no probe measures (EC, air temperature, sunlight) has nothing to show.
+ */
+export const hasReading = (f: Field, k: MetricKey): boolean => {
+  if (!S.farmerId) return true;
+  if (k === 'm' || k === 'st' || k === 'ph' || k === 'h') return !!S.liveSensors[f.id]?.some((s) => s[k] != null);
+  return false;
+};
+/** Soil moisture for small spaces: "34%", or a dash while the field has no reading. */
+export const mText = (f: Field) => (hasReading(f, 'm') ? `${f.m}%` : '—');
+/** A skeleton bar where a number will be. */
+export const SK = '<i class=sk aria-hidden=true></i>';
+
 export const ws = (f: Field): WaterState => {
+  if (pending(f)) return 'load';
   const a = S.liveAdvice[f.id];
   if (a) {
     if (a.status === 'water_today' || a.label === 'Water today') return 'now';
@@ -44,10 +76,52 @@ export const ws = (f: Field): WaterState => {
     // to the seed's crop range below (a rain-fed field must never look like it needs water; R-021).
     return 'none';
   }
+  // Signed in, loaded, and no advice came back (a failed or timed-out call): say so. The guess below is
+  // the signed-out demo's, run on made-up numbers; it must never tell a real farm to water.
+  if (S.farmerId) return 'err';
   const lo = f.mi[0];
   if (f.m < lo) return f.m >= lo - 3 ? 'rain' : 'now';
   return f.stMax > 20 || f.m < lo + 4 ? 'soon' : 'none';
 };
+
+/**
+ * What to do with a field, in a few words: the headline wherever a field's state is shown, so the map,
+ * the cards and the field page always use the same words. Signed in, that is the server's label (the
+ * SPEC's own words, R-009: Water today, Wait, No recent reading, Check sensors, Not configured,
+ * Rain-fed); the signed-out demo uses the map key's words.
+ */
+export function decision(f: Field): string {
+  const k = ws(f);
+  if (k === 'load') return WS.load.t;
+  return S.liveAdvice[f.id]?.label ?? WS[k].t;
+}
+
+/**
+ * The farm in a sentence or three: every field that needs the farmer, by what it needs, then the rest.
+ * Each field is named once, under its most pressing need. "The rest" is only said of fields with nothing
+ * to do (no water needed, waiting for rain, rain-fed): never of one whose advice is missing or unset.
+ */
+export function farmVerdict(): string {
+  if (!F.length) return 'No fields yet. Add one to get watering advice.';
+  const list = (xs: Field[]) => {
+    const n = xs.map((f) => f.name);
+    return n.length <= 2 ? n.join(' and ') : `${n.slice(0, -1).join(', ')} and ${n.at(-1)}`;
+  };
+  const seen = new Set<string>();
+  const take = (xs: Field[]) => xs.filter((f) => !seen.has(f.id) && seen.add(f.id));
+  const by = (k: WaterState) => take(F.filter((f) => ws(f) === k));
+  const parts = [
+    [by('now'), (s: string) => `Water ${s} today.`],
+    [by('check'), (s: string) => `Check the sensors in ${s}.`],
+    [by('err'), (s: string) => `Couldn’t load advice for ${s}.`],
+    [by('soon'), (s: string) => `Water ${s} soon.`],
+    // Irrigated with no trigger saved (R-009): no watering call can be made until the farmer sets one.
+    [take(F.filter((f) => S.liveAdvice[f.id]?.status === 'not_configured')), (s: string) => `Set a watering trigger for ${s}.`],
+  ] as const;
+  const said = parts.filter(([xs]) => xs.length).map(([xs, say]) => say(list(xs)));
+  if (!said.length) return 'No field needs anything today.';
+  return seen.size < F.length ? `${said.join(' ')} The rest need nothing today.` : said.join(' ');
+}
 
 export const metric = (k: MetricKey): Metric => MET.find((m) => m.key === k) ?? MET[0];
 export const idealRange = (f: Field, m: Metric): Range => (m.key === 'ph' && f.phr) || m.range || f.mi;
@@ -64,7 +138,15 @@ export const fieldNo = (id: FieldId) => {
   return id.length <= 3 ? id : String(Math.max(1, ix + 1)).padStart(2, '0');
 };
 
+/** "Last watered" as the field page words it: the latest detected irrigation (R-023), or none. */
+export const wateredText = (iso: string | null | undefined) =>
+  iso ? new Date(iso).toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' }) : 'None in the last 14 days';
+
+/** Last watered, everywhere the same: signed in, from the detected events; the signed-out demo keeps its own log. */
 export const lastWatered = (id: FieldId) => {
+  const a = S.liveAdvice[id];
+  if (a) return wateredText(a.lastWatered);
+  if (S.farmerId) return '—';
   const e = S.log.find((x) => x.f === id);
   return e ? `${e.d} · ${e.mm} mm` : 'Not this week';
 };

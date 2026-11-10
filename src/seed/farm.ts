@@ -151,11 +151,13 @@ export const CC: Record<Crop, string> = {
 };
 
 export const WS: Record<WaterState, WaterLook> = {
-  now: { t: 'Water now', c: 'var(--cn)', h: '#4a78b5', bg: 'var(--bgn)', f: '#8fbdf0' },
+  now: { t: 'Water today', c: 'var(--cn)', h: '#4a78b5', bg: 'var(--bgn)', f: '#8fbdf0' },
   check: { t: 'Check sensors', c: '#4d5560', h: '#7a828c', bg: '#e6e6e3', f: '#c9ccd0' },
   soon: { t: 'Water soon', c: 'var(--cs)', h: '#cf7f3a', bg: 'var(--bgs)', f: '#f6d27a' },
-  rain: { t: 'Rain expected', c: 'var(--cr2)', h: '#6d78a8', bg: 'var(--bgr)', f: '#b9c4ec' },
+  rain: { t: 'Wait: rain coming', c: 'var(--cr2)', h: '#6d78a8', bg: 'var(--bgr)', f: '#b9c4ec' },
   none: { t: 'No water needed', c: 'var(--c0)', h: '#4f8a63', bg: 'var(--bg0)', f: '#93d6ab' },
+  load: { t: 'Loading', c: '#6b7068', h: '#9aa094', bg: '#ecebe4', f: '#d8d9d0' },
+  err: { t: 'Advice unavailable', c: '#4d5560', h: '#7a828c', bg: '#e6e6e3', f: '#c9ccd0' },
 };
 
 export const FB: Record<WaterState, FeatureLook> = {
@@ -164,6 +166,8 @@ export const FB: Record<WaterState, FeatureLook> = {
   soon: { bg: '#d98f55', fg: '#1d1203', n: '#222a33', c: 'WATER SOON' },
   rain: { bg: '#5d6595', fg: '#f6efd9', n: '#f0d6a0', c: 'RAIN EXPECTED: HOLD OFF' },
   none: { bg: '#6f9a7c', fg: '#f6efd9', n: '#fbf3dd', c: 'NO WATERING NEEDED' },
+  load: { bg: '#d9dad2', fg: '#3c4038', n: '#3c4038', c: 'LOADING READINGS' },
+  err: { bg: '#8a9099', fg: '#14181d', n: '#14181d', c: 'ADVICE UNAVAILABLE' },
 };
 
 export const NXT: Record<WaterState, string> = {
@@ -172,4 +176,6 @@ export const NXT: Record<WaterState, string> = {
   soon: 'Check this afternoon. Water this evening if it keeps drying.',
   rain: 'Rain is due tomorrow. Hold off watering.',
   none: 'Nothing to do today. Check again Thursday.',
+  load: 'Advice shows once this field’s readings arrive.',
+  err: 'Couldn’t load advice for this field. Reload the page to try again.',
 };

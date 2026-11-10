@@ -160,6 +160,7 @@ export const sensorsOf = (id: FieldId): FieldSensor[] => {
       dy: SENSOR_XY[i % SENSOR_XY.length][1],
     }));
   }
+  if (S.farmerId) return []; // a real farm's probes, or none: never the seed's
   const layout = layoutOf(id);
   return SEN.filter((s) => s.f === layout).map((s, i) => ({
     id: s.id,
@@ -227,6 +228,7 @@ const PARCEL_ORDER: FieldId[] = ['A', 'B', 'F', 'C', 'D', 'E'];
 
 export function clearFarmScope() {
   F.splice(0, F.length);
+  S.liveFields = []; // the next farm, even the same one again, shows Loading until its own load lands
 }
 
 /** Match a server crop profile name to the frontend Crop labels. */

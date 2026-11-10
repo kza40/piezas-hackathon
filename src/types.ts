@@ -5,7 +5,9 @@ export const CROPS: Crop[] = ['Wheat', 'Canola', 'Barley', 'Oats', 'Alfalfa', 'B
 export type Health = 'ok' | 'wn' | 'cr';
 export type Level = Health | 'in';
 /** check: the sensors can't be trusted right now (no recent reading, or all faulty), so no watering call. */
-export type WaterState = 'now' | 'check' | 'soon' | 'rain' | 'none';
+/** 'load': signed in, and this field's live readings have not arrived yet. */
+/** 'err': signed in, the load finished, and the server's advice for this field didn't come back. */
+export type WaterState = 'now' | 'check' | 'soon' | 'rain' | 'none' | 'load' | 'err';
 export type SensorKey = 'm' | 'st' | 'ph' | 'ec';
 export type StationKey = 'at' | 'h' | 'l';
 export type MetricKey = SensorKey | StationKey;
@@ -165,6 +167,8 @@ export interface AppState {
   liveWeather: LiveWeather | null;
   liveAdvice: Record<string, LiveAdvice>;
   liveAlerts: LiveAlert[];
+  /** Fields covered by the last finished live load: until a field is here, it shows Loading, never seed numbers. */
+  liveFields: string[];
   liveSensors: Record<string, LiveSensor[]>;
   liveMoistureSeries: Record<string, number[]>;
   liveHistory: Record<string, LiveHistory>;

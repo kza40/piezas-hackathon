@@ -1,6 +1,7 @@
 import { CC, POLY, WS } from '../seed/farm';
 import { F } from '../seed/simulate';
 import type { Crop, FieldId, WaterState } from '../types';
+import { fieldNo } from './helpers';
 
 /** Map outline key: server field id → seed layout letter when present. */
 export const polyKey = (id: FieldId): FieldId => {
@@ -18,6 +19,8 @@ const CAN_GLYPH: Record<WaterState, string> = {
   soon: `<path d='M22 18v3.2l2 1.3' stroke='#fff' stroke-width='1.4' fill='none' stroke-linecap='round'/>`,
   rain: `<path d='M19.5 21.5a2 2 0 0 1 .6-3.9 3 3 0 0 1 5.6 1 1.6 1.6 0 0 1-.4 2.9z' fill='#fff'/>`,
   none: `<path d='M19.3 21l2 2 3.6-4' stroke='#fff' stroke-width='1.8' fill='none' stroke-linecap='round'/>`,
+  load: `<circle cx='19.6' cy='21' r='1' fill='#fff'/><circle cx='22' cy='21' r='1' fill='#fff'/><circle cx='24.4' cy='21' r='1' fill='#fff'/>`,
+  err: `<path d='M20.4 19.4a1.7 1.7 0 1 1 2.4 1.6c-.6.3-.8.6-.8 1.1' stroke='#fff' stroke-width='1.4' fill='none' stroke-linecap='round'/><circle cx='22' cy='23.9' r='.8' fill='#fff'/>`,
 };
 
 /** Watering-can glyph body, without the outer <svg>. */
@@ -77,8 +80,6 @@ export const plants = (id: FieldId, c: Crop) => {
 
 export const fieldNumberLabel = (id: FieldId) => {
   const p = polyPoints(id);
-  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const i = letters.indexOf(id);
-  const label = i >= 0 ? String(i + 1).padStart(2, '0') : id.slice(0, 2);
+  const label = fieldNo(id);
   return `<text x='${Math.min(...p.map((q) => q[0])) + 12}' y='${Math.min(...p.map((q) => q[1])) + 74}' font-size='80' font-weight='800' font-family='Fraunces,Georgia,serif' fill='#fff' fill-opacity='.3' pointer-events='none'>${label}</text>`;
 };

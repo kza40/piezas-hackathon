@@ -82,6 +82,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     ...init,
     headers,
     credentials: 'same-origin',
+    // A read that hangs must end, or the screen waits on it forever; it then shows as "couldn't load".
+    signal: init.signal ?? (!init.method || init.method === 'GET' ? AbortSignal.timeout(30_000) : undefined),
   });
   if (!res.ok) {
     if (res.status === 401) onUnauthorized?.();
