@@ -24,7 +24,7 @@ The contract between the Vite frontend (and sensor devices) and the backend. Eve
 
 ## Session
 
-The session is an httpOnly, SameSite=Lax cookie named `piezas_session` (lasts 7 days, `Secure` whenever the site is served over https), set and cleared by the backend. The frontend never reads or stores a token and does not need localStorage for the session: `fetch` on the same origin sends the cookie by default. On load, call `GET /api/auth/me`: 200 means signed in, 401 means show the sign-in screen.
+The session is an httpOnly, SameSite=Lax cookie named `piezas_session` (lasts 7 days, `Secure` whenever the site is served over https), set and cleared by the backend. The frontend never reads or stores a token and does not need localStorage for the session: `fetch` on the same origin sends the cookie by default. On load, call `GET /api/auth/me`: a `user` means signed in, `user: null` means show the sign-in screen. Signed out is a 200, not a 401, so the sign-in screen loads with a clean console; a dead session cookie is cleared in the same response.
 
 ## Accounts and profile
 
@@ -33,7 +33,9 @@ The session is an httpOnly, SameSite=Lax cookie named `piezas_session` (lasts 7 
 | `POST /api/auth/sign-up` | `{ email, password, name? }` (password at least **10** characters, name up to 80; a bad name is rejected before the account is made) | 201 `{ user: { id, email }, profile }` and sets the cookie. Same email with a different password: 409 "An account with this email already exists. Sign in instead." Same email and password: signs in. |
 | `POST /api/auth/sign-in` | `{ email, password }` | `{ user, profile }` and sets the cookie. Wrong email or password: 401 "Email or password is incorrect." After 10 wrong tries in 15 minutes Piezas locks the account for a while (same 401). |
 | `POST /api/auth/sign-out` | none | 204 and clears the cookie |
-| `GET /api/auth/me` | none | `{ user, profile }`, or 401 when signed out |
+| `GET /api/auth/me` | none | `{ user, profile }`, or `{ user: null, profile: null }` when signed out (200, `no-store`) |
+| `GET /api/piezas/report` | none | `{ on, identified }`: whether the Report a problem button shows (hosted setting `PIEZAS_REPORT_BUTTON`), and whether the visitor is signed in |
+| `POST /api/piezas/report` | `{ message, page?, screenshot?, context?, reporter? }` (Piezas SDK widget) | 201 `{ ok, id, screenshot }`; 400 without a message, 413 over 900 KB, 429 when rate-limited. The reporter comes from the session cookie, never the body |
 | `PATCH /api/me/profile` | `{ name?, phone? }` (only the keys sent change; `phone: ""` clears it; a phone needs at least 7 digits) | `{ profile: { name, phone } }` |
 
 ## Crops, farms, fields (all need a signed-in farmer)

@@ -94,7 +94,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const authApi = {
-  me: () => api<{ user: ApiUser; profile: ApiProfile }>('/api/auth/me'),
+  /** The signed-in farmer, or user null when signed out (not a 401). */
+  me: () => api<{ user: ApiUser | null; profile: ApiProfile | null }>('/api/auth/me'),
   signIn: (email: string, password: string) =>
     api<{ user: ApiUser; profile: ApiProfile }>('/api/auth/sign-in', {
       method: 'POST',

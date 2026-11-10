@@ -10,6 +10,7 @@ process.env.WEATHER_STUB_DIR ??= 'data/weather';
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { api } from './app';
+import { REPORT_ENTITY, REPORT_ENTITY_SLUG } from '@piezas/sdk';
 import { db, piezas } from '../lib/server/piezas';
 import { listAll } from '../lib/server/data/records';
 import { openAlert } from '../lib/server/data/alerts';
@@ -725,6 +726,37 @@ describe('demo fields keep reporting (scripts/seed-demo.ts)', () => {
   });
 });
 
+describe('Report a problem over HTTP', () => {
+  const visitor = browser();
+
+  test('the button is on, and knows a signed-in farmer from a visitor', async () => {
+    const anon = await visitor('GET', '/api/piezas/report');
+    assert.equal(anon.status, 200);
+    assert.deepEqual(anon.body, { on: true, identified: false });
+    assert.deepEqual((await sam('GET', '/api/piezas/report')).body, { on: true, identified: true });
+  });
+
+  test('a report without a description, or over the size cap, is refused', async () => {
+    assert.equal((await visitor('POST', '/api/piezas/report', { page: '/' })).status, 400);
+    const big = await visitor('POST', '/api/piezas/report', { message: 'x', screenshot: 'a'.repeat(1024 * 1024) });
+    assert.equal(big.status, 413);
+  });
+
+  test('a report from a signed-in farmer names them from the session, not the request body', async () => {
+    const r = await sam('POST', '/api/piezas/report', { message: `integration test ${run}`, page: '/map?x=secret', reporter_email: 'spoof@example.test' });
+    assert.equal(r.status, 201);
+    const reports = (await piezas().defineEntities({ [REPORT_ENTITY_SLUG]: REPORT_ENTITY }))[REPORT_ENTITY_SLUG];
+    try {
+      const saved = await reports.get(r.body.id);
+      assert.equal(saved.data.reporter_source, 'session');
+      assert.equal(saved.data.reporter_email, `sam-${run}@example.test`);
+      assert.equal(saved.data.page, '/map', 'no query string kept');
+    } finally {
+      await reports.delete(r.body.id);
+    }
+  });
+});
+
 describe('request hygiene', () => {
   test('invalid JSON is a 400, unknown /api paths are a JSON 404', async () => {
     const res = await api.request('/api/auth/sign-in', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{oops' });
@@ -759,6 +791,21 @@ describe('request hygiene', () => {
   test('sign-out clears the cookie and ends the session', async () => {
     const r = await sam('POST', '/api/auth/sign-out');
     assert.equal(r.status, 204);
-    assert.equal((await sam('GET', '/api/auth/me')).status, 401);
+    const me = await sam('GET', '/api/auth/me');
+    assert.equal(me.status, 200);
+    assert.deepEqual(me.body, { user: null, profile: null });
+    assert.equal((await sam('GET', '/api/farms')).status, 401, 'every other route still needs a session');
+  });
+
+  test('signed out, /auth/me answers 200 with no user, and clears a dead session cookie', async () => {
+    const none = await browser()('GET', '/api/auth/me');
+    assert.equal(none.status, 200);
+    assert.deepEqual(none.body, { user: null, profile: null });
+    assert.equal(none.setCookie, null);
+    assert.equal(none.headers.get('cache-control'), 'no-store');
+    const dead = await browser()('GET', '/api/auth/me', undefined, { cookie: 'piezas_session=not-a-real-token' });
+    assert.equal(dead.status, 200);
+    assert.equal(dead.body.user, null);
+    assert.match(dead.setCookie ?? '', /piezas_session=;.*Max-Age=0/i);
   });
 });
