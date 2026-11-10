@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc",
-    "test:unit": "tsx --test \"lib/**/*.unit.test.ts\"",
+    "test:unit": "tsx --test \"lib/**/*.unit.test.ts\" \"src/**/*.unit.test.ts\"",
     "test:int": "tsx --env-file=.env --test --test-concurrency=1 \"lib/**/*.int.test.ts\" \"server/**/*.int.test.ts\"",
     "dev:api": "tsx watch --env-file=.env server/index.ts --test-app",
     "start": "tsx server/index.ts"
