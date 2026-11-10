@@ -43,7 +43,8 @@ function dock(): string {
 const LIVE_PANELS: ReadonlySet<PanelId> = new Set(['dashboard', 'field', 'weather', 'recs', 'alerts']);
 
 function panel(id: PanelId): string {
-  const narrow = id === 'settings' || id === 'profile' ? ' panel-center' : '';
+  // Narrow for forms, medium for lists of text, full width for the field and farm views.
+  const narrow = id === 'settings' || id === 'profile' ? ' panel-center' : id === 'recs' || id === 'alerts' ? ' panel-mid' : '';
   const view = LIVE_PANELS.has(id) && liveLoading() ? () => pages.loadingPage(PANELS[id].title) : PANELS[id].view;
   return `<section class='panel${narrow}' data-testid=panel-${id} data-scroll=p role=dialog aria-label='${PANELS[id].title}'><button class='btn alt sm pclose' data-act=go data-p=map aria-label='Close and show the map'>✕ Back to map</button><div class=panel-body>${view()}</div></section>`;
 }

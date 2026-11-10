@@ -241,7 +241,7 @@ export function field(): string {
       ? `<div class='blk orange'><h2>Recommended action</h2><p><b>${r.t}</b></p><p>${r.w}</p><p>${r.c}</p></div>`
       : `<div class='blk lime'><h2>Recommended action</h2><p class=mut>${noAdviceText(f)}</p></div>`;
   const metricTabs = MET.map((m) => `<button aria-pressed=${m.key === S.mk} data-act=mk data-k=${m.key}>${m.name}</button>`).join('');
-  return `${demo()}<h1>Fields &amp; sensors</h1><p class=mut>Readings, history and watering for each parcel — in one place.</p><p><button class='btn alt sm' data-act=export data-testid=export-csv>Download last 14 days (CSV)</button></p>${fieldTabs()}${feat(f)}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>Sensor history</h2><div class=tabs>${metricTabs}</div>${history(f)}${live ? eventsCard(f, live) : waterLog(f)}`;
+  return `${demo()}<div class=phead><h1>Fields &amp; sensors</h1><button class='btn alt sm' data-act=export data-testid=export-csv>Download last 14 days (CSV)</button></div>${fieldTabs()}${feat(f)}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>Sensor history</h2><div class=tabs>${metricTabs}</div>${history(f)}${live ? eventsCard(f, live) : waterLog(f)}`;
 }
 
 export function weather(): string {
@@ -271,10 +271,12 @@ export function weather(): string {
 
 export function recs(): string {
   if (S.farmerId) {
-    const cards = F.map((field) => {
+    // Most urgent first; each field is one row that opens it.
+    const cards = byUrgency().map((field) => {
       const a = S.liveAdvice[field.id];
       if (!a) return '';
-      return `<div class="card" style="margin-bottom:12px"><div class="row"><div style="display:flex;gap:8px;align-items:center">${can(ws(field), 34)}</div><button class="btn alt" data-act="go" data-p="field" data-id="${field.id}">${esc(field.name)}</button></div><h2 style="margin:8px 0">${esc(decision(field))}</h2><p>${esc(a.reason)}</p>${a.soilWarning ? `<p class="mut">${esc(a.soilWarning)}</p>` : ''}${a.frostWarning ? `<p class="mut">${esc(a.frostWarning)}</p>` : ''}</div>`;
+      const notes = [a.waterBy?.text, a.soilWarning, a.frostWarning].filter(Boolean).map((x) => `<span class=rnote>${esc(x!)}</span>`).join('');
+      return `<button class=rrow data-act=go data-p=field data-id=${field.id}>${can(ws(field), 32)}<span class=rbody><b>${esc(field.name)} · ${esc(decision(field))}</b><span class=mut>${esc(a.reason)}</span>${notes}</span><span class=rgo aria-hidden=true>›</span></button>`;
     }).join('');
     const lead = !F.length
       ? 'Add a field to get watering advice.'
