@@ -113,15 +113,20 @@ export async function loadLiveData(): Promise<boolean> {
     history: {} as AppState['liveHistory'],
   };
   try {
-    next.weather = await farmApi.getWeather(farmId).catch(() => null);
-
+    // Everything at once: the weather, and per field its advice next to its sensors and history.
+    // (One after another, a 6-field farm took ~20 s against the test app.)
+    const weather = farmApi.getWeather(farmId).catch(() => null);
     await Promise.all(
       fields.map(async (f) => {
-        try {
-          next.advice[f.id] = toLiveAdvice(await farmApi.getAdvice(f.id));
-        } catch {
-          /* ignore */
-        }
+        const advice = farmApi
+          .getAdvice(f.id)
+          .then((a) => {
+            next.advice[f.id] = toLiveAdvice(a);
+          })
+          .catch(() => {});
+        // History is fetched alongside the sensor list; it only needs the list for the sensors' names.
+        const history = farmApi.getReadings(f.id, 7);
+        history.catch(() => {}); // handled below; never an unhandled rejection while the list loads
         try {
           const { sensors } = await farmApi.listSensors(f.id);
           const live: LiveSensor[] = sensors.map((s) => {
@@ -147,7 +152,7 @@ export async function loadLiveData(): Promise<boolean> {
           /* ignore */
         }
         try {
-          const { sensors } = await farmApi.getReadings(f.id, 7);
+          const { sensors } = await history;
           const TYPE_TO_KEY: Record<string, MetricKey> = {
             soil_moisture: 'm',
             soil_temperature: 'st',
@@ -205,8 +210,10 @@ export async function loadLiveData(): Promise<boolean> {
         } catch {
           /* ignore */
         }
+        await advice;
       }),
     );
+    next.weather = await weather;
 
     // After getAdvice (which may open alerts), refresh so new ones show immediately.
     try {
