@@ -374,3 +374,7 @@ body.resizing .stage{pointer-events:none}
 .panel .feat{grid-template-columns:minmax(0,1fr) 300px;min-height:280px}.panel .fr{min-height:0}.panel .fw{max-width:56ch}
 .phead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px}.phead h1{margin-bottom:0}
 @media(max-width:760px){.panel .feat{grid-template-columns:1fr}.panel .fr{height:220px}}
+/* Form controls in the farm's colours, not the browser's blue. */
+input[type=checkbox],input[type=radio],input[type=range]{accent-color:var(--g)}
+.mpl{align-self:center;padding:0 6px 0 8px;font-size:.68rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;opacity:.7;color:#e8eadf}
+@media(max-width:760px){.mpl{display:none}}

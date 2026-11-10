@@ -1,6 +1,7 @@
 import { CC, POLY, WS } from '../seed/farm';
 import { F } from '../seed/simulate';
 import type { Crop, FieldId, WaterState } from '../types';
+import { fieldNo } from './helpers';
 
 /** Map outline key: server field id → seed layout letter when present. */
 export const polyKey = (id: FieldId): FieldId => {
@@ -78,8 +79,6 @@ export const plants = (id: FieldId, c: Crop) => {
 
 export const fieldNumberLabel = (id: FieldId) => {
   const p = polyPoints(id);
-  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const i = letters.indexOf(id);
-  const label = i >= 0 ? String(i + 1).padStart(2, '0') : id.slice(0, 2);
+  const label = fieldNo(id);
   return `<text x='${Math.min(...p.map((q) => q[0])) + 12}' y='${Math.min(...p.map((q) => q[1])) + 74}' font-size='80' font-weight='800' font-family='Fraunces,Georgia,serif' fill='#fff' fill-opacity='.3' pointer-events='none'>${label}</text>`;
 };

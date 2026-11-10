@@ -33,7 +33,8 @@ function dock(): string {
     .map((k) => {
       const p = PANELS[k];
       const icon = IC[k] ?? p.icon;
-      const badge = k === 'alerts' ? `<span class=badge>${openAlerts().length}</span>` : '';
+      const n = k === 'alerts' && !liveLoading() ? openAlerts().length : 0;
+      const badge = n ? `<span class=badge>${n}</span>` : '';
       return `<button data-act=go data-p=${k} data-testid=dock-${k} aria-pressed=${S.panel === k}><span aria-hidden=true class=di>${icon}</span><span class=dl>${p.title}</span>${badge}</button>`;
     })
     .join('')}</nav>`;
