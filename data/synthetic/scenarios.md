@@ -9,6 +9,6 @@
 - Gaps: `sensor_1b1` soil EC omits one hour.
 - Glitch: `sensor_2b1` soil moisture has one 90% reading, a week before now (hour 168).
 - Cold night: `sensor_3air` ends with -1.8 C; farm 3's forecast includes sub-zero periods. This is not a crop-stage frost warning.
-- Rain event: farm 2 has rain in forecast hours 13 to 20, and moisture rises around the matching rain event in the historical series.
+- Rain event: farm 2 has rain in forecast hours 13 to 20 (after now). The readings are not tied to it, and there is no rain in the past data.
 
 Fixed random seed: 20261107. Generated now: 2026-11-08T03:00:00Z.
