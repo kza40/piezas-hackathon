@@ -2,7 +2,7 @@ import { FB, HL, MEADOWS, POLY, RIDGES, SENSOR_XY, TREES, WS } from '../seed/far
 import { F, sensorsOf } from '../seed/simulate';
 import { S, saveOffsets } from '../state';
 import type { Field, FieldId, Health, MapLayer } from '../types';
-import { esc, lastWatered, mix, moistureTint, pending, T, ws } from '../ui/helpers';
+import { decision, esc, lastWatered, mix, moistureTint, pending, T, ws } from '../ui/helpers';
 import { canIn, fieldNumberLabel, plants, polyKey, polyPoints } from '../ui/icons';
 
 const VIEW_W = 800;
@@ -27,7 +27,7 @@ export const fillFor = (x: Field, layer: MapLayer) => {
 
 export const valueFor = (x: Field, layer: MapLayer) => {
   if (pending(x)) return 'Loading…';
-  if (layer === 'water') return WS[ws(x)].t;
+  if (layer === 'water') return decision(x);
   if (layer === 'health') return HL[x.hl][0];
   if (layer === 'moisture') return x.m + '% moisture';
   return T(x.st);

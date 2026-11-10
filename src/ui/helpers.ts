@@ -1,4 +1,4 @@
-import { HL, MET } from '../seed/farm';
+import { HL, MET, WS } from '../seed/farm';
 import { AL, F, ownsSeedRef } from '../seed/simulate';
 import { S } from '../state';
 import type { Field, FieldId, Level, Metric, MetricKey, Range, StationKey, WaterState } from '../types';
@@ -69,18 +69,16 @@ export const ws = (f: Field): WaterState => {
   return f.stMax > 20 || f.m < lo + 4 ? 'soon' : 'none';
 };
 
-/** What to do with a field, in a few words: the headline wherever a field's state is shown. */
+/**
+ * What to do with a field, in a few words: the headline wherever a field's state is shown, so the map,
+ * the cards and the field page always use the same words. Signed in, that is the server's label (the
+ * SPEC's own words, R-009: Water today, Wait, No recent reading, Check sensors, Not configured,
+ * Rain-fed); the signed-out demo uses the map key's words.
+ */
 export function decision(f: Field): string {
   const k = ws(f);
-  if (k === 'load') return 'Loading';
-  if (k === 'now') return 'Water today';
-  if (k === 'check') return 'Check sensors';
-  if (k === 'rain') return 'Hold off: rain coming';
-  if (k === 'soon') return 'Water soon';
-  const status = S.liveAdvice[f.id]?.status;
-  if (status === 'rain_fed') return 'Rain-fed';
-  if (status === 'not_configured') return 'Set a trigger';
-  return 'No water needed';
+  if (k === 'load') return WS.load.t;
+  return S.liveAdvice[f.id]?.label ?? WS[k].t;
 }
 
 /** The farm in one or two sentences: which fields need the farmer today, or that none do. */
@@ -109,7 +107,15 @@ export const fieldNo = (id: FieldId) => {
   return id.length <= 3 ? id : String(Math.max(1, ix + 1)).padStart(2, '0');
 };
 
+/** "Last watered" as the field page words it: the latest detected irrigation (R-023), or none. */
+export const wateredText = (iso: string | null | undefined) =>
+  iso ? new Date(iso).toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' }) : 'None in the last 14 days';
+
+/** Last watered, everywhere the same: signed in, from the detected events; the signed-out demo keeps its own log. */
 export const lastWatered = (id: FieldId) => {
+  const a = S.liveAdvice[id];
+  if (a) return wateredText(a.lastWatered);
+  if (S.farmerId) return '—';
   const e = S.log.find((x) => x.f === id);
   return e ? `${e.d} · ${e.mm} mm` : 'Not this week';
 };

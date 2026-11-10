@@ -4,11 +4,10 @@
 import { TEXTURE_NAMES, textureOf } from '../../lib/ml/agronomy';
 import { S } from '../state';
 import type { EventLabel, Field, LiveAdvice, SensorHealthRow, WettingEventRow } from '../types';
-import { esc } from '../ui/helpers';
+import { esc, wateredText } from '../ui/helpers';
 
 const when = (iso: string) =>
   new Date(iso).toLocaleString('en', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric' });
-const day = (iso: string) => new Date(iso).toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' });
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export const advice = (f: Field): LiveAdvice | undefined => S.liveAdvice[f.id];
@@ -21,7 +20,7 @@ export const triggerOf = (f: Field): number | null => {
 };
 
 /** "Last watered" from the detected events (R-023), not a log kept in the browser. */
-export const lastWateredText = (a: LiveAdvice) => (a.lastWatered ? day(a.lastWatered) : 'None in the last 14 days');
+export const lastWateredText = (a: LiveAdvice) => wateredText(a.lastWatered);
 
 /** The trigger the farmer saved, in a few words for small spaces. */
 export function triggerShort(a: LiveAdvice): string {

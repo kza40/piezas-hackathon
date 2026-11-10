@@ -363,3 +363,4 @@ body.resizing .stage{pointer-events:none}
 .fdec{margin:4px 0 8px;font:800 clamp(2.4rem,5vw,4.2rem)/.95 Fraunces,Georgia,serif;letter-spacing:-.03em}
 .fhero .fdec{margin:0 0 4px;font-size:1.85rem;line-height:1}
 .verdict{margin:0 0 12px;font:700 1.05rem/1.35 Fraunces,Georgia,serif}
+.dtag{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;font-weight:700;white-space:nowrap}

@@ -265,7 +265,7 @@ export function weather(): string {
 <h2 style="margin:18px 0 8px">Ahead</h2><div class="days">${dayCards}</div>
 <div class="card" style="margin-top:14px"><h3>What this means for your fields</h3>${F.map((f) => {
   const a = S.liveAdvice[f.id];
-  return a ? `<div class="item"><div>${pill(a.label === 'Water today' ? 'cr' : 'ok')}</div><div><b>${esc(f.name)}</b> — ${esc(a.label)}. ${esc(a.reason)}</div></div>` : '';
+  return a ? `<div class="item"><div>${can(ws(f), 28)}</div><div><b>${esc(f.name)}</b> — ${esc(decision(f))}. ${esc(a.reason)}</div></div>` : '';
 }).join('') || `<p class=mut>${F.length ? 'No field has advice yet.' : 'Add a field to see what the weather means for it.'}</p>`}</div>`;
 }
 
@@ -274,7 +274,7 @@ export function recs(): string {
     const cards = F.map((field) => {
       const a = S.liveAdvice[field.id];
       if (!a) return '';
-      return `<div class="card" style="margin-bottom:12px"><div class="row"><div style="display:flex;gap:8px;align-items:center">${can(ws(field), 34)}${pill(a.label === 'Water today' ? 'cr' : a.label === 'Wait' ? 'wn' : 'ok')}</div><button class="btn alt" data-act="go" data-p="field" data-id="${field.id}">${esc(field.name)}</button></div><h2 style="margin:8px 0">${esc(a.label)}</h2><p>${esc(a.reason)}</p>${a.soilWarning ? `<p class="mut">${esc(a.soilWarning)}</p>` : ''}${a.frostWarning ? `<p class="mut">${esc(a.frostWarning)}</p>` : ''}</div>`;
+      return `<div class="card" style="margin-bottom:12px"><div class="row"><div style="display:flex;gap:8px;align-items:center">${can(ws(field), 34)}</div><button class="btn alt" data-act="go" data-p="field" data-id="${field.id}">${esc(field.name)}</button></div><h2 style="margin:8px 0">${esc(decision(field))}</h2><p>${esc(a.reason)}</p>${a.soilWarning ? `<p class="mut">${esc(a.soilWarning)}</p>` : ''}${a.frostWarning ? `<p class="mut">${esc(a.frostWarning)}</p>` : ''}</div>`;
     }).join('');
     const lead = !F.length
       ? 'Add a field to get watering advice.'
@@ -336,7 +336,7 @@ export function profile(): string {
   const roles = ['Owner', 'Farm manager', 'Field worker'].map((r) => `<option ${r === S.role ? 'selected' : ''}>${r}</option>`).join('');
   const fields = F.map((x) => {
     const slug = x.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || x.id.slice(0, 8);
-    return `<div class=field-row data-testid=field-row-${slug}><button class=lb data-act=pkm data-id=${x.id}><span>${esc(x.name)} <span class=mut>· ${x.crop} · ${x.ac} ac</span></span>${pill(x.hl)}</button><button class='btn alt sm' data-act=rmf data-id=${x.id} data-testid=delete-field-${slug} aria-label='Remove ${esc(x.name)}'>Remove</button></div>`;
+    return `<div class=field-row data-testid=field-row-${slug}><button class=lb data-act=pkm data-id=${x.id}><span>${esc(x.name)} <span class=mut>· ${x.crop} · ${x.ac} ac</span></span><span class=dtag>${can(ws(x), 20)}${esc(decision(x))}</span></button><button class='btn alt sm' data-act=rmf data-id=${x.id} data-testid=delete-field-${slug} aria-label='Remove ${esc(x.name)}'>Remove</button></div>`;
   }).join('');
   const cropOpts = CROPS.map((c) => `<option value="${c}">${c}</option>`).join('');
   const farmForm = S.farmId

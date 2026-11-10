@@ -112,7 +112,7 @@ export function fieldCard(): string {
   const hero = `<div class=fhero style='background:${look.bg};color:${look.fg}'><div><div class=fdec style='color:${look.n}'>${esc(decision(f))}</div><div class=fsub>${f.m}% soil moisture · ${trend}</div></div><button class=cb data-act=op data-id=${f.id} aria-label='Watering details'>${can(k, 48)}</button></div>`;
   const grid = `<div class='kvs g2'>${kv('Crop', `${f.crop} · ${esc(f.stage)}`)}${kv('Area', `${f.ac} ac`)}${kv('Soil', esc(f.soil))}${kv('Air humidity', `${f.h}%`)}${kv('Soil temp', T(f.st))}${kv('pH', String(f.ph))}${kv('Last watered', a ? lastWateredText(a) : lastWatered(f.id))}${kv('Across field', span)}</div>`;
   const body = `${hero}${spark(f)}${grid}<p class=sub>Moisture by area</p><div class=zrows>${zones}</div><div class=nx><span class=mut>Recommended action</span><br>${a ? esc(a.label) : r ? r.t : S.farmerId ? noAdviceText(f) : 'No action needed right now'}${a?.waterBy ? `<div class=wby>${esc(a.waterBy.text)}</div>` : ''}${a?.reason ? `<div class='mut tiny'>${esc(a.reason)}</div>` : ''}</div><div class=btns><button class='btn sm' data-act=go data-p=field data-id=${f.id} data-testid=open-field-panel>Open field &amp; sensors</button><button class='btn alt sm' data-act=op data-id=${f.id}>Why this advice?</button></div>`;
-  return mapCard('field', `Field ${fieldNo(f.id)} · ${esc(f.name)}`, body, { sum: `${f.m}% · ${esc(a?.label ?? WS[k].t)}`, panel: 'field', cls: 'fcard' });
+  return mapCard('field', `Field ${fieldNo(f.id)} · ${esc(f.name)}`, body, { sum: `${f.m}% · ${esc(decision(f))}`, panel: 'field', cls: 'fcard' });
 }
 
 export function legendCard(layer: MapLayer): string {
