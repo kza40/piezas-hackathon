@@ -10,7 +10,7 @@ import { esc, liveLoading, openAlerts } from './ui/helpers';
 import { onRailKey, onRailPointerDown, railGrip, railStyle, resetRail } from './ui/rail';
 import { IC } from './ui/icons';
 import { alertsCard, fieldCard, legendCard, profileCard, todayCard, topBar, weatherCard } from './views/cards';
-import { map, onMapPointerDown, onMapWheel, resetView, zoom } from './views/map';
+import { map, onMapPointerDown, onMapWheel, resetView, watchMapSize, zoom } from './views/map';
 import { dispose3D, mount3D, reset3D, zoom3D } from './views/map3d';
 import * as pages from './views/pages';
 
@@ -109,6 +109,7 @@ function render() {
   });
   const host = document.getElementById('m3');
   if (host) mount3D(host, pickField);
+  watchMapSize();
 }
 
 function pickField(id: FieldId) {

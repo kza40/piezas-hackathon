@@ -33,6 +33,7 @@ Provenance: idea and decisions from the team's planning chat, 2026-11-07.
 - R-024: After at least one soaking rain or irrigation, the app estimates the field's field capacity from how the soil drained, and suggests a soil-moisture trigger from it, the field's soil type and the crop's allowable depletion. The suggestion shows what it was based on and is used only after the farmer saves it. Until then, the field explains what the app is still waiting for. (source: FAO Irrigation and Drainage Paper 56, Tables 19 and 22; see `docs/crop-guidance.md`)
 - R-025: An irrigated field with a saved trigger shows the time window in which its driest trusted sensor is expected to reach the trigger, from how fast that soil has been drying, the forecast evapotranspiration and the forecast rain; or that it is not expected within the next 5 days. (source: owner decision, farmers plan watering ahead)
 - R-026: A farmer can download a field's last 14 days of sensor readings as a CSV file, with the field's current watering advice and forecast on each row. Downloading never creates an alert, and text that a spreadsheet would run as a formula is saved as plain text. (source: frontend branch)
+- R-027: When a farm has a location, its map shows satellite imagery of the ground around it (Esri World Imagery, credited on the map), at the same scale as the map's fields and scale bar. To fetch it, the farm's location is sent to Esri from the farmer's browser when the map is shown. A field with a saved boundary (a ring of longitude/latitude points, within 5 km of the farm) is drawn at its real place on the imagery; other fields, and boundaries that reach past the imagery, are drawn as sketch parcels. If the imagery cannot be loaded, the drawn map shows instead, without the imagery credit, and the app waits before trying again. (source: team PR #20, satellite map)
 
 ## Data
 
@@ -41,7 +42,7 @@ Farmer accounts (name, email, password) are held by Piezas's user service and ar
 - Crop profile: crop name and sourced guidance where available (soil-moisture min/max, pH min/max, EC max with measurement method, frost-risk temperature with crop stage); unset thresholds are omitted
 - Farm: name, location (latitude, longitude)
 - Profile: name, phone
-- Field: name, farm, crop profile, acres, growth stage, soil type, irrigated or rain-fed, saved soil-moisture trigger (value, how it was set, when), the farmer's labels for detected wetting events
+- Field: name, farm, crop profile, acres, growth stage, soil type, irrigated or rain-fed, saved soil-moisture trigger (value, how it was set, when), the farmer's labels for detected wetting events, boundary (optional ring of longitude/latitude points)
 - Sensor: name, field, device key status (active or revoked)
 - Reading: sensor, type (soil moisture, soil temperature, soil EC, soil pH, air temperature, air humidity), value, unit, time, source (real or simulated)
 - Alert: field, message, created time, status (open or done)
@@ -253,6 +254,12 @@ covers: R-026
 Given a signed-in farmer with a farm and a field
 When they open Fields & sensors and choose to download the last 14 days
 Then a CSV file named after the field is saved, starting with the column names
+
+### S-033: The map shows the farm's real ground
+covers: R-027
+Given a signed-in farmer with a farm that has a location, and a field with a saved boundary
+When they open the map
+Then the map shows the field at its boundary over the satellite imagery, with the imagery credit; and when the imagery cannot be loaded, the drawn map still shows
 
 ## Open Conflicts
 

@@ -49,11 +49,11 @@ The session is an httpOnly, SameSite=Lax cookie named `piezas_session` (lasts 7 
 | `GET /api/farms/:farmId/fields` | none | `{ fields: [field] }` |
 | `POST /api/farms/:farmId/fields` | `{ name, cropProfileId, acres?, stage?, soil? }` | 201 `{ field }` |
 | `GET /api/fields/:fieldId` | none | `{ field }` |
-| `PATCH /api/fields/:fieldId` | any of `{ irrigated, stage, soil, trigger }` | `{ field }` |
+| `PATCH /api/fields/:fieldId` | any of `{ irrigated, stage, soil, trigger, boundary }` | `{ field }` |
 | `POST /api/fields/:fieldId/events/:start/feedback` | `{ label: "irrigation" \| "rain" \| "none" \| null }` | `{ field }` |
 | `DELETE /api/fields/:fieldId` | none | 204 |
 
-A `field` is `{ id, farmId, name, cropProfile, acres, stage, soil, irrigated, trigger, eventFeedback, createdAt }`, with the full `cropProfile` object and `stage` / `soil` as `""` when not set. Removing a field also removes its sensors. Weather and advice endpoints are documented below.
+A `field` is `{ id, farmId, name, cropProfile, acres, stage, soil, irrigated, trigger, eventFeedback, boundary, createdAt }`, with the full `cropProfile` object and `stage` / `soil` as `""` when not set. Removing a field also removes its sensors. Weather and advice endpoints are documented below.
 
 Field settings (R-009, R-021, R-024):
 
@@ -61,6 +61,7 @@ Field settings (R-009, R-021, R-024):
 - Changing `irrigated` or `trigger` closes the field's open watering alert (`closedBy: "settings"`) without the 12-hour quiet period, so the next advice raises it again only if it still applies.
 - `trigger` is `null` until the farmer saves one: `{ value, source: "suggested" | "manual", basis, savedAt }`. Save with `{ trigger: { value, source?, basis? } }` (value 1 to 80 %); to save the app's suggestion, send its `value` and `basis` with `source: "suggested"`. `{ trigger: null }` clears it.
 - `soil` is free text, but the trigger suggestion needs one of the FAO-56 textures in it: sand, loamy sand, sandy loam, loam, silt loam, silt, silty clay loam, silty clay, clay.
+- `boundary` is `null` or the field's outline: 3 to 500 `[longitude, latitude]` points, all within 5 km of the farm's location (else 400, which also catches swapped coordinates). `{ boundary: null }` clears it. The map draws it only where it lies on the farm's satellite imagery.
 - `eventFeedback` maps a detected event's `start` to the farmer's label. `:start` in the feedback URL is that event's `start` (URL-encoded); `label: null` removes the farmer's label.
 
 Another farmer's farm, field or sensor always answers 404, exactly like one that does not exist.

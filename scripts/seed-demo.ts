@@ -46,7 +46,7 @@ const DEMO: { email: string; password: string; profile: { name: string; phone: s
     profile: { name: 'Sam Whitfield', phone: '(604) 555-0142' },
     // Fraser Valley, BC: where the crop guidance and the blueberry fields come from.
     // demoWeather: a scripted dry spell (lib/weather/demo.ts), so Water today shows whatever the real sky does.
-    farm: { name: 'Willow Creek Farm', latitude: 49.08, longitude: -122.25, demoWeather: true },
+    farm: { name: 'Willow Creek Farm', latitude: 49.02418, longitude: -122.12805, demoWeather: true },
     // Six fields: the map has six parcels. Fields of this farm not listed here are removed.
     fields: [
       // Need attention
@@ -72,6 +72,23 @@ const DEMO: { email: string; password: string; profile: { name: string; phone: s
     ],
   },
 ];
+
+// A demo boundary (R-027): fields in a 3×2 grid of 620 m × 500 m cells around the farm pin, each a rectangle
+// of its acres (capped to its cell, less a 40 m lane), so the map draws them at a real place and size.
+const CELL_M: [number, number] = [620, 500];
+const LANE_M = 40;
+const M_PER_ACRE = 4046.86;
+const M_PER_DEG_LAT = 111_320;
+function demoBoundary(lat: number, lng: number, index: number, acres: number): [number, number][] {
+  const mPerDegLng = M_PER_DEG_LAT * Math.cos((lat * Math.PI) / 180);
+  const east = ((index % 3) - 1) * CELL_M[0];
+  const north = (0.5 - Math.floor(index / 3)) * CELL_M[1];
+  const aspect = CELL_M[0] / CELL_M[1];
+  const w = Math.min(Math.sqrt(acres * M_PER_ACRE * aspect), CELL_M[0] - LANE_M);
+  const h = Math.min(w / aspect, CELL_M[1] - LANE_M);
+  const at = (e: number, n: number): [number, number] => [+(lng + e / mPerDegLng).toFixed(6), +(lat + n / M_PER_DEG_LAT).toFixed(6)];
+  return [at(east - w / 2, north - h / 2), at(east + w / 2, north - h / 2), at(east + w / 2, north + h / 2), at(east - w / 2, north + h / 2)];
+}
 
 const crops = new Map((await listCropProfiles()).map((c) => [c.key, c.id]));
 
@@ -115,6 +132,10 @@ for (const d of DEMO) {
     } else if (want?.irrigated && !f.irrigated) {
       // Irrigated demo fields show the watering advice flow (R-021). Only `irrigated` is set, so a trigger saved during a demo is kept.
       await updateFieldSettings(user.id, f.id, { irrigated: true });
+    }
+    if (want) {
+      const ix = d.fields.indexOf(want);
+      await updateFieldSettings(user.id, f.id, { boundary: demoBoundary(d.farm.latitude, d.farm.longitude, ix, want.acres) });
     }
     // Device keys are not kept: the demo sensors are fed by the simulator, not by devices.
     const probes = want?.probes ?? ['North probe', 'South probe'];

@@ -3,14 +3,15 @@
 // with innerHTML and a new canvas would lose its GPU context and camera.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { POLY, RIDGES, TREES } from '../seed/farm';
-import { F, sensorsOf } from '../seed/simulate';
+import { RIDGES, TREES } from '../seed/farm';
+import { F } from '../seed/simulate';
 import { S } from '../state';
 import type { Field, FieldId, MapLayer, WaterState } from '../types';
 import { esc, hasReading, lastWatered, moistureTint, mText, pending, T, ws } from '../ui/helpers';
-import { can, polyPoints } from '../ui/icons';
+import { can, drawnFromBoundary, parcelOffset, polyPoints, sensorsOn, sketchPipesFit } from '../ui/icons';
 import { plantField } from './crops3d';
 import { center, fillFor, layerKnown, valueFor } from './map';
+import { addSatelliteGround } from './map3dSat';
 
 const MID_X = 400;
 const MID_Y = 260;
@@ -73,7 +74,8 @@ interface Ctx {
 }
 
 let ctx: Ctx | null = null;
-const layoutKey = () => `${S.farmerId ?? ''}:${F.map((f) => f.id).join(',')}`;
+const geoReady = () => S.farmLat != null && S.farmLng != null;
+const layoutKey = () => `${S.farmerId ?? ''}:${S.farmLat}:${S.farmLng}:${F.map((f) => (drawnFromBoundary(f.id) ? `${f.id}@${f.boundary!.flat().join(',')}` : f.id)).join('|')}`;
 
 const prng = (seed: number) => () => {
   seed = (seed * 16807) % 2147483647;
@@ -128,6 +130,14 @@ function scenery(scene: THREE.Scene) {
     patch.position.set(x, 0.15, z);
     patch.receiveShadow = true;
     scene.add(patch);
+  }
+
+  // A farm with a location gets its real ground: the satellite image, over the drawn ground above (which shows
+  // until the image loads, or if it never does). The sketched mountains, creeks, pond, barn and trees would sit on
+  // someone's real land there, so they are drawn only on a farm without a location.
+  if (geoReady()) {
+    addSatelliteGround(scene, () => ctx?.scene === scene);
+    return;
   }
 
   // Distant mountain range north of the farm.
@@ -233,7 +243,7 @@ function irrigation(): THREE.Group {
 }
 
 function moistureAt(x: number, y: number, f: Field, cx: number, cy: number): number {
-  const ss = sensorsOf(f.id).filter((s) => s.m != null);
+  const ss = sensorsOn(f.id).filter((s) => s.m != null);
   if (!ss.length) return f.m;
   let num = 0;
   let den = 0;
@@ -279,7 +289,7 @@ function zoneTiles(f: Field, pts: [number, number][], cx: number, cy: number): T
 function hudHtml(f: Field): string {
   if (pending(f)) return `<p class=hud3-k>${esc(f.name)} · ${f.crop}</p><p class=mut>Loading this field’s readings…</p>`;
   // Click HUD: last watering, humidity, and moisture per sensor area.
-  const zones = sensorsOf(f.id);
+  const zones = sensorsOn(f.id);
   const live = zones.filter((s) => s.m != null).map((s) => s.m!);
   const lo = live.length ? Math.min(...live) : f.m;
   const hi = live.length ? Math.max(...live) : f.m;
@@ -315,7 +325,7 @@ function fieldNode(f: Field, labels: HTMLDivElement): FieldNode {
   plantField(crops, f, pts, prng(f.id.charCodeAt(0) * 7919), wx, wz);
   top.add(zones, crops);
 
-  const ss = sensorsOf(f.id);
+  const ss = sensorsOn(f.id);
   ss.forEach((s) => {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 16), new THREE.MeshStandardMaterial({ color: '#2a2f33' }));
     post.position.set(wx(cx + s.dx), 8, wz(cy + s.dy));
@@ -454,7 +464,7 @@ function sync(c: Ctx) {
     n.block.material[0].emissive.set(sel ? '#2a2a14' : '#000000');
     n.edge.material.color.set(sel ? '#1b2229' : '#ffffff');
     n.target = heightFor(f, L) + (sel ? 6 : 0);
-    const [ox, oy] = S.off[n.id] ?? [0, 0];
+    const [ox, oy] = parcelOffset(n.id);
     n.group.position.set(ox, 0, oy);
     // Selected field: moisture map is loud; other fields keep a light soil wash under the crop.
     const zm = n.zones.material as THREE.MeshStandardMaterial;
@@ -474,7 +484,7 @@ function sync(c: Ctx) {
     n.label.setAttribute('aria-label', `${f.name}, ${valueFor(f, L)}`);
     n.hud.innerHTML = hudHtml(f);
     n.hud.classList.add('on');
-    const ss = sensorsOf(f.id);
+    const ss = sensorsOn(f.id);
     n.pins.forEach((p, i) => {
       const s = ss[i];
       p.el.classList.add('on');
@@ -483,7 +493,7 @@ function sync(c: Ctx) {
       p.el.style.borderColor = s.m == null ? '#b8b2a2' : moistureTint(s.m);
     });
   }
-  c.pipes.visible = Object.keys(S.off).length === 0;
+  c.pipes.visible = sketchPipesFit();
   if (S.sel !== c.sel) {
     c.sel = S.sel;
     const n = c.fields.find((x) => x.id === S.sel);

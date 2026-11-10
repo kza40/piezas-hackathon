@@ -2,6 +2,7 @@ import { ApiError, authApi, farmApi, type ApiUser, type ApiProfile } from './api
 import { clearFarmScope, F, hydrateFields } from './seed/simulate';
 import { S } from './state';
 import { loadLiveDataInBackground } from './live';
+import { forgetImagery } from './satCache';
 import type { Crop } from './types';
 
 function applyProfile(user: ApiUser, profile: ApiProfile) {
@@ -119,6 +120,7 @@ export async function signOut() {
   S.farm = '';
   S.farmLat = null;
   S.farmLng = null;
+  forgetImagery(); // the farm's imagery is not kept for whoever signs in next
   S.name = '';
   S.authError = '';
   S.authMode = 'signin';

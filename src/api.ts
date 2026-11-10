@@ -57,6 +57,7 @@ export interface ApiField {
   name: string;
   cropProfile: ApiCropProfile | null;
   acres: number | null;
+  boundary: [number, number][] | null;
   stage: string;
   soil: string;
   createdAt: string;

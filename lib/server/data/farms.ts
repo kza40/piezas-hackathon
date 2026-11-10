@@ -29,10 +29,12 @@ export interface Field {
   irrigated: boolean; // R-021: false (rain-fed) until the farmer says otherwise
   trigger: SavedTrigger | null; // R-009: the farmer's soil-moisture trigger for this field
   eventFeedback: Record<string, EventLabel>; // R-023: the farmer's labels for detected wetting events, by event start
+  boundary: FieldBoundary | null;
   createdAt: string;
 }
 
 export type EventLabel = 'irrigation' | 'rain' | 'none';
+export type FieldBoundary = [number, number][];
 export interface SavedTrigger {
   value: number; // soil moisture %, on the field's sensors' own scale
   source: 'suggested' | 'manual';
@@ -116,6 +118,7 @@ async function withCrops(records: EntityRecord[]): Promise<Field[]> {
     irrigated: r.data.irrigated === true,
     trigger: storedTrigger(r.data.trigger),
     eventFeedback: storedFeedback(r.data.eventFeedback),
+    boundary: storedBoundary(r.data.boundary),
     createdAt: r.createdAt,
   }));
 }
@@ -135,6 +138,37 @@ function storedFeedback(v: unknown): Record<string, EventLabel> {
   return Object.fromEntries(Object.entries(v).filter(([, l]) => LABELS.includes(l as EventLabel))) as Record<string, EventLabel>;
 }
 
+/** Most points a saved field boundary may have: plenty for a surveyed field, and it goes out with every field list. */
+export const MAX_BOUNDARY_POINTS = 500;
+
+// A boundary as stored: a ring of at least 3 [lng, lat] points, or null for anything else (including too many points).
+function storedBoundary(v: unknown): FieldBoundary | null {
+  if (!Array.isArray(v) || v.length < 3 || v.length > MAX_BOUNDARY_POINTS) return null;
+  const ring: FieldBoundary = [];
+  for (const pt of v) {
+    if (!Array.isArray(pt) || pt.length < 2) return null;
+    const lng = Number(pt[0]);
+    const lat = Number(pt[1]);
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+    if (lng < -180 || lng > 180 || lat < -90 || lat > 90) return null;
+    ring.push([lng, lat]);
+  }
+  return ring;
+}
+
+/** How far a field's boundary may reach from its farm's location: catches swapped or mistyped coordinates. */
+export const MAX_BOUNDARY_KM = 5;
+const M_PER_DEG_LAT = 111_320;
+
+// A saved boundary must lie around its farm: a ring 50 km away (or with longitude and latitude swapped) would be
+// drawn off the map, where the farmer can't see or click it. A farm without a location can't be checked.
+function checkBoundaryNearFarm(ring: FieldBoundary, farm: Farm) {
+  if (farm.latitude == null || farm.longitude == null) return;
+  const cosLat = Math.cos((farm.latitude * Math.PI) / 180);
+  const far = ring.some(([lng, lat]) => Math.hypot((lng - farm.longitude!) * cosLat, lat - farm.latitude!) * M_PER_DEG_LAT > MAX_BOUNDARY_KM * 1000);
+  if (far) throw badRequest(`The boundary must be within ${MAX_BOUNDARY_KM} km of the farm's location. Check that each point is [longitude, latitude].`);
+}
+
 // Read-modify-writes of one field's settings run one at a time (Piezas has no optimistic locking, E13).
 const withFieldLock = <T>(fieldId: string, fn: () => Promise<T>) => withLock(`field:${fieldId}`, fn);
 
@@ -147,6 +181,14 @@ export function parseFieldSettings(body: unknown, now: Date) {
   }
   if (b.stage !== undefined) patch.stage = b.stage === null || b.stage === '' ? '' : text('Growth stage', b.stage, { max: 60 });
   if (b.soil !== undefined) patch.soil = b.soil === null || b.soil === '' ? '' : text('Soil type', b.soil, { max: 60 });
+  if (b.boundary !== undefined) {
+    if (b.boundary === null) patch.boundary = [];
+    else {
+      const ring = storedBoundary(b.boundary);
+      if (!ring) throw badRequest(`boundary must be a list of 3 to ${MAX_BOUNDARY_POINTS} [longitude, latitude] points.`);
+      patch.boundary = ring;
+    }
+  }
   if (b.trigger !== undefined) {
     if (b.trigger === null) patch.trigger = {}; // cleared: reads as unset
     else {
@@ -159,7 +201,7 @@ export function parseFieldSettings(body: unknown, now: Date) {
       } satisfies SavedTrigger;
     }
   }
-  if (!Object.keys(patch).length) throw badRequest('Nothing to change: send irrigated, stage, soil or trigger.');
+  if (!Object.keys(patch).length) throw badRequest('Nothing to change: send irrigated, stage, soil, trigger or boundary.');
   return patch;
 }
 
@@ -168,7 +210,8 @@ export async function updateFieldSettings(ownerId: string, fieldId: string, body
   const patch = parseFieldSettings(body, now);
   const { field } = await db();
   const updated = await withFieldLock(fieldId, async () => {
-    await getOwned(field, fieldId, ownerId, 'Field');
+    const rec = await getOwned(field, fieldId, ownerId, 'Field');
+    if (Array.isArray(patch.boundary) && patch.boundary.length) checkBoundaryNearFarm(patch.boundary as FieldBoundary, await getFarm(ownerId, str(rec.data.farmId)));
     return (await withCrops([await field.update(fieldId, { data: patch })]))[0];
   });
   // After the field lock is released: deleteField takes the alerts lock first, so never hold both.

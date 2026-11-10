@@ -170,6 +170,37 @@ describe('farms and fields over HTTP', () => {
     assert.deepEqual([cleared.body.field.trigger, cleared.body.field.soil, cleared.body.field.irrigated], [null, 'Clay loam', true]);
   });
 
+  test('R-027: a field boundary is saved, validated, capped, kept near its farm and cleared', async () => {
+    assert.equal((await sam('GET', `/api/fields/${fieldId}`)).body.field.boundary, null);
+    // Around this farm's location (43.7, -80.37).
+    const ring = [[-80.375, 43.698], [-80.365, 43.698], [-80.365, 43.703], [-80.375, 43.703]];
+    const saved = await sam('PATCH', `/api/fields/${fieldId}`, { boundary: ring });
+    assert.equal(saved.status, 200);
+    assert.deepEqual(saved.body.field.boundary, ring);
+    assert.deepEqual((await sam('GET', `/api/fields/${fieldId}`)).body.field.boundary, ring, 'stored, not just echoed');
+
+    const square = (n: number) => Array.from({ length: n }, (_, i) => [-80.37 + i * 1e-6, 43.7 + (i % 2) * 1e-4]);
+    for (const bad of [[[0, 0], [1, 1]], [[-80, 43], [-80, 91], [-81, 43]], [['a', 43], [-80, 43], [-81, 43]], 'square', square(501)]) {
+      const r = await sam('PATCH', `/api/fields/${fieldId}`, { boundary: bad });
+      assert.equal(r.status, 400, JSON.stringify(bad).slice(0, 80));
+    }
+    // Far from the farm: someone else's land 50 km away, and the same ring with longitude and latitude swapped.
+    const away = ring.map(([lng, lat]) => [lng + 0.62, lat]);
+    const swapped = ring.map(([lng, lat]) => [lat, lng]);
+    for (const bad of [away, swapped]) {
+      const r = await sam('PATCH', `/api/fields/${fieldId}`, { boundary: bad });
+      assert.equal(r.status, 400);
+      assert.match(r.body.message, /within 5 km of the farm/);
+    }
+    const edge = ring.map(([lng, lat]) => [lng, lat + 0.04]); // about 4.5 km north: still this farm's land
+    assert.equal((await sam('PATCH', `/api/fields/${fieldId}`, { boundary: edge })).status, 200);
+    assert.equal((await sam('PATCH', `/api/fields/${fieldId}`, { boundary: square(500) })).status, 200, '500 points is the limit, not over it');
+    assert.equal((await jordan('PATCH', `/api/fields/${fieldId}`, { boundary: ring })).status, 404);
+
+    const cleared = await sam('PATCH', `/api/fields/${fieldId}`, { boundary: null });
+    assert.equal(cleared.body.field.boundary, null);
+  });
+
   test('R-023: the farmer labels a detected event, changes the label, and removes it', async () => {
     const start = new Date(Date.now() - 3 * 86_400_000).toISOString();
     const path = `/api/fields/${fieldId}/events/${encodeURIComponent(start)}/feedback`;
