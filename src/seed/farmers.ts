@@ -18,8 +18,8 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     password: 'farm123-demo',
     name: 'Sam Whitfield',
     farm: 'Willow Creek Farm',
-    fields: 3,
-    location: 'Wellington County, ON',
+    fields: 6, // scripts/seed-demo.ts: the showcase farm, one field per situation
+    location: 'Fraser Valley, BC',
   },
   {
     id: 'jordan',

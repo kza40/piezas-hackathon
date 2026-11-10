@@ -242,14 +242,13 @@ main.auth{padding:0;max-width:none;width:100%;min-height:100vh}
 .login-scene .sun{position:absolute;top:8%;right:12%;width:88px;height:88px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff6c8,#e8b84a 55%,#c4842a);box-shadow:0 0 48px rgba(232,184,74,.5);animation:sun-pulse 6s ease-in-out infinite}
 .login-scene .cloud{position:absolute;background:#fff;border-radius:40px;opacity:.88;animation:drift 28s linear infinite}
 .login-scene .cloud:before,.login-scene .cloud:after{content:'';position:absolute;background:#fff;border-radius:50%}
-.login-scene .c1{width:100px;height:30px;top:16%;left:6%;animation-duration:30s}
+.login-scene .c1{width:100px;height:30px;top:40%;left:6%;animation-duration:30s}
 .login-scene .c1:before{width:40px;height:40px;top:-20px;left:16px}.login-scene .c1:after{width:50px;height:50px;top:-26px;left:44px}
-.login-scene .c2{width:130px;height:34px;top:26%;left:38%;animation-duration:36s;animation-delay:-10s}
+.login-scene .c2{width:130px;height:34px;top:50%;left:38%;animation-duration:36s;animation-delay:-10s}
 .login-scene .c2:before{width:48px;height:48px;top:-22px;left:20px}.login-scene .c2:after{width:58px;height:58px;top:-30px;left:56px}
 .login-scene .c3{width:78px;height:24px;top:10%;left:68%;animation-duration:24s;animation-delay:-5s}
 .login-scene .c3:before{width:30px;height:30px;top:-15px;left:12px}.login-scene .c3:after{width:36px;height:36px;top:-19px;left:34px}
 .login-copy{position:absolute;z-index:2;top:clamp(28px,6vh,64px);left:clamp(24px,4vw,56px);right:24px;max-width:34rem;color:#1f2a18;text-shadow:0 1px 0 rgba(255,255,255,.35)}
-.login-kicker{margin:0 0 8px;font:700 .8rem/1 Sora,system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#2f5d3a}
 .login-headline{margin:0 0 10px;font:700 clamp(2.4rem,5.5vw,3.8rem)/1.05 Fraunces,Georgia,serif;letter-spacing:-.03em}
 .login-subcopy{margin:0;max-width:28rem;font:500 clamp(.95rem,1.5vw,1.15rem)/1.45 Sora,system-ui,sans-serif;color:#2a3524;opacity:.9}
 .login-land{position:absolute;inset:auto 0 0 0;width:100%;height:min(68%,520px);display:block}
@@ -354,3 +353,7 @@ body.resizing .stage{pointer-events:none}
 @keyframes skp{50%{opacity:.35}}
 @media(prefers-reduced-motion:reduce){.sk,.tb-sync.wait i{animation:none}}
 .lead{font-size:1.15rem;margin:6px 0 16px}
+/* Clouds stay out of the headline: below it on wide screens, only the far one on narrow ones. */
+@media(max-width:960px){.login-scene .cloud,.login-scene .sun{display:none}.login-scene .login-land{height:58%}}
+/* Room under the last links for the floating Report a problem button (bottom-left, src/report-problem.ts). */
+@media(max-width:960px){.login-panel{padding-bottom:88px}}

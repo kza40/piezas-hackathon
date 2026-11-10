@@ -74,7 +74,7 @@ export async function restoreSession(): Promise<boolean> {
     }
     S.farmerId = null;
     S.page = 'login';
-    S.authError = e instanceof ApiError ? e.message : 'Could not reach the farm server. Is the API running on port 8787?';
+    S.authError = e instanceof ApiError ? e.message : 'Couldn’t reach Fieldwise. Check your connection and try again.';
     clearFarmScope();
     return false;
   }
