@@ -62,6 +62,10 @@ export const S: AppState = {
   liveMoistureSeries: {},
   liveHistory: {},
   liveFields: [],
+  sensorForm: null,
+  newSensorKey: null,
+  revokeAsk: null,
+  sensorBusy: false,
 };
 
 export const saveOffsets = () => writeJson(OFFSETS_KEY, S.off);

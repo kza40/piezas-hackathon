@@ -1,7 +1,7 @@
 import './report-problem'; // first, so it records errors from the start
 import './styles.css';
 import { ApiError, farmApi, profileApi, setUnauthorizedHandler } from './api';
-import { onLiveDataLoaded, refreshFieldAdvice, refreshLiveData } from './live';
+import { loadLiveDataInBackground, onLiveDataLoaded, refreshFieldAdvice, refreshLiveData } from './live';
 import { refreshFields, restoreSession, signIn, signOut, signUp } from './auth';
 import { F, fld } from './seed/simulate';
 import { S, saveCards, saveLog, saveOffsets } from './state';
@@ -453,6 +453,109 @@ async function act(node: ActionElement, target: Element) {
         return say(e instanceof ApiError ? e.message : 'Could not remove field');
       }
     }
+    // ---- R-004: a field's sensors ----
+    case 'sadd':
+      // A key not yet saved can't be shown again: never replace it with the next sensor's.
+      if (S.newSensorKey) return say(`Copy the key for ${S.newSensorKey.name} first, then click I've saved the key`);
+      S.sensorForm = { fieldId: d.id ?? '', name: '', saving: false };
+      S.revokeAsk = null;
+      render();
+      return void document.getElementById('sensor-name-input')?.focus();
+    case 'scancel':
+      S.sensorForm = null;
+      return render();
+    case 'ssave': {
+      const form = S.sensorForm;
+      if (!form || form.saving || S.newSensorKey) return;
+      const name = form.name.trim();
+      if (!name) {
+        document.getElementById('sensor-name-input')?.focus();
+        return say('Enter a name for the sensor, like North probe');
+      }
+      S.sensorForm = { ...form, name, saving: true };
+      render();
+      let added: { id: string; name: string; key: string };
+      try {
+        const { sensor, deviceKey } = await farmApi.addSensor(form.fieldId, name);
+        added = { id: sensor.id, name: sensor.name, key: deviceKey };
+      } catch (e) {
+        S.sensorForm = { ...S.sensorForm!, saving: false };
+        return say(e instanceof ApiError ? e.message : 'Could not add the sensor');
+      }
+      // The key first: it is shown only now, whatever happens to the reload below.
+      S.newSensorKey = { fieldId: form.fieldId, name: added.name, key: added.key };
+      S.sensorForm = null;
+      // Listed at once from the server's answer; the full reload (weather, advice for every field) follows.
+      const list = S.liveSensors[form.fieldId];
+      if (list) {
+        S.liveSensors[form.fieldId] = [
+          ...list,
+          { id: added.id, name: added.name, m: null, st: null, ph: null, h: null, online: false, ageHours: 999, keyStatus: 'active', reported: false },
+        ];
+      }
+      loadLiveDataInBackground();
+      return say(`Added ${added.name}. Copy its device key now.`);
+    }
+    case 'scopy': {
+      const key = S.newSensorKey?.key;
+      if (!key) return;
+      try {
+        await navigator.clipboard.writeText(key);
+        return say('Device key copied');
+      } catch {
+        // No clipboard (an http page that is not localhost, or permission refused): select it to copy by hand.
+        const code = document.querySelector('[data-testid=device-key-once]');
+        if (code) getSelection()?.selectAllChildren(code);
+        return say('Press Ctrl+C (Cmd+C on a Mac) to copy the selected key');
+      }
+    }
+    case 'skeydone':
+      S.newSensorKey = null;
+      return render();
+    case 'srevoke':
+      S.revokeAsk = d.id ?? null;
+      return render();
+    case 'srevokeno':
+      S.revokeAsk = null;
+      return render();
+    case 'srevokeyes': {
+      const id = d.id ?? '';
+      if (S.sensorBusy || !id) return;
+      const name = Object.values(S.liveSensors).flat().find((x) => x.id === id)?.name ?? 'the sensor';
+      S.sensorBusy = true;
+      render();
+      let msg: string;
+      try {
+        await farmApi.revokeSensor(id);
+        S.revokeAsk = null;
+        // Shown at once (the server has refused the key); the full reload follows.
+        for (const [fieldId, list] of Object.entries(S.liveSensors)) {
+          S.liveSensors[fieldId] = list.map((x) => (x.id === id ? { ...x, keyStatus: 'revoked' as const } : x));
+        }
+        loadLiveDataInBackground();
+        msg = `Revoked the key for ${name}: its readings are refused from now on`;
+      } catch (e) {
+        msg = e instanceof ApiError ? e.message : 'Could not revoke the key';
+      }
+      S.sensorBusy = false; // before say(), whose render is the last: unlocked buttons must be drawn unlocked
+      return say(msg);
+    }
+    case 'ssim': {
+      const id = d.id ?? '';
+      if (S.sensorBusy || !id) return;
+      S.sensorBusy = true;
+      render();
+      let msg: string;
+      try {
+        await farmApi.simulateField(id);
+        await refreshLiveData();
+        msg = `Filled ${fld(id).name} with simulated readings`;
+      } catch (e) {
+        msg = e instanceof ApiError ? e.message : 'Could not simulate readings';
+      }
+      S.sensorBusy = false; // before say(), as above
+      return say(msg);
+    }
   }
 }
 
@@ -504,6 +607,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.key !== 'Enter') return;
   const target = e.target as Element;
+  if ((target as HTMLElement).id === 'sensor-name-input') return document.querySelector<HTMLButtonElement>('[data-testid=save-sensor]')?.click();
   if (target instanceof SVGElement && target.dataset.act === 'pk') void act(target as ActionElement, target);
 });
 
@@ -511,6 +615,7 @@ document.addEventListener('input', (e) => {
   const input = e.target as HTMLInputElement;
   const key = input.dataset?.bind;
   if (key === 'farm' || key === 'name' || key === 'phone') S[key] = input.value;
+  else if (input.id === 'sensor-name-input' && S.sensorForm) S.sensorForm.name = input.value;
 });
 
 document.addEventListener('change', (e) => {

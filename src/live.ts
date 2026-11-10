@@ -145,6 +145,8 @@ export async function loadLiveData(): Promise<boolean> {
               h: h?.value ?? null,
               online: age <= 6,
               ageHours: Math.round(age),
+              keyStatus: s.keyStatus === 'revoked' ? 'revoked' : 'active',
+              reported: Object.keys(s.latest).length > 0,
             };
           });
           next.sensors[f.id] = live;
