@@ -1,7 +1,7 @@
 import './report-problem'; // first, so it records errors from the start
 import './styles.css';
 import { ApiError, farmApi, profileApi, setUnauthorizedHandler } from './api';
-import { onLiveDataLoaded, refreshFieldAdvice, refreshLiveData } from './live';
+import { loadLiveDataInBackground, onLiveDataLoaded, refreshFieldAdvice, refreshLiveData } from './live';
 import { refreshFields, restoreSession, signIn, signOut, signUp } from './auth';
 import { F, fld } from './seed/simulate';
 import { S, saveCards, saveLog, saveOffsets } from './state';
@@ -474,18 +474,26 @@ async function act(node: ActionElement, target: Element) {
       }
       S.sensorForm = { ...form, name, saving: true };
       render();
-      let added: { name: string; key: string };
+      let added: { id: string; name: string; key: string };
       try {
         const { sensor, deviceKey } = await farmApi.addSensor(form.fieldId, name);
-        added = { name: sensor.name, key: deviceKey };
+        added = { id: sensor.id, name: sensor.name, key: deviceKey };
       } catch (e) {
         S.sensorForm = { ...S.sensorForm!, saving: false };
         return say(e instanceof ApiError ? e.message : 'Could not add the sensor');
       }
       // The key first: it is shown only now, whatever happens to the reload below.
-      S.newSensorKey = { fieldId: form.fieldId, ...added };
+      S.newSensorKey = { fieldId: form.fieldId, name: added.name, key: added.key };
       S.sensorForm = null;
-      await refreshLiveData(); // never throws: on a failed load the list catches up on the next one
+      // Listed at once from the server's answer; the full reload (weather, advice for every field) follows.
+      const list = S.liveSensors[form.fieldId];
+      if (list) {
+        S.liveSensors[form.fieldId] = [
+          ...list,
+          { id: added.id, name: added.name, m: null, st: null, ph: null, h: null, online: false, ageHours: 999, keyStatus: 'active', reported: false },
+        ];
+      }
+      loadLiveDataInBackground();
       return say(`Added ${added.name}. Copy its device key now.`);
     }
     case 'scopy': {
@@ -520,7 +528,11 @@ async function act(node: ActionElement, target: Element) {
       try {
         await farmApi.revokeSensor(id);
         S.revokeAsk = null;
-        await refreshLiveData();
+        // Shown at once (the server has refused the key); the full reload follows.
+        for (const [fieldId, list] of Object.entries(S.liveSensors)) {
+          S.liveSensors[fieldId] = list.map((x) => (x.id === id ? { ...x, keyStatus: 'revoked' as const } : x));
+        }
+        loadLiveDataInBackground();
         msg = `Revoked the key for ${name}: its readings are refused from now on`;
       } catch (e) {
         msg = e instanceof ApiError ? e.message : 'Could not revoke the key';
