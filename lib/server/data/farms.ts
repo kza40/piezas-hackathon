@@ -156,6 +156,19 @@ function storedBoundary(v: unknown): FieldBoundary | null {
   return ring;
 }
 
+/** How far a field's boundary may reach from its farm's location: catches swapped or mistyped coordinates. */
+export const MAX_BOUNDARY_KM = 5;
+const M_PER_DEG_LAT = 111_320;
+
+// A saved boundary must lie around its farm: a ring 50 km away (or with longitude and latitude swapped) would be
+// drawn off the map, where the farmer can't see or click it. A farm without a location can't be checked.
+function checkBoundaryNearFarm(ring: FieldBoundary, farm: Farm) {
+  if (farm.latitude == null || farm.longitude == null) return;
+  const cosLat = Math.cos((farm.latitude * Math.PI) / 180);
+  const far = ring.some(([lng, lat]) => Math.hypot((lng - farm.longitude!) * cosLat, lat - farm.latitude!) * M_PER_DEG_LAT > MAX_BOUNDARY_KM * 1000);
+  if (far) throw badRequest(`The boundary must be within ${MAX_BOUNDARY_KM} km of the farm's location. Check that each point is [longitude, latitude].`);
+}
+
 // Read-modify-writes of one field's settings run one at a time (Piezas has no optimistic locking, E13).
 const withFieldLock = <T>(fieldId: string, fn: () => Promise<T>) => withLock(`field:${fieldId}`, fn);
 
@@ -197,7 +210,8 @@ export async function updateFieldSettings(ownerId: string, fieldId: string, body
   const patch = parseFieldSettings(body, now);
   const { field } = await db();
   const updated = await withFieldLock(fieldId, async () => {
-    await getOwned(field, fieldId, ownerId, 'Field');
+    const rec = await getOwned(field, fieldId, ownerId, 'Field');
+    if (Array.isArray(patch.boundary) && patch.boundary.length) checkBoundaryNearFarm(patch.boundary as FieldBoundary, await getFarm(ownerId, str(rec.data.farmId)));
     return (await withCrops([await field.update(fieldId, { data: patch })]))[0];
   });
   // After the field lock is released: deleteField takes the alerts lock first, so never hold both.

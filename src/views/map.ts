@@ -145,6 +145,20 @@ export function scaleBarFor(mPerPx: number): { m: number; px: number } | null {
   return { m, px: Math.round(m / mPerPx) };
 }
 
+let mapSize: ResizeObserver | null = null;
+
+/**
+ * After each draw: sizes the scale bar, and keeps it sized while the map changes size without a redraw (the
+ * window, or the side panel's grip).
+ */
+export function watchMapSize() {
+  const svg = document.getElementById('fmap');
+  if (typeof ResizeObserver !== 'undefined') mapSize ??= new ResizeObserver(() => updateScaleBar());
+  mapSize?.disconnect();
+  if (svg) mapSize?.observe(svg);
+  updateScaleBar();
+}
+
 /** Sizes the scale bar to the map as drawn: its on-screen size and zoom (M_PER_UNIT metres per map unit). */
 export function updateScaleBar() {
   const svg = document.getElementById('fmap');

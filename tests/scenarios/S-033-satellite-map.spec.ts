@@ -48,6 +48,12 @@ test("S-033: the map shows the farm's real ground", async ({ page }) => {
     expect(drawn[i][1]).toBeCloseTo(y, 0);
   });
   await expect(page.getByTestId('scale-bar')).toHaveText(/^\d+ (m|km)$/);
+  // The scale bar follows the map's size when the side panel is resized (no redraw).
+  const barWidth = () => page.locator('.sbar i').evaluate((n) => parseFloat((n as HTMLElement).style.width));
+  const metres = async () => parseFloat((await page.getByTestId('scale-bar').textContent())!) * ((await page.getByTestId('scale-bar').textContent())!.includes('km') ? 1000 : 1);
+  const before = (await metres()) / (await barWidth());
+  for (let i = 0; i < 8; i++) await page.getByTestId('rail-grip').press('ArrowLeft'); // wider panel, narrower map
+  await expect.poll(async () => (await metres()) / (await barWidth())).toBeGreaterThan(before * 1.05);
 
   // And when the imagery cannot be loaded, the drawn map still shows, with the field on it.
   await page.unroute(ESRI);
@@ -57,4 +63,5 @@ test("S-033: the map shows the farm's real ground", async ({ page }) => {
   await expect(page.locator('#fmap rect[fill="url(#land)"]')).toHaveCount(1);
   await expect(page.getByTestId('satellite-image')).toHaveAttribute('visibility', 'hidden');
   await expect(page.locator('#fmap .fpoly')).toHaveCount(1);
+  await expect(page.getByTestId('imagery-credit')).toBeHidden(); // no imagery on screen, so no credit for it
 });

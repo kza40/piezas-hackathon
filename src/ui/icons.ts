@@ -1,6 +1,7 @@
 import { CC, POLY, WS } from '../seed/farm';
 import { F, sensorsOf } from '../seed/simulate';
-import { hasBoundary, toMapXY } from '../geo';
+import { hasBoundary, PIN_XY, toMapXY } from '../geo';
+import { SAT_H, SAT_W } from '../satCache';
 import { S } from '../state';
 import type { Crop, FieldId, WaterState } from '../types';
 import { fieldNo } from './helpers';
@@ -12,12 +13,18 @@ export const polyKey = (id: FieldId): FieldId => {
   return POLY[key] ? key : id;
 };
 
-/** A field's saved boundary in map units, placed around the farm pin, or null (no boundary, or no farm location). */
+/**
+ * A field's saved boundary in map units, placed around the farm pin. Null without a boundary or a farm location,
+ * and for a boundary that reaches past the imagery (the farm was moved, say): drawn there it would be off the
+ * map, out of the farmer's reach, so the field shows as a sketch parcel instead.
+ */
 const realOutline = (id: FieldId): [number, number][] | null => {
   const ring = F.find((x) => x.id === id)?.boundary;
   if (!hasBoundary(ring) || S.farmLat == null || S.farmLng == null) return null;
   const pin: [number, number] = [S.farmLng, S.farmLat];
-  return ring.map((p) => toMapXY(p, pin));
+  const pts = ring.map((p) => toMapXY(p, pin));
+  const onMap = pts.every(([x, y]) => Math.abs(x - PIN_XY[0]) <= SAT_W / 2 && Math.abs(y - PIN_XY[1]) <= SAT_H / 2);
+  return onMap ? pts : null;
 };
 
 /** Whether a field is drawn at its real place (from its boundary) rather than as a sketch parcel. */

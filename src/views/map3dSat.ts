@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { farmImageryUrl, loadImagery, SAT_H, SAT_W } from '../satCache';
+import { revealImageryCredit } from './mapGeo';
 
 /**
  * The satellite image as the 3D ground: the same image and the same stretch of ground as the 2D map (the scene
@@ -26,7 +27,8 @@ export function addSatelliteGround(scene: THREE.Scene, isLive: () => boolean): v
         mat.map = tex;
         mat.needsUpdate = true;
         ground.visible = true;
+        revealImageryCredit();
       },
-      () => console.warn('Satellite imagery could not be loaded; showing the drawn ground'),
+      () => {}, // logged once by loadImagery; the drawn ground stays
     );
 }

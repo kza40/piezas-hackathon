@@ -18,8 +18,9 @@ export function satMapBackdrop(): string {
         if (img?.dataset.for !== url) return; // the map now shows another farm, or none
         img.setAttribute('href', src);
         img.removeAttribute('visibility');
+        revealImageryCredit();
       },
-      () => console.warn('Satellite imagery could not be loaded; showing the drawn map'),
+      () => {}, // logged once by loadImagery; the drawn map stays
     );
   }
   const x = PIN_XY[0] - SAT_W / 2;
@@ -27,7 +28,14 @@ export function satMapBackdrop(): string {
   return `<image id=sat data-for="${esc(url)}" href="${local ?? ''}"${local ? '' : ' visibility="hidden"'} x="${x}" y="${y}" width="${SAT_W}" height="${SAT_H}" preserveAspectRatio="none" data-testid="satellite-image"/>`;
 }
 
-/** The imagery credit, fixed in a corner of the map in both views. */
+/** The imagery credit, fixed in a corner of the map in both views; hidden until the imagery is on it. */
 export function satCredit(): string {
-  return farmImageryUrl() ? `<div class=mcredit data-testid=imagery-credit>Imagery: ${esc(IMAGERY_CREDIT)}</div>` : '';
+  const url = farmImageryUrl();
+  if (!url) return '';
+  return `<div class=mcredit data-testid=imagery-credit${imageryIfReady(url) ? '' : ' hidden'}>Imagery: ${esc(IMAGERY_CREDIT)}</div>`;
+}
+
+/** Shows the credit once the imagery has been put on the map (without a redraw). */
+export function revealImageryCredit() {
+  document.querySelector('[data-testid=imagery-credit]')?.removeAttribute('hidden');
 }

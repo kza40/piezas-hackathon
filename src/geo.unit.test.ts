@@ -1,9 +1,9 @@
 // R-027: the satellite image, the fields drawn from their boundary and the scale bar must agree on one ground
 // scale, in both map views. These check the arithmetic each one relies on.
-import { afterEach, describe, test } from 'node:test';
+import { afterEach, describe, mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { esriImageryUrl, mercatorBBox, M_PER_UNIT, PIN_XY, toMapXY } from './geo';
-import { farmImageryUrl, imageryIfReady, loadImagery, SAT_H, SAT_W } from './satCache';
+import { farmImageryUrl, forgetImagery, imageryClock, imageryIfReady, loadImagery, RETRY_FIRST_MS, SAT_H, SAT_W } from './satCache';
 import { S } from './state';
 import { EMPTY_FIELD, F } from './seed/simulate';
 import { drawnFromBoundary, parcelOffset, polyPoints, sketchPipesFit } from './ui/icons';
@@ -60,9 +60,16 @@ describe('the imagery request', () => {
 describe('loading the imagery', () => {
   const realFetch = globalThis.fetch;
   const realObjectUrl = URL.createObjectURL;
+  const realRevoke = URL.revokeObjectURL;
+  const realNow = imageryClock.now;
+  let revoked: string[] = [];
   afterEach(() => {
+    forgetImagery();
     globalThis.fetch = realFetch;
     URL.createObjectURL = realObjectUrl;
+    URL.revokeObjectURL = realRevoke;
+    imageryClock.now = realNow;
+    mock.restoreAll();
   });
 
   // Stand-ins for the network: each answer in turn (the last repeats), counting the downloads.
@@ -70,6 +77,8 @@ describe('loading the imagery', () => {
     let asked = 0;
     globalThis.fetch = async () => answers[Math.min(asked++, answers.length - 1)].clone();
     URL.createObjectURL = () => `blob:local/${asked}`;
+    revoked = [];
+    URL.revokeObjectURL = (u: string) => void revoked.push(u);
     return () => asked;
   }
   const jpeg = () => new Response(new Uint8Array([0xff, 0xd8]), { headers: { 'content-type': 'image/jpeg' } });
@@ -86,13 +95,72 @@ describe('loading the imagery', () => {
     assert.equal(asked(), 1);
   });
 
-  test('a failed download is not kept: the next view tries again', async () => {
-    const asked = network(new Response('busy', { status: 503 }), jpeg());
+  test('after a failure, redraws do not download again until the wait is over, and the wait doubles', async () => {
+    let t = 1_000_000;
+    imageryClock.now = () => t;
+    const warn = mock.method(console, 'warn', () => {});
+    const busy = () => new Response('busy', { status: 503 });
+    const asked = network(busy(), busy(), jpeg());
     const url = 'https://example.test/flaky.jpg';
     await assert.rejects(loadImagery(url));
-    assert.equal(imageryIfReady(url), null);
-    await loadImagery(url); // would reject again if the failure had been cached
+    for (let i = 0; i < 5; i++) await assert.rejects(loadImagery(url)); // the map redrawn, Esri still down
+    t += RETRY_FIRST_MS - 1;
+    await assert.rejects(loadImagery(url));
+    assert.equal(asked(), 1, 'no download during the first wait');
+
+    t += 1;
+    await assert.rejects(loadImagery(url)); // tried again: fails again
     assert.equal(asked(), 2);
+    t += RETRY_FIRST_MS;
+    await assert.rejects(loadImagery(url));
+    assert.equal(asked(), 2, 'the second wait is twice as long');
+
+    t += RETRY_FIRST_MS;
+    assert.match(await loadImagery(url), /^blob:/);
+    assert.equal(asked(), 3);
+    assert.equal(warn.mock.callCount(), 2, 'each failure logged once, not once per redraw');
+  });
+
+  test('only the farm on screen keeps its image; going back to another farm downloads it again', async () => {
+    const asked = network(jpeg());
+    const [a, b] = ['https://example.test/farm-a.jpg', 'https://example.test/farm-b.jpg'];
+    const localA = await loadImagery(a);
+    const localB = await loadImagery(b);
+    assert.deepEqual(revoked, [localA], "farm A's image is released when farm B's arrives");
+    assert.equal(imageryIfReady(a), null);
+    assert.equal(imageryIfReady(b), localB);
+    await loadImagery(a);
+    assert.equal(asked(), 3, 'not a released blob URL from before');
+  });
+
+  test('a farm switch while downloading: the old farm\'s image is released as soon as it lands', async () => {
+    network(jpeg());
+    let land: (r: Response) => void = () => {};
+    const [a, b] = ['https://example.test/slow-a.jpg', 'https://example.test/quick-b.jpg'];
+    globalThis.fetch = () => new Promise<Response>((r) => (land = r));
+    const slow = loadImagery(a);
+    globalThis.fetch = async () => jpeg();
+    await loadImagery(b); // the farmer is now on farm B
+    land(jpeg());
+    const localA = await slow;
+    assert.ok(revoked.includes(localA));
+    assert.equal(imageryIfReady(a), null);
+    assert.notEqual(imageryIfReady(b), null);
+  });
+
+  test('sign-out releases the image, and drops a download that lands after it', async () => {
+    network(jpeg());
+    const url = 'https://example.test/signed-in.jpg';
+    const local = await loadImagery(url);
+    let land: (r: Response) => void = () => {};
+    globalThis.fetch = () => new Promise<Response>((r) => (land = r));
+    const late = loadImagery('https://example.test/still-downloading.jpg');
+    forgetImagery();
+    assert.deepEqual(revoked, [local]);
+    assert.equal(imageryIfReady(url), null);
+    land(jpeg());
+    await assert.rejects(late);
+    assert.equal(imageryIfReady('https://example.test/still-downloading.jpg'), null, 'not kept for the next farmer');
   });
 
   test('an error answered as 200 with JSON is a failure, not an image', async () => {
@@ -124,6 +192,15 @@ describe('field outlines', () => {
     assert.equal(drawnFromBoundary('sketch'), false);
     assert.deepEqual(parcelOffset('sketch'), [10, 0]);
     assert.equal(sketchPipesFit(), false, 'the sketch pipes do not fit a farm drawn from real boundaries');
+  });
+
+  test('a boundary reaching past the imagery (the farm moved) is drawn as the sketch parcel, within reach', () => {
+    S.farmLat = PIN[1];
+    S.farmLng = PIN[0];
+    const far = ring.map(([lng, lat]) => [lng, lat + 0.02] as [number, number]); // about 2.2 km north: past the 1.3 km the imagery covers
+    F.splice(0, F.length, { ...EMPTY_FIELD, id: 'moved', layout: 'A', boundary: far });
+    assert.equal(drawnFromBoundary('moved'), false);
+    assert.equal(polyPoints('moved')[0].join(','), '38,42');
   });
 
   test('without a farm location the boundary cannot be placed, so the sketch parcel is drawn', () => {
