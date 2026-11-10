@@ -4,10 +4,14 @@
 // sensorHealth judges a sensor at a moment, from what had arrived by then, so these tests replay the
 // 14 days hour by hour exactly as the app would have seen them, field by field. The set is committed
 // (generated with a fixed seed), so the results are repeatable; no network, no Piezas.
+//
+// Not covered here: R-022's disagreement rule ("check"). It needs three trusted probes in a field, and
+// this set has two per field, whose daily means stay within a few points of each other anyway.
 import { readFileSync } from 'node:fs';
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { sensorHealth, type SensorHealth } from './health';
+import type { CropAdviceProfile, WeatherForecast } from '../domain/types';
 import { wateringAdvice } from '../domain/watering';
 import { HOUR, type SensorSeries, type WeatherHour } from './types';
 
@@ -58,13 +62,19 @@ function healthAt(now: number): Map<string, SensorHealth> {
   return out;
 }
 
-/** Every hour of the set, after the first day (a day of history, as the stuck rule needs). */
-const replay = () => {
-  const hours: { now: number; health: Map<string, SensorHealth> }[] = [];
+type Replay = { now: number; health: Map<string, SensorHealth> }[];
+let replayed: Replay | undefined;
+/**
+ * Every hour of the set, after the first day (a day of history, as the stuck rule needs). Run on first
+ * use, not when the file loads, so an exception in the code under test fails the tests that need it, by
+ * name and with its stack, instead of the whole file failing with no test run.
+ */
+function replay(): Replay {
+  if (replayed) return replayed;
+  const hours: Replay = [];
   for (let now = START + 24 * HOUR; now <= END; now += HOUR) hours.push({ now, health: healthAt(now) });
-  return hours;
-};
-const HOURS = replay();
+  return (replayed = hours);
+}
 
 const GLITCH = 'sensor_2b1';
 const GLITCH_AT = END - 7 * 24 * HOUR; // scripts/synthetic/generate.ts: one reading of 90%, a week before "now"
@@ -86,22 +96,23 @@ describe('the synthetic set is what its answer key says', () => {
 
 describe('sensor health (R-022), replayed hour by hour', () => {
   test('the 90% glitch is caught the hour it arrives: a value soil cannot hold', () => {
-    const h = HOURS.find((x) => x.now === GLITCH_AT)!.health.get(GLITCH)!;
+    const h = replay().find((x) => x.now === GLITCH_AT)!.health.get(GLITCH)!;
     assert.equal(h.status, 'faulty');
     assert.match(h.reason!, /reads 90%, which soil cannot hold/);
   });
 
-  test('once it falls back, it is a spike with no rain, until it leaves the 24 h window', () => {
-    const flagged = HOURS.filter((x) => x.now > GLITCH_AT && x.health.get(GLITCH)!.status === 'faulty');
-    assert.ok(flagged.length > 0);
+  test('once it falls back, it is a spike with no rain for the next 22 hours, then trusted again', () => {
+    const after = replay().filter((x) => x.now > GLITCH_AT);
+    const flagged = after.filter((x) => x.health.get(GLITCH)!.status === 'faulty');
+    // The spike rule looks back 24 h and compares the jump with the reading just before it, so it fires from
+    // the hour after the spike until that earlier reading leaves the window: 22 hours.
+    const expected = Array.from({ length: 22 }, (_, i) => iso(GLITCH_AT + (i + 1) * HOUR));
+    assert.deepEqual(flagged.map((x) => iso(x.now)), expected);
     for (const x of flagged) assert.match(x.health.get(GLITCH)!.reason!, /jumped to 90% .* with no rain/);
-    assert.equal(iso(flagged[0].now), iso(GLITCH_AT + HOUR), 'flagged from the next hour');
-    assert.ok(flagged.at(-1)!.now < GLITCH_AT + 24 * HOUR, 'trusted again a day later: one bad reading, not a broken probe');
-    assert.equal(flagged.length, flagged.at(-1)!.now / HOUR - GLITCH_AT / HOUR, 'flagged every hour in between');
   });
 
   test('no false alarms: no other probe is ever faulty, and the glitching one only around its glitch', () => {
-    const wrong = HOURS.flatMap(({ now, health }) =>
+    const wrong = replay().flatMap(({ now, health }) =>
       [...health.values()]
         .filter((h) => h.status === 'faulty' && !(h.sensorId === GLITCH && now >= GLITCH_AT && now < GLITCH_AT + 24 * HOUR))
         .map((h) => `${iso(now)} ${h.sensorId}: ${h.reason}`),
@@ -109,20 +120,18 @@ describe('sensor health (R-022), replayed hour by hour', () => {
     assert.deepEqual(wrong, []);
   });
 
-  test('with two probes a field, disagreement is never judged (it needs two others to compare with)', () => {
-    for (const { health } of HOURS) for (const h of health.values()) assert.notEqual(h.status, 'check');
-  });
-
   test('a dead or late probe is not a health fault: staleness is R-015, below', () => {
-    const last = HOURS.at(-1)!.health;
+    const last = replay().at(-1)!.health;
     assert.equal(last.get('sensor_2b2')!.status, 'ok');
     assert.equal(last.get('sensor_2a2')!.status, 'ok');
   });
 });
 
 describe('no recent reading (R-015) at the end of the set', () => {
-  const crop = { moistureMin: null, moistureMax: null } as unknown as Parameters<typeof wateringAdvice>[0];
-  const forecast = { rainNext48hMm: 0 } as unknown as Parameters<typeof wateringAdvice>[2];
+  // The set's crop: blueberries. Only freshness and the driest probe are under test, so the thresholds are
+  // the code's own (moisture null) and the forecast is dry.
+  const crop: CropAdviceProfile = { name: 'Blueberries', moistureMin: null, moistureMax: null, phMin: 4.5, phMax: 5.2, ecMax: null, frostRiskC: null };
+  const forecast: WeatherForecast = { hours: [], rainNext48hMm: 0, overnightLowC: 5, outlook: [] };
   const advise = (fieldId: string) => {
     const samples = fields.get(fieldId)!.map((s) => ({ sensorId: s.id, sensorName: s.name, ...moisture.get(s.id)!.at(-1)! }));
     return wateringAdvice(crop, samples, forecast, new Date(END), { irrigated: true, trigger: 20 });
