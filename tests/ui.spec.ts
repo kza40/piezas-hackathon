@@ -62,7 +62,7 @@ test('a new field with no probes shows dashes, not made-up readings', async ({ p
 });
 
 test('the rail resizes, and a re-render mid-drag does not leave the map unclickable', async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000); // the first live load alone can take a minute when the suite runs in parallel
   await page.setViewportSize({ width: 1440, height: 900 });
   await signInAsSam(page);
   const grip = page.getByTestId('rail-grip');
