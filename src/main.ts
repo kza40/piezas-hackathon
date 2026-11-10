@@ -13,6 +13,7 @@ import { alertsCard, fieldCard, legendCard, profileCard, todayCard, topBar, weat
 import { map, onMapPointerDown, onMapWheel, resetView, watchMapSize, zoom } from './views/map';
 import { dispose3D, mount3D, reset3D, zoom3D } from './views/map3d';
 import * as pages from './views/pages';
+import { shiftRing } from './geo';
 
 const PANELS: Record<PanelId, { title: string; icon: string; view: () => string }> = {
   dashboard: { title: 'Farm', icon: '⌂', view: pages.dashboard },
@@ -110,6 +111,25 @@ function render() {
   const host = document.getElementById('m3');
   if (host) mount3D(host, pickField);
   watchMapSize();
+}
+
+/**
+ * Adjust farm, on a field drawn at its real place: its boundary moves by what the farmer dragged, shown at once
+ * and saved. If the save fails it goes back, so the map never shows a place the server doesn't have.
+ */
+async function moveRealField(id: FieldId, by: [number, number]) {
+  const f = F.find((x) => x.id === id);
+  if (!f?.boundary || S.farmLat == null) return;
+  const before = f.boundary;
+  f.boundary = shiftRing(before, by, S.farmLat);
+  render();
+  try {
+    await farmApi.updateField(id, { boundary: f.boundary });
+    say(`Moved ${f.name}`);
+  } catch (e) {
+    f.boundary = before;
+    say(e instanceof ApiError ? e.message : `Could not move ${f.name}`);
+  }
 }
 
 function pickField(id: FieldId) {
@@ -514,7 +534,7 @@ main.addEventListener('pointerdown', (e) => {
   const grip = (e.target as Element).closest<HTMLElement>('.rail-grip');
   if (grip) return onRailPointerDown(e, grip);
   const svg = (e.target as Element).closest('#fmap');
-  if (svg) onMapPointerDown(e, svg);
+  if (svg) onMapPointerDown(e, svg, moveRealField);
 });
 main.addEventListener('dblclick', (e) => {
   if ((e.target as Element).closest('.rail-grip')) resetRail();

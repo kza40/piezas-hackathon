@@ -27,6 +27,17 @@ export function toMapXY([lng, lat]: LngLat, pin: LngLat): [number, number] {
 }
 
 /**
+ * A ring moved on the ground by (dx, dy) map units: east is +x, north is -y (map y grows southwards). Points are
+ * rounded to 6 decimals (about 0.1 m).
+ */
+export function shiftRing(ring: LngLat[], [dx, dy]: [number, number], pinLat: number): LngLat[] {
+  const dLng = (dx * M_PER_UNIT) / (M_PER_DEG_LAT * Math.cos(rad(pinLat)));
+  const dLat = (-dy * M_PER_UNIT) / M_PER_DEG_LAT;
+  const round = (v: number) => Math.round(v * 1e6) / 1e6;
+  return ring.map(([lng, lat]) => [round(lng + dLng), round(lat + dLat)]);
+}
+
+/**
  * The Web Mercator box (xmin, ymin, xmax, ymax) holding a stretch of ground widthM × heightM metres centred on a
  * point. Mercator stretches ground by 1/cos(latitude) in both directions, so the box is that much larger, and an
  * image of it is undistorted: its pixels are square on the ground.

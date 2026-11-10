@@ -3,7 +3,7 @@ import { F } from '../seed/simulate';
 import { S, saveOffsets } from '../state';
 import type { Field, FieldId, Health, MapLayer } from '../types';
 import { decision, esc, hasReading, lastWatered, mix, moistureTint, pending, T, ws } from '../ui/helpers';
-import { canIn, drawnFromBoundary, fieldNumberLabel, parcelOffset, plants, polyKey, polyPoints, sensorsOn, sketchPipesFit } from '../ui/icons';
+import { canIn, drawnFromBoundary, fieldNumberLabel, parcelOffset, plants, polyKey, polyPoints, realFieldRoom, sensorsOn, sketchPipesFit } from '../ui/icons';
 import { M_PER_UNIT } from '../geo';
 import { satCredit, satMapBackdrop } from './mapGeo';
 
@@ -97,6 +97,14 @@ const PIPES = `<g fill=none stroke-linecap=round stroke-linejoin=round><path d='
 
 const PATTERNS = `<defs><pattern id=st0 width=12 height=12 patternUnits=userSpaceOnUse patternTransform=rotate(25)><line x1=0 y1=0 x2=0 y2=12 stroke=#fff stroke-opacity=.35 stroke-width=4 /></pattern><pattern id=st1 width=14 height=14 patternUnits=userSpaceOnUse patternTransform=rotate(-40)><line x1=0 y1=0 x2=0 y2=14 stroke=#000 stroke-opacity=.12 stroke-width=3 /></pattern><pattern id=st2 width=10 height=10 patternUnits=userSpaceOnUse><circle cx=5 cy=5 r=1.6 fill=#fff fill-opacity=.55 /></pattern></defs>`;
 
+/** What dragging does in Adjust farm: a sketch parcel moves on this device; a real field's boundary is saved. */
+function adjustNote() {
+  const real = F.filter((f) => drawnFromBoundary(f.id)).length;
+  if (!real) return 'Drag parcels to match your farm · Standard layout restores the default';
+  if (real === F.length) return 'Drag a field to line it up with the satellite image · its new place is saved';
+  return 'Drag a field to line it up with the satellite image (its new place is saved) or a sketch parcel to match your farm';
+}
+
 /** Map only — farm cards live in the side rail (see main.ts). */
 export function map(): string {
   const L = S.ly;
@@ -104,7 +112,7 @@ export function map(): string {
   const hint = S.d3
     ? `<span class=hint3>Drag to rotate · right-drag to pan · scroll to zoom · taller block = ${HEIGHT_MEANS[L]}</span>`
     : `<span class=hint3>Drag to pan · scroll to zoom</span>`;
-  const controls = `<div class=mtop><div class=mtl>${dim}<div class=mpc role=group aria-label='Colour the map by'><span class=mpl aria-hidden=true>Colour by</span>${LAYERS.map(([key, n]) => `<button data-act=lyr data-k=${key} aria-pressed=${L === key}>${n}</button>`).join('')}</div><div class=mpc><button aria-pressed=${S.edit} data-act=ed>${S.edit ? 'Done' : 'Adjust farm'}</button>${S.edit ? `<button data-act=rl>Standard layout</button>` : ''}</div>${S.edit ? `<span class='mpc note'>Drag parcels to match your farm · Standard layout restores the default</span>` : ''}</div><div class=mtr><div class=mpc><button aria-label='Zoom in' data-act=zm data-f=1.5>+</button><button aria-label='Zoom out' data-act=zm data-f=${1 / 1.5}>−</button><button aria-label='Reset view' data-act=rs>⟲</button></div><div class=mpc><button aria-pressed=${S.bare} data-act=bare data-testid=toggle-cards>${S.bare ? 'Show side panel' : 'Hide side panel'}</button></div></div></div>`;
+  const controls = `<div class=mtop><div class=mtl>${dim}<div class=mpc role=group aria-label='Colour the map by'><span class=mpl aria-hidden=true>Colour by</span>${LAYERS.map(([key, n]) => `<button data-act=lyr data-k=${key} aria-pressed=${L === key}>${n}</button>`).join('')}</div><div class=mpc><button aria-pressed=${S.edit} data-act=ed>${S.edit ? 'Done' : 'Adjust farm'}</button>${S.edit && F.some((f) => !drawnFromBoundary(f.id)) ? `<button data-act=rl>Standard layout</button>` : ''}</div>${S.edit ? `<span class='mpc note' data-testid=adjust-note>${adjustNote()}</span>` : ''}</div><div class=mtr><div class=mpc><button aria-label='Zoom in' data-act=zm data-f=1.5>+</button><button aria-label='Zoom out' data-act=zm data-f=${1 / 1.5}>−</button><button aria-label='Reset view' data-act=rs>⟲</button></div><div class=mpc><button aria-pressed=${S.bare} data-act=bare data-testid=toggle-cards>${S.bare ? 'Show side panel' : 'Hide side panel'}</button></div></div></div>`;
   const scale = `<div class=mscale aria-hidden=true><span class=north>▲ N</span><span class=sbar data-testid=scale-bar><i></i><span></span></span></div>`;
   // The sketched landscape is always drawn: the satellite image goes over it, and if it never loads the map still has ground.
   const land = BASE + satMapBackdrop();
@@ -215,28 +223,38 @@ function track(onMove: (ev: PointerEvent) => void, onUp?: () => void) {
   addEventListener('pointerup', up);
 }
 
-export function onMapPointerDown(e: PointerEvent, svg: Element) {
+/**
+ * Pointer down on the 2D map: in Adjust farm, drags a field; otherwise pans. A sketch parcel's place is an offset
+ * kept on this device. A field drawn at its real place is moved on the ground: when it is let go, `onMoveRealField`
+ * gets how far (in map units) to save its boundary by.
+ */
+export function onMapPointerDown(e: PointerEvent, svg: Element, onMoveRealField: (id: FieldId, by: [number, number]) => void) {
   if (e.button > 0) return;
   S.moved = false;
   const target = e.target as Element;
-  const picked = S.edit ? target.closest<SVGGElement>('g[data-id]') : null;
-  // A field drawn at its real place stays there; only sketch parcels can be dragged.
-  const shape = picked && !drawnFromBoundary(picked.dataset.id as FieldId) ? picked : null;
+  const shape = S.edit ? target.closest<SVGGElement>('g[data-id]') : null;
   if (shape) {
     const id = shape.dataset.id as FieldId;
-    const start = S.off[id] ?? [0, 0];
+    const real = drawnFromBoundary(id);
+    const start = real ? [0, 0] : (S.off[id] ?? [0, 0]);
+    const [lo, hi] = real ? realFieldRoom(id) : [[-400, -300], [400, 300]];
+    let moved: [number, number] = [0, 0];
     const s = viewScale(svg).s / S.v.k;
     const sx = e.clientX;
     const sy = e.clientY;
     track(
       (ev) => {
-        const nx = Math.max(-400, Math.min(400, Math.round(start[0] + (ev.clientX - sx) * s)));
-        const ny = Math.max(-300, Math.min(300, Math.round(start[1] + (ev.clientY - sy) * s)));
-        S.off[id] = [nx, ny];
+        const nx = Math.max(lo[0], Math.min(hi[0], Math.round(start[0] + (ev.clientX - sx) * s)));
+        const ny = Math.max(lo[1], Math.min(hi[1], Math.round(start[1] + (ev.clientY - sy) * s)));
+        moved = [nx, ny];
+        if (!real) S.off[id] = moved;
         shape.setAttribute('transform', `translate(${nx} ${ny})`);
         S.moved = true;
       },
-      saveOffsets,
+      () => {
+        if (!real) return saveOffsets();
+        if (moved[0] || moved[1]) onMoveRealField(id, moved);
+      },
     );
     e.preventDefault();
     return;

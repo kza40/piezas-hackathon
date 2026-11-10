@@ -46,6 +46,22 @@ export const sensorsOn = (id: FieldId) => {
   return fit === 1 ? ss : ss.map((s) => ({ ...s, dx: s.dx * fit, dy: s.dy * fit }));
 };
 
+/**
+ * How far a field drawn at its real place may be dragged, in map units, as [[min dx, min dy], [max dx, max dy]]:
+ * as far as keeps it on the imagery (past it, it would be drawn as a sketch parcel instead).
+ */
+export const realFieldRoom = (id: FieldId): [[number, number], [number, number]] => {
+  const p = polyPoints(id);
+  const xs = p.map((q) => q[0]);
+  const ys = p.map((q) => q[1]);
+  const [left, top] = [PIN_XY[0] - SAT_W / 2, PIN_XY[1] - SAT_H / 2];
+  const [right, bottom] = [PIN_XY[0] + SAT_W / 2, PIN_XY[1] + SAT_H / 2];
+  return [
+    [left - Math.min(...xs), top - Math.min(...ys)],
+    [right - Math.max(...xs), bottom - Math.max(...ys)],
+  ];
+};
+
 /** How far the farmer dragged a sketch parcel. A field drawn at its real place is never moved. */
 export const parcelOffset = (id: FieldId): [number, number] => (drawnFromBoundary(id) ? [0, 0] : (S.off[id] ?? [0, 0]));
 
