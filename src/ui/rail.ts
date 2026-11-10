@@ -28,11 +28,22 @@ function save() {
   }
 }
 
+/** Show the width, fitted to the window as it is now (the saved width is kept for a wider window). */
+function paint() {
+  const w = clamp(width);
+  document.querySelector<HTMLElement>('.workspace')?.style.setProperty('--rail', `${w}px`);
+  const grip = document.querySelector('.rail-grip');
+  grip?.setAttribute('aria-valuenow', String(w));
+  grip?.setAttribute('aria-valuemax', String(maxWidth()));
+}
+
 function apply(w: number) {
   width = clamp(w);
-  document.querySelector<HTMLElement>('.workspace')?.style.setProperty('--rail', `${width}px`);
-  document.querySelector('.rail-grip')?.setAttribute('aria-valuenow', String(width));
+  paint();
 }
+
+// A narrower window must not squeeze the map under its minimum until something re-renders.
+window.addEventListener('resize', paint);
 
 /** Inline style for the workspace, so a re-render keeps the farmer's width. */
 export const railStyle = () => `--rail:${clamp(width)}px`;
@@ -48,17 +59,24 @@ export function onRailPointerDown(e: PointerEvent, grip: HTMLElement) {
   const startW = width;
   grip.setPointerCapture(e.pointerId);
   document.body.classList.add('resizing');
-  const move = (ev: PointerEvent) => apply(startW + (startX - ev.clientX));
-  const end = () => {
-    grip.removeEventListener('pointermove', move);
-    grip.removeEventListener('pointerup', end);
-    grip.removeEventListener('pointercancel', end);
+  // Listen on the window, not the grip: live data arriving mid-drag re-renders the board and replaces the
+  // grip, and its pointerup would never come (leaving .resizing on, which turns off clicks on the map).
+  const move = (ev: PointerEvent) => {
+    if (ev.pointerId === e.pointerId) apply(startW + (startX - ev.clientX));
+  };
+  const end = (ev: Event) => {
+    if (ev instanceof PointerEvent && ev.pointerId !== e.pointerId) return;
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', end);
+    window.removeEventListener('pointercancel', end);
+    window.removeEventListener('blur', end);
     document.body.classList.remove('resizing');
     save();
   };
-  grip.addEventListener('pointermove', move);
-  grip.addEventListener('pointerup', end);
-  grip.addEventListener('pointercancel', end);
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', end);
+  window.addEventListener('pointercancel', end);
+  window.addEventListener('blur', end);
 }
 
 /** Arrow keys widen or narrow; Home resets. Returns whether the key was handled. */
