@@ -726,7 +726,9 @@ describe('demo fields keep reporting (scripts/seed-demo.ts)', () => {
   });
 });
 
-describe('Report a problem over HTTP', () => {
+// The owner can turn the button off (hosted setting PIEZAS_REPORT_BUTTON); then there is nothing to check,
+// as in tests/smoke.spec.ts.
+describe('Report a problem over HTTP', { skip: process.env.PIEZAS_REPORT_BUTTON === 'off' && 'the Report a problem button is turned off' }, () => {
   const visitor = browser();
 
   test('the button is on, and knows a signed-in farmer from a visitor', async () => {
