@@ -48,15 +48,22 @@ function panel(id: PanelId): string {
   return `<section class='panel${narrow}' data-testid=panel-${id} data-scroll=p role=dialog aria-label='${PANELS[id].title}'><button class='btn alt sm pclose' data-act=go data-p=map aria-label='Close and show the map'>✕ Back to map</button><div class=panel-body>${view()}</div></section>`;
 }
 
+/** Where the rail was scrolled to; kept while a panel takes its place, so closing the panel brings it back as it was. */
+let railTop = 0;
+
 /** Re-rendering replaces the overlays, so keep each scrolled area where the farmer left it. */
 function keepScroll(paint: () => void) {
   const before = new Map<string, number>();
+  const rail = document.querySelector<HTMLElement>('[data-scroll=rail]');
+  if (rail) railTop = rail.scrollTop;
   document.querySelectorAll<HTMLElement>('[data-scroll]').forEach((n) => before.set(n.dataset.scroll! + (n.dataset.testid ?? ''), n.scrollTop));
   paint();
   document.querySelectorAll<HTMLElement>('[data-scroll]').forEach((n) => {
     const top = before.get(n.dataset.scroll! + (n.dataset.testid ?? ''));
     if (top) n.scrollTop = top;
   });
+  const railNow = document.querySelector<HTMLElement>('[data-scroll=rail]');
+  if (railNow && railTop) railNow.scrollTop = railTop;
 }
 
 // Live data loaded in the background: redraw, unless the farmer is typing in a form (a redraw would
@@ -92,10 +99,11 @@ function render() {
   );
   keepScroll(() => {
     const overlays = `${S.panel ? panel(S.panel) : ''}${dock()}`;
-    const side = S.bare
+    // An open panel is the focus and repeats what the rail says, so the rail steps aside until it closes.
+    const side = S.bare || S.panel
       ? ''
       : `${railGrip()}<aside class='rail' data-scroll=rail data-testid=side-rail>${rail}</aside>`;
-    main.innerHTML = `<div class='board${S.bare ? ' bare' : ''}'>${topBar()}<div class=workspace style='${railStyle()}'><div class=stage>${map()}${overlays}</div>${side}</div></div>${modal}${toast}`;
+    main.innerHTML = `<div class='board${S.bare || S.panel ? ' bare' : ''}'>${topBar()}<div class=workspace style='${railStyle()}'><div class=stage>${map()}${overlays}</div>${side}</div></div>${modal}${toast}`;
   });
   const host = document.getElementById('m3');
   if (host) mount3D(host, pickField);
@@ -216,7 +224,8 @@ async function act(node: ActionElement, target: Element) {
       S.bare = false;
       delete S.min.profile;
       saveCards();
-      render();
+      if (S.panel) go('map');
+      else render();
       return document.querySelector('[data-testid=card-profile]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     case 'sel':
       S.sel = d.id as FieldId;
@@ -236,7 +245,8 @@ async function act(node: ActionElement, target: Element) {
       S.bare = false;
       if (S.min.field) delete S.min.field;
       saveCards();
-      render();
+      if (S.panel) go('map');
+      else render();
       document.querySelector('[data-testid=card-field]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       return;
     }

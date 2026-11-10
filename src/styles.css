@@ -73,7 +73,9 @@ main.mp{max-width:none;padding:0}
   background:#f4f7ef;
 }
 .rail .mc + .mc{margin-top:0}
-.stage .panel{left:12px;right:12px;transform:none;width:auto;max-width:none}
+/* With the rail aside, a panel gets the whole width: centred, and capped so lines stay readable. */
+.stage .panel{left:12px;right:12px;transform:none;width:auto;max-width:1120px;margin:0 auto}
+.stage .panel-center{max-width:560px}
 /* Phones only: full-width bottom drawer spanning the screen */
 @media(max-width:640px){
   .workspace{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) 46%}
