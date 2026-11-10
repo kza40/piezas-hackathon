@@ -455,8 +455,9 @@ async function act(node: ActionElement, target: Element) {
     }
     // ---- R-004: a field's sensors ----
     case 'sadd':
+      // A key not yet saved can't be shown again: never replace it with the next sensor's.
+      if (S.newSensorKey) return say(`Copy the key for ${S.newSensorKey.name} first, then click I've saved the key`);
       S.sensorForm = { fieldId: d.id ?? '', name: '', saving: false };
-      S.newSensorKey = null;
       S.revokeAsk = null;
       render();
       return void document.getElementById('sensor-name-input')?.focus();
@@ -465,7 +466,7 @@ async function act(node: ActionElement, target: Element) {
       return render();
     case 'ssave': {
       const form = S.sensorForm;
-      if (!form || form.saving) return;
+      if (!form || form.saving || S.newSensorKey) return;
       const name = form.name.trim();
       if (!name) {
         document.getElementById('sensor-name-input')?.focus();
@@ -484,11 +485,7 @@ async function act(node: ActionElement, target: Element) {
       // The key first: it is shown only now, whatever happens to the reload below.
       S.newSensorKey = { fieldId: form.fieldId, ...added };
       S.sensorForm = null;
-      try {
-        await refreshLiveData();
-      } catch {
-        // the sensor is saved; the list catches up on the next load
-      }
+      await refreshLiveData(); // never throws: on a failed load the list catches up on the next one
       return say(`Added ${added.name}. Copy its device key now.`);
     }
     case 'scopy': {
@@ -519,31 +516,33 @@ async function act(node: ActionElement, target: Element) {
       const name = Object.values(S.liveSensors).flat().find((x) => x.id === id)?.name ?? 'the sensor';
       S.sensorBusy = true;
       render();
+      let msg: string;
       try {
         await farmApi.revokeSensor(id);
         S.revokeAsk = null;
         await refreshLiveData();
-        return say(`Revoked the key for ${name}: its readings are refused from now on`);
+        msg = `Revoked the key for ${name}: its readings are refused from now on`;
       } catch (e) {
-        return say(e instanceof ApiError ? e.message : 'Could not revoke the key');
-      } finally {
-        S.sensorBusy = false;
+        msg = e instanceof ApiError ? e.message : 'Could not revoke the key';
       }
+      S.sensorBusy = false; // before say(), whose render is the last: unlocked buttons must be drawn unlocked
+      return say(msg);
     }
     case 'ssim': {
       const id = d.id ?? '';
       if (S.sensorBusy || !id) return;
       S.sensorBusy = true;
       render();
+      let msg: string;
       try {
         await farmApi.simulateField(id);
         await refreshLiveData();
-        return say(`Filled ${fld(id).name} with simulated readings`);
+        msg = `Filled ${fld(id).name} with simulated readings`;
       } catch (e) {
-        return say(e instanceof ApiError ? e.message : 'Could not simulate readings');
-      } finally {
-        S.sensorBusy = false;
+        msg = e instanceof ApiError ? e.message : 'Could not simulate readings';
       }
+      S.sensorBusy = false; // before say(), as above
+      return say(msg);
     }
   }
 }

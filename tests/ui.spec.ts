@@ -133,6 +133,8 @@ test('Adjust farm on the satellite map: dragging a real field saves its new plac
   const drawn = (await page.locator('#fmap .fpoly').first().getAttribute('points'))!.split(' ')[0].split(',').map(Number);
   expect(drawn[0]).toBeCloseTo(x1, 0);
   expect(drawn[1]).toBeCloseTo(y1, 0);
+});
+
 // R-004 / R-005 from the field page: the key is shown once, the device sends with it, and revoking it (asked
 // twice, as there is no undo) makes the server refuse that device.
 test("a field's sensors: add one, its key works once copied, and revoking it refuses the device", async ({ page, context }) => {
@@ -185,4 +187,62 @@ test("a new field's sensors can be filled with simulated readings, offered only 
   await expect(page.getByRole('status').filter({ hasText: 'Filled Demo Field with simulated readings' })).toBeVisible();
   await expect(page.getByTestId('sensor-status')).not.toContainText('waiting');
   await expect(page.getByTestId('simulate-field')).toHaveCount(0); // it would replace readings the field now has
+});
+
+test("with two sensors: an unsaved key is never replaced, and revoking one leaves the other's button usable", async ({ page }) => {
+  await signUp(page);
+  await createFarmAndField(page, 'Two Farm', 'Two Field');
+  await openField(page, 'Two Field');
+  await page.getByTestId('register-sensor').click();
+  await page.getByTestId('sensor-name').fill('A probe');
+  await page.getByTestId('save-sensor').click();
+  const keyA = (await page.getByTestId('device-key-once').textContent())!.trim();
+
+  // Adding the next one before saving A's key keeps it: it can't be shown again.
+  await page.getByTestId('register-sensor').click();
+  await expect(page.getByRole('status').filter({ hasText: 'Copy the key for A probe first' })).toBeVisible();
+  await expect(page.getByTestId('device-key-once')).toHaveText(keyA);
+  await expect(page.getByTestId('sensor-name')).toHaveCount(0);
+
+  await page.getByTestId('key-saved').click();
+  await page.getByTestId('register-sensor').click();
+  await page.getByTestId('sensor-name').fill('B probe');
+  await page.getByTestId('save-sensor').click();
+  await page.getByTestId('key-saved').click();
+  await expect(page.getByTestId('sensor-row')).toHaveCount(2);
+
+  await page.getByTestId('revoke-sensor').first().click();
+  await page.getByTestId('confirm-revoke').click();
+  await expect(page.getByTestId('sensor-status').first()).toContainText('Key revoked');
+  await expect(page.getByTestId('revoke-sensor')).toHaveCount(1);
+  await expect(page.getByTestId('revoke-sensor')).toBeEnabled(); // B's: unlocked once A's revoke is done
+});
+
+test("a field's sensors that are loading or failed to load are never shown as none", async ({ page }) => {
+  await signUp(page);
+  await createFarmAndField(page, 'Load Farm', 'Load Field');
+  // Hold the sensor list: until it arrives the field page is still loading, never "no sensors", nothing to add.
+  let release!: () => void;
+  const held = new Promise<void>((r) => (release = r));
+  await page.route(/\/api\/fields\/[^/]+\/sensors$/, async (r) => {
+    if (r.request().method() !== 'GET') return r.continue();
+    await held;
+    await r.continue();
+  });
+  await page.reload();
+  await page.getByTestId('dock-field').click();
+  await expect(page.getByText('Loading your farm’s readings')).toBeVisible();
+  await expect(page.getByText('No sensors on this field yet')).toHaveCount(0);
+  await expect(page.getByTestId('register-sensor')).toHaveCount(0);
+  release();
+  await expect(page.getByText('No sensors on this field yet')).toBeVisible();
+
+  // A list that fails to load says so, rather than inviting a second copy of a probe.
+  await page.unroute(/\/api\/fields\/[^/]+\/sensors$/);
+  await page.route(/\/api\/fields\/[^/]+\/sensors$/, (r) => (r.request().method() === 'GET' ? r.fulfill({ status: 500, body: '{}' }) : r.continue()));
+  await page.reload();
+  await page.getByTestId('dock-field').click();
+  await expect(page.getByTestId('sensors-failed')).toBeVisible();
+  await expect(page.getByText('No sensors on this field yet')).toHaveCount(0);
+  await expect(page.getByTestId('register-sensor')).toHaveCount(0);
 });

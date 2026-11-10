@@ -206,14 +206,25 @@ const history = (f: Field) => {
   const note = S.liveHistory[f.id]
     ? `Each line is one sensor.${S.liveAdvice[f.id]?.setup.trigger ? ' The dashed line is your trigger.' : ''} Gaps mean no sensor data.`
     : 'Green band is the ideal range for the crop. Blue bars are rain. Red dots are odd readings we ignored. Gaps mean no data.';
-  // Signed in, the sensors card manages them too; a field with none has it at the top of the page instead.
+  // Signed in, the sensors card manages them too; a field known to have none has it at the top of the page instead.
   const sensors = S.farmerId
-    ? live?.length
+    ? sensorList(f) !== 'none'
       ? sensorsCard(f)
       : ''
     : `<div class=card style='margin-top:14px'><h3>Sensors in ${esc(f.name)}</h3><table><tr><th>Sensor</th><th>Status</th><th>${station ? 'Field now' : met.name}</th></tr>${rows || '<tr><td colspan=3 class=mut>No sensors yet</td></tr>'}</table></div>`;
   return `<div class=card><h3>${met.name}, last 7 days</h3><p class=mut>${note}</p>${chart(f, k)}</div>${sensors}`;
 };
+
+/**
+ * What is known of a field's sensors: 'loading' until its first live load has finished, 'failed' when that load
+ * could not get the list (live.ts leaves the field out), 'none' when it really has none.
+ */
+function sensorList(f: Field): 'loading' | 'failed' | 'none' | 'some' {
+  if (!S.liveFields.includes(f.id)) return 'loading';
+  const live = S.liveSensors[f.id];
+  if (!live) return 'failed';
+  return live.length ? 'some' : 'none';
+}
 
 /** A sensor's state in words: its key, then its readings. */
 function sensorStatus(f: Field, x: LiveSensor) {
@@ -234,6 +245,7 @@ function sensorStatus(f: Field, x: LiveSensor) {
  */
 function sensorsCard(f: Field) {
   const live = S.liveSensors[f.id] ?? [];
+  const list = sensorList(f);
   const k = S.mk;
   const met = metric(k);
   const station = isStation(k);
@@ -266,13 +278,19 @@ function sensorsCard(f: Field) {
   const simulate = quiet
     ? `<p class=simrow><button class='btn alt sm' data-act=ssim data-id=${f.id} data-testid=simulate-field${busy}>Fill with simulated readings</button> <span class=mut>For a demo: made-up readings for these sensors, until a real probe reports.</span></p>`
     : '';
-  const intro = live.length
-    ? ''
-    : `<p class=mut>No sensors on this field yet. Add one for each probe in the field: each gets its own device key, which the probe uses to send its readings.</p>`;
+  // Never "no sensors" for a field whose list isn't known: the farmer would add the same probe twice.
+  const intro =
+    list === 'loading'
+      ? `<p class=mut data-testid=sensors-loading>Loading sensors…</p>`
+      : list === 'failed'
+        ? `<p class=mut data-testid=sensors-failed>Couldn't load this field's sensors. Reload the page to try again.</p>`
+        : list === 'none'
+          ? `<p class=mut>No sensors on this field yet. Add one for each probe in the field: each gets its own device key, which the probe uses to send its readings.</p>`
+          : '';
   const table = live.length
     ? `<table><tr><th>Sensor</th><th>Status</th><th>${station ? 'Field now' : met.name}</th><th></th></tr>${rows}</table>`
     : '';
-  return `<div class='card sensors' style='margin-top:14px' data-testid=sensors-card><div class=phead><h3>Sensors in ${esc(f.name)}</h3>${form ? '' : add}</div>${intro}${form ? add : ''}${keyBox}${table}${simulate}</div>`;
+  return `<div class='card sensors' style='margin-top:14px' data-testid=sensors-card><div class=phead><h3>Sensors in ${esc(f.name)}</h3>${form || list === 'loading' || list === 'failed' ? '' : add}</div>${intro}${form ? add : ''}${keyBox}${table}${simulate}</div>`;
 }
 
 const waterLog = (f: Field) => {
@@ -312,7 +330,7 @@ export function field(): string {
       : `<div class='blk lime'><h2>Recommended action</h2><p class=mut>${noAdviceText(f)}</p></div>`;
   const metricTabs = MET.map((m) => `<button aria-pressed=${m.key === S.mk} data-act=mk data-k=${m.key}>${m.name}</button>`).join('');
   // A signed-in field with no sensors starts with adding one: nothing below has readings without them.
-  const setUp = S.farmerId && !S.liveSensors[f.id]?.length ? sensorsCard(f) : '';
+  const setUp = S.farmerId && sensorList(f) === 'none' ? sensorsCard(f) : '';
   return `${demo()}<div class=phead><h1>Fields &amp; sensors</h1><button class='btn alt sm' data-act=export data-testid=export-csv>Download last 14 days (CSV)</button></div>${fieldTabs()}${feat(f)}${setUp}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>Sensor history</h2><div class=tabs>${metricTabs}</div>${history(f)}${live ? eventsCard(f, live) : waterLog(f)}`;
 }
 
