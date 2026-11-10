@@ -24,28 +24,51 @@ interface SyntheticSensor {
   reports: string[];
 }
 
-// readings.csv: sensor_id,type,value,unit,time,source, oldest first per sensor.
-const moisture = new Map<string, { time: string; value: number }[]>();
-for (const line of file('readings.csv').trim().split(/\r?\n/).slice(1)) {
-  const [sensorId, type, value, , time] = line.split(',');
+// readings.csv: sensor_id,type,value,unit,time,source. Parsed once, each timestamp to ms once (the replay
+// below slices by it 313 times). Anything malformed is collected for the first test to report, rather than
+// thrown here, where it would fail the file with no test named.
+const CSV_HEADER = 'sensor_id,type,value,unit,time,source';
+type Reading = { time: string; value: number; ms: number };
+const [csvHeader, ...csvRows] = file('readings.csv').trim().split(/\r?\n/);
+const malformed: string[] = [];
+const moisture = new Map<string, Reading[]>();
+for (const line of csvRows) {
+  const [sensorId, type, raw, , time] = line.split(',');
   if (type !== 'soil_moisture') continue;
-  if (!moisture.has(sensorId)) moisture.set(sensorId, []);
-  moisture.get(sensorId)!.push({ time, value: Number(value) });
+  const value = Number(raw);
+  const ms = Date.parse(time);
+  if (!Number.isFinite(value) || !Number.isFinite(ms)) malformed.push(line);
+  else {
+    if (!moisture.has(sensorId)) moisture.set(sensorId, []);
+    moisture.get(sensorId)!.push({ time, value, ms });
+  }
 }
-for (const pts of moisture.values()) pts.sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
+for (const pts of moisture.values()) pts.sort((a, b) => a.ms - b.ms);
+
+/** The readings that had arrived by `now`: a prefix of the sorted series (binary search, no re-parsing). */
+function upTo(pts: Reading[], now: number): Reading[] {
+  let lo = 0;
+  let hi = pts.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (pts[mid].ms <= now) lo = mid + 1;
+    else hi = mid;
+  }
+  return pts.slice(0, lo);
+}
 
 const soilSensors = (JSON.parse(file('sensors.json')) as SyntheticSensor[]).filter((s) => s.reports.includes('soil_moisture'));
 const fields = new Map<string, SyntheticSensor[]>();
 for (const s of soilSensors) fields.set(s.field_id, [...(fields.get(s.field_id) ?? []), s]);
 
-const times = [...new Set([...moisture.values()].flat().map((p) => p.time))].sort();
-const START = Date.parse(times[0]);
-const END = Date.parse(times.at(-1)!); // the generator's "now"
+const times = [...moisture.values()].flat().map((p) => p.ms);
+const START = Math.min(...times);
+const END = Math.max(...times); // the generator's "now"
 const iso = (ms: number) => new Date(ms).toISOString().replace('.000Z', 'Z');
 
-// The set has no hourly rain for its past (weather_history.json is weekly climate averages), so the
-// replay passes none. A rain-driven rise could then look like a spike; the no-false-alarm test below
-// would catch that.
+// The set has no rain in its past: the generator puts rain only in the forecast (hours after "now"), and
+// weather_history.json is weekly climate averages. So the replay passes none, and the spike rule's
+// rain exemption is not exercised here.
 const NO_RAIN: WeatherHour[] = [];
 
 /** Each soil sensor's health at `now`, from the readings that had arrived by then. */
@@ -55,7 +78,7 @@ function healthAt(now: number): Map<string, SensorHealth> {
     const series: SensorSeries[] = sensors.map((s) => ({
       sensorId: s.id,
       sensorName: s.name,
-      points: (moisture.get(s.id) ?? []).filter((p) => Date.parse(p.time) <= now),
+      points: upTo(moisture.get(s.id) ?? [], now),
     }));
     for (const h of sensorHealth(series, NO_RAIN, new Date(now))) out.set(h.sensorId, h);
   }
@@ -78,8 +101,18 @@ function replay(): Replay {
 
 const GLITCH = 'sensor_2b1';
 const GLITCH_AT = END - 7 * 24 * HOUR; // scripts/synthetic/generate.ts: one reading of 90%, a week before "now"
+// When the glitching probe is rightly faulty: the hour of the 90% reading (a value soil cannot hold), then
+// as a spike until the reading before it leaves the rule's 24 h window, 22 hours later (the spike rule
+// compares the jump with the reading just before it).
+const SPIKE_HOURS = Array.from({ length: 22 }, (_, i) => iso(GLITCH_AT + (i + 1) * HOUR));
+const FAULTY_HOURS = new Set([iso(GLITCH_AT), ...SPIKE_HOURS]);
 
 describe('the synthetic set is what its answer key says', () => {
+  test('readings.csv has the expected columns and every soil-moisture row parses', () => {
+    assert.equal(csvHeader, CSV_HEADER);
+    assert.deepEqual(malformed, []);
+  });
+
   test('12 soil probes, two per field, hourly for 14 days', () => {
     assert.equal(soilSensors.length, 12);
     assert.deepEqual([...fields.values()].map((s) => s.length), [2, 2, 2, 2, 2, 2]);
@@ -88,7 +121,8 @@ describe('the synthetic set is what its answer key says', () => {
 
   test(`${GLITCH} reads 90% once, at ${iso(GLITCH_AT)}, and normal either side`, () => {
     const pts = moisture.get(GLITCH)!;
-    const i = pts.findIndex((p) => p.time === iso(GLITCH_AT));
+    const i = pts.findIndex((p) => p.ms === GLITCH_AT);
+    assert.ok(i > 0 && i < pts.length - 1, `no ${GLITCH} reading at ${iso(GLITCH_AT)} with readings either side`);
     assert.equal(pts[i].value, 90);
     assert.ok(pts[i - 1].value < 50 && pts[i + 1].value < 50);
   });
@@ -104,17 +138,14 @@ describe('sensor health (R-022), replayed hour by hour', () => {
   test('once it falls back, it is a spike with no rain for the next 22 hours, then trusted again', () => {
     const after = replay().filter((x) => x.now > GLITCH_AT);
     const flagged = after.filter((x) => x.health.get(GLITCH)!.status === 'faulty');
-    // The spike rule looks back 24 h and compares the jump with the reading just before it, so it fires from
-    // the hour after the spike until that earlier reading leaves the window: 22 hours.
-    const expected = Array.from({ length: 22 }, (_, i) => iso(GLITCH_AT + (i + 1) * HOUR));
-    assert.deepEqual(flagged.map((x) => iso(x.now)), expected);
+    assert.deepEqual(flagged.map((x) => iso(x.now)), SPIKE_HOURS);
     for (const x of flagged) assert.match(x.health.get(GLITCH)!.reason!, /jumped to 90% .* with no rain/);
   });
 
   test('no false alarms: no other probe is ever faulty, and the glitching one only around its glitch', () => {
     const wrong = replay().flatMap(({ now, health }) =>
       [...health.values()]
-        .filter((h) => h.status === 'faulty' && !(h.sensorId === GLITCH && now >= GLITCH_AT && now < GLITCH_AT + 24 * HOUR))
+        .filter((h) => h.status === 'faulty' && !(h.sensorId === GLITCH && FAULTY_HOURS.has(iso(now))))
         .map((h) => `${iso(now)} ${h.sensorId}: ${h.reason}`),
     );
     assert.deepEqual(wrong, []);
@@ -133,7 +164,10 @@ describe('no recent reading (R-015) at the end of the set', () => {
   const crop: CropAdviceProfile = { name: 'Blueberries', moistureMin: null, moistureMax: null, phMin: 4.5, phMax: 5.2, ecMax: null, frostRiskC: null };
   const forecast: WeatherForecast = { hours: [], rainNext48hMm: 0, overnightLowC: 5, outlook: [] };
   const advise = (fieldId: string) => {
-    const samples = fields.get(fieldId)!.map((s) => ({ sensorId: s.id, sensorName: s.name, ...moisture.get(s.id)!.at(-1)! }));
+    const samples = fields.get(fieldId)!.map((s) => {
+      const { time, value } = moisture.get(s.id)!.at(-1)!;
+      return { sensorId: s.id, sensorName: s.name, time, value };
+    });
     return wateringAdvice(crop, samples, forecast, new Date(END), { irrigated: true, trigger: 20 });
   };
 
