@@ -96,15 +96,31 @@ export function decision(f: Field): string {
   return S.liveAdvice[f.id]?.label ?? WS[k].t;
 }
 
-/** The farm in one or two sentences: which fields need the farmer today, or that none do. */
+/**
+ * The farm in a sentence or three: every field that needs the farmer, by what it needs, then the rest.
+ * Each field is named once, under its most pressing need. "The rest" is only said of fields with nothing
+ * to do (no water needed, waiting for rain, rain-fed): never of one whose advice is missing or unset.
+ */
 export function farmVerdict(): string {
-  const named = (k: WaterState) => F.filter((f) => ws(f) === k).map((f) => f.name);
-  const list = (xs: string[]) => (xs.length <= 2 ? xs.join(' and ') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
-  const water = named('now');
-  const check = named('check');
-  const parts = [water.length ? `Water ${list(water)} today.` : '', check.length ? `Check the sensors in ${list(check)}.` : ''].filter(Boolean);
-  if (!parts.length) return 'All fields are fine today. Nothing to do.';
-  return water.length + check.length < F.length ? `${parts.join(' ')} The rest are fine.` : parts.join(' ');
+  if (!F.length) return 'No fields yet. Add one to get watering advice.';
+  const list = (xs: Field[]) => {
+    const n = xs.map((f) => f.name);
+    return n.length <= 2 ? n.join(' and ') : `${n.slice(0, -1).join(', ')} and ${n.at(-1)}`;
+  };
+  const seen = new Set<string>();
+  const take = (xs: Field[]) => xs.filter((f) => !seen.has(f.id) && seen.add(f.id));
+  const by = (k: WaterState) => take(F.filter((f) => ws(f) === k));
+  const parts = [
+    [by('now'), (s: string) => `Water ${s} today.`],
+    [by('check'), (s: string) => `Check the sensors in ${s}.`],
+    [by('err'), (s: string) => `Couldn’t load advice for ${s}.`],
+    [by('soon'), (s: string) => `Water ${s} soon.`],
+    // Irrigated with no trigger saved (R-009): no watering call can be made until the farmer sets one.
+    [take(F.filter((f) => S.liveAdvice[f.id]?.status === 'not_configured')), (s: string) => `Set a watering trigger for ${s}.`],
+  ] as const;
+  const said = parts.filter(([xs]) => xs.length).map(([xs, say]) => say(list(xs)));
+  if (!said.length) return 'No field needs anything today.';
+  return seen.size < F.length ? `${said.join(' ')} The rest need nothing today.` : said.join(' ');
 }
 
 export const metric = (k: MetricKey): Metric => MET.find((m) => m.key === k) ?? MET[0];
