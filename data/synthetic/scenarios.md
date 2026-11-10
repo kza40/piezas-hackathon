@@ -1,6 +1,6 @@
 # Synthetic data scenarios
 
-- Moisture contrast: North Block (`field_1a`); Row 3 is 27.4% and Row 6 is 39.2%. These are fixture values, not calibrated irrigation thresholds.
+- Moisture contrast: North Block (`field_1a`); the final readings only are set to 27.4% (Row 3) and 39.2% (Row 6), so Row 3 drops about 7 points in its last hour; over the day the two probes agree within a few points. These are fixture values, not calibrated irrigation thresholds.
 - Typical demo field: West Slope (`field_3b`); probe pH values are within the published blueberry preference; EC is illustrative only.
 - pH above preference: Creekside (`field_1b`), Row 3 pH is 6.5.
 - Elevated EC example: East Rows (`field_2a`), Row 3 EC is 1.35 dS/m; no soil salinity classification is implied.
