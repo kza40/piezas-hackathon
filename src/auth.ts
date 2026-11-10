@@ -135,6 +135,9 @@ export async function signOut() {
   S.liveAdvice = {};
   S.liveAlerts = [];
   S.liveSensors = {};
+  S.sensorForm = null;
+  S.newSensorKey = null; // never left on screen for whoever signs in next
+  S.revokeAsk = null;
   S.liveMoistureSeries = {};
   S.liveHistory = {};
   S.hud = '';

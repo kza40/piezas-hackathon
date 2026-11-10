@@ -2,7 +2,7 @@ import { DEMO_ACCOUNTS } from '../seed/farmers';
 import { FB, MET, NXT, W, WS } from '../seed/farm';
 import { AL, DN, F, FH, HR, MI, MN, ownsSeedRef, REC, RT, SEN, fld, lastV } from '../seed/simulate';
 import { S } from '../state';
-import type { AlertFilter, Field, Level, WaterState } from '../types';
+import type { AlertFilter, Field, Level, LiveSensor, WaterState } from '../types';
 import { CROPS } from '../types';
 import { SERIES_COLORS, chart, soil } from '../ui/charts';
 import {
@@ -206,8 +206,74 @@ const history = (f: Field) => {
   const note = S.liveHistory[f.id]
     ? `Each line is one sensor.${S.liveAdvice[f.id]?.setup.trigger ? ' The dashed line is your trigger.' : ''} Gaps mean no sensor data.`
     : 'Green band is the ideal range for the crop. Blue bars are rain. Red dots are odd readings we ignored. Gaps mean no data.';
-  return `<div class=card><h3>${met.name}, last 7 days</h3><p class=mut>${note}</p>${chart(f, k)}</div><div class=card style='margin-top:14px'><h3>Sensors in ${esc(f.name)}</h3><table><tr><th>Sensor</th><th>Status</th><th>${station ? 'Field now' : met.name}</th></tr>${rows || '<tr><td colspan=3 class=mut>No sensors yet</td></tr>'}</table></div>`;
+  // Signed in, the sensors card manages them too; a field with none has it at the top of the page instead.
+  const sensors = S.farmerId
+    ? live?.length
+      ? sensorsCard(f)
+      : ''
+    : `<div class=card style='margin-top:14px'><h3>Sensors in ${esc(f.name)}</h3><table><tr><th>Sensor</th><th>Status</th><th>${station ? 'Field now' : met.name}</th></tr>${rows || '<tr><td colspan=3 class=mut>No sensors yet</td></tr>'}</table></div>`;
+  return `<div class=card><h3>${met.name}, last 7 days</h3><p class=mut>${note}</p>${chart(f, k)}</div>${sensors}`;
 };
+
+/** A sensor's state in words: its key, then its readings. */
+function sensorStatus(f: Field, x: LiveSensor) {
+  if (x.keyStatus === 'revoked') return `<span class='pill cr'>Key revoked · readings refused</span>`;
+  const flagged = healthPill(healthOf(S.liveAdvice[f.id], x.id));
+  if (flagged) return flagged;
+  const a = x.ageHours;
+  if (x.reported === false || a >= 999) return `<span class=pill>Active · waiting for its first reading</span>`;
+  if (a >= 24) return `<span class='pill cr'>▲ No readings for ${Math.round(a / 24)} days</span>`;
+  if (a > 6) return `<span class='pill wn'>! Last reading ${a} h ago</span>`;
+  return `<span class='pill ok'>✓ Online</span>`;
+}
+
+/**
+ * R-004: the field's sensors, with adding one (its device key is shown once, to copy into the device) and
+ * revoking one's key (asked twice: it can't be undone). A field whose sensors have never reported can be filled
+ * with simulated readings for a demo.
+ */
+function sensorsCard(f: Field) {
+  const live = S.liveSensors[f.id] ?? [];
+  const k = S.mk;
+  const met = metric(k);
+  const station = isStation(k);
+  const busy = S.sensorBusy ? ' disabled' : '';
+  const rows = live
+    .map((x, j) => {
+      const v = station ? (hasReading(f, k) ? f[k] : null) : k === 'm' ? x.m : k === 'st' ? x.st : k === 'ph' ? x.ph : null;
+      const asking = S.revokeAsk === x.id && x.keyStatus !== 'revoked';
+      const action =
+        x.keyStatus === 'revoked' || asking
+          ? ''
+          : `<button class='btn alt sm' data-act=srevoke data-id=${x.id} data-testid=revoke-sensor${busy}>Revoke key</button>`;
+      // The confirm step gets its own full-width row, so the table's columns keep their width.
+      const ask = asking
+        ? `<tr class=revrow><td colspan=4><span class=revask>Revoke the key for ${esc(x.name)}? The device's readings will be refused, and it can't be undone.</span> <button class='btn sm' data-act=srevokeyes data-id=${x.id} data-testid=confirm-revoke${busy}>Revoke</button> <button class='btn alt sm' data-act=srevokeno${busy}>Keep it</button></td></tr>`
+        : '';
+      return `<tr data-testid=sensor-row><td><i style='display:inline-block;width:12px;height:12px;background:${station ? '#232a33' : SERIES_COLORS[j % 4]};margin-right:6px'></i>${esc(x.name)}</td><td data-testid=sensor-status>${sensorStatus(f, x)}</td><td>${v ?? '—'}${v == null ? '' : met.unit}</td><td class=sact>${action}</td></tr>${ask}`;
+    })
+    .join('');
+  const form = S.sensorForm?.fieldId === f.id ? S.sensorForm : null;
+  const lock = form?.saving ? ' disabled' : '';
+  const add = form
+    ? `<div class=sform data-testid=add-sensor-form><label for=sensor-name-input>Sensor name</label><input id=sensor-name-input data-testid=sensor-name maxlength=60 placeholder='North probe' value="${esc(form.name)}"${lock} autofocus><button class='btn sm' data-act=ssave data-id=${f.id} data-testid=save-sensor aria-busy=${form.saving}${lock}>${form.saving ? 'Adding…' : 'Add sensor'}</button><button class='btn alt sm' data-act=scancel${lock}>Cancel</button></div>`
+    : `<button class='btn sm' data-act=sadd data-id=${f.id} data-testid=register-sensor>Add a sensor</button>`;
+  const fresh = S.newSensorKey?.fieldId === f.id ? S.newSensorKey : null;
+  const keyBox = fresh
+    ? `<div class=keybox data-testid=new-sensor-key role=status><b>Device key for ${esc(fresh.name)}</b><p>Copy it now and enter it in the device's settings. It is shown only this once; if it is lost, revoke it and add the sensor again.</p><div class=keyrow><code data-testid=device-key-once>${esc(fresh.key)}</code><button class='btn sm' data-act=scopy data-testid=copy-device-key>Copy key</button></div><details><summary>How the device sends readings</summary><p>It sends each reading to <code>${esc(location.origin)}/api/ingest</code> (POST, <code>Content-Type: application/json</code>) with the header <code>x-device-key</code> set to this key. A reading is <code>{"type":"soil_moisture","value":27.4,"unit":"%","time":"2026-11-07T17:00:00Z"}</code>, or up to 50 at once as <code>{"readings":[…]}</code>. Types: soil_moisture (%), soil_temperature (C), soil_ec (dS/m), soil_ph (pH), air_temperature (C), air_humidity (%).</p></details><button class='btn alt sm' data-act=skeydone data-testid=key-saved>I've saved the key</button></div>`
+    : '';
+  const quiet = live.length > 0 && live.every((x) => x.reported === false || x.ageHours >= 999);
+  const simulate = quiet
+    ? `<p class=simrow><button class='btn alt sm' data-act=ssim data-id=${f.id} data-testid=simulate-field${busy}>Fill with simulated readings</button> <span class=mut>For a demo: made-up readings for these sensors, until a real probe reports.</span></p>`
+    : '';
+  const intro = live.length
+    ? ''
+    : `<p class=mut>No sensors on this field yet. Add one for each probe in the field: each gets its own device key, which the probe uses to send its readings.</p>`;
+  const table = live.length
+    ? `<table><tr><th>Sensor</th><th>Status</th><th>${station ? 'Field now' : met.name}</th><th></th></tr>${rows}</table>`
+    : '';
+  return `<div class='card sensors' style='margin-top:14px' data-testid=sensors-card><div class=phead><h3>Sensors in ${esc(f.name)}</h3>${form ? '' : add}</div>${intro}${form ? add : ''}${keyBox}${table}${simulate}</div>`;
+}
 
 const waterLog = (f: Field) => {
   const L = S.log.filter((x) => x.f === f.id);
@@ -245,7 +311,9 @@ export function field(): string {
       ? `<div class='blk orange'><h2>Recommended action</h2><p><b>${r.t}</b></p><p>${r.w}</p><p>${r.c}</p></div>`
       : `<div class='blk lime'><h2>Recommended action</h2><p class=mut>${noAdviceText(f)}</p></div>`;
   const metricTabs = MET.map((m) => `<button aria-pressed=${m.key === S.mk} data-act=mk data-k=${m.key}>${m.name}</button>`).join('');
-  return `${demo()}<div class=phead><h1>Fields &amp; sensors</h1><button class='btn alt sm' data-act=export data-testid=export-csv>Download last 14 days (CSV)</button></div>${fieldTabs()}${feat(f)}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>Sensor history</h2><div class=tabs>${metricTabs}</div>${history(f)}${live ? eventsCard(f, live) : waterLog(f)}`;
+  // A signed-in field with no sensors starts with adding one: nothing below has readings without them.
+  const setUp = S.farmerId && !S.liveSensors[f.id]?.length ? sensorsCard(f) : '';
+  return `${demo()}<div class=phead><h1>Fields &amp; sensors</h1><button class='btn alt sm' data-act=export data-testid=export-csv>Download last 14 days (CSV)</button></div>${fieldTabs()}${feat(f)}${setUp}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>Sensor history</h2><div class=tabs>${metricTabs}</div>${history(f)}${live ? eventsCard(f, live) : waterLog(f)}`;
 }
 
 export function weather(): string {

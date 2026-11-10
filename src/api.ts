@@ -162,6 +162,16 @@ export const farmApi = {
     api<{ sensors: { id: string; name: string; keyStatus: string; latest: Record<string, { value: number; unit: string; time: string }>; createdAt: string }[] }>(
       `/api/fields/${fieldId}/sensors`,
     ),
+  // R-004: the device key comes back this once; only its hash is kept.
+  addSensor: (fieldId: string, name: string) =>
+    api<{ sensor: { id: string; name: string; keyStatus: string }; deviceKey: string }>(`/api/fields/${fieldId}/sensors`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
+  // R-004: the device's readings are refused from now on. There is no undo.
+  revokeSensor: (sensorId: string) => api<{ sensor: { id: string; keyStatus: string } }>(`/api/sensors/${sensorId}/revoke`, { method: 'POST' }),
+  // R-006: replaces the field's sensors' stored history with simulated readings.
+  simulateField: (fieldId: string) => api<{ sensors: unknown[] }>(`/api/fields/${fieldId}/simulate`, { method: 'POST' }),
   getReadings: (fieldId: string, days = 7) =>
     api<{ days: number; sensors: { sensorId: string; simulated: boolean; series: Record<string, { time: string; value: number }[]> }[] }>(
       `/api/fields/${fieldId}/readings?days=${days}`,

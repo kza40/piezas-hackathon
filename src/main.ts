@@ -453,6 +453,98 @@ async function act(node: ActionElement, target: Element) {
         return say(e instanceof ApiError ? e.message : 'Could not remove field');
       }
     }
+    // ---- R-004: a field's sensors ----
+    case 'sadd':
+      S.sensorForm = { fieldId: d.id ?? '', name: '', saving: false };
+      S.newSensorKey = null;
+      S.revokeAsk = null;
+      render();
+      return void document.getElementById('sensor-name-input')?.focus();
+    case 'scancel':
+      S.sensorForm = null;
+      return render();
+    case 'ssave': {
+      const form = S.sensorForm;
+      if (!form || form.saving) return;
+      const name = form.name.trim();
+      if (!name) {
+        document.getElementById('sensor-name-input')?.focus();
+        return say('Enter a name for the sensor, like North probe');
+      }
+      S.sensorForm = { ...form, name, saving: true };
+      render();
+      let added: { name: string; key: string };
+      try {
+        const { sensor, deviceKey } = await farmApi.addSensor(form.fieldId, name);
+        added = { name: sensor.name, key: deviceKey };
+      } catch (e) {
+        S.sensorForm = { ...S.sensorForm!, saving: false };
+        return say(e instanceof ApiError ? e.message : 'Could not add the sensor');
+      }
+      // The key first: it is shown only now, whatever happens to the reload below.
+      S.newSensorKey = { fieldId: form.fieldId, ...added };
+      S.sensorForm = null;
+      try {
+        await refreshLiveData();
+      } catch {
+        // the sensor is saved; the list catches up on the next load
+      }
+      return say(`Added ${added.name}. Copy its device key now.`);
+    }
+    case 'scopy': {
+      const key = S.newSensorKey?.key;
+      if (!key) return;
+      try {
+        await navigator.clipboard.writeText(key);
+        return say('Device key copied');
+      } catch {
+        // No clipboard (an http page that is not localhost, or permission refused): select it to copy by hand.
+        const code = document.querySelector('[data-testid=device-key-once]');
+        if (code) getSelection()?.selectAllChildren(code);
+        return say('Press Ctrl+C (Cmd+C on a Mac) to copy the selected key');
+      }
+    }
+    case 'skeydone':
+      S.newSensorKey = null;
+      return render();
+    case 'srevoke':
+      S.revokeAsk = d.id ?? null;
+      return render();
+    case 'srevokeno':
+      S.revokeAsk = null;
+      return render();
+    case 'srevokeyes': {
+      const id = d.id ?? '';
+      if (S.sensorBusy || !id) return;
+      const name = Object.values(S.liveSensors).flat().find((x) => x.id === id)?.name ?? 'the sensor';
+      S.sensorBusy = true;
+      render();
+      try {
+        await farmApi.revokeSensor(id);
+        S.revokeAsk = null;
+        await refreshLiveData();
+        return say(`Revoked the key for ${name}: its readings are refused from now on`);
+      } catch (e) {
+        return say(e instanceof ApiError ? e.message : 'Could not revoke the key');
+      } finally {
+        S.sensorBusy = false;
+      }
+    }
+    case 'ssim': {
+      const id = d.id ?? '';
+      if (S.sensorBusy || !id) return;
+      S.sensorBusy = true;
+      render();
+      try {
+        await farmApi.simulateField(id);
+        await refreshLiveData();
+        return say(`Filled ${fld(id).name} with simulated readings`);
+      } catch (e) {
+        return say(e instanceof ApiError ? e.message : 'Could not simulate readings');
+      } finally {
+        S.sensorBusy = false;
+      }
+    }
   }
 }
 
@@ -504,6 +596,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.key !== 'Enter') return;
   const target = e.target as Element;
+  if ((target as HTMLElement).id === 'sensor-name-input') return document.querySelector<HTMLButtonElement>('[data-testid=save-sensor]')?.click();
   if (target instanceof SVGElement && target.dataset.act === 'pk') void act(target as ActionElement, target);
 });
 
@@ -511,6 +604,7 @@ document.addEventListener('input', (e) => {
   const input = e.target as HTMLInputElement;
   const key = input.dataset?.bind;
   if (key === 'farm' || key === 'name' || key === 'phone') S[key] = input.value;
+  else if (input.id === 'sensor-name-input' && S.sensorForm) S.sensorForm.name = input.value;
 });
 
 document.addEventListener('change', (e) => {

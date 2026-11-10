@@ -120,6 +120,7 @@ main.mp{max-width:none;padding:0}
 .mscale{position:absolute;left:12px;bottom:96px;z-index:3;display:flex;gap:10px;align-items:center;font-size:.78rem;font-weight:800;color:#3a2a14;pointer-events:none}
 .mscale .north{background:#1b2229;color:#f6efd9;padding:4px 8px}
 .sbar{display:flex;flex-direction:column;gap:2px;background:rgba(255,254,248,.78);padding:2px 6px}.sbar i{display:block;width:90px;height:6px;border:2px solid #3a2a14;border-top:0}
+.sensors .phead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.sform{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}.sform input{flex:1 1 180px}.keybox{border:2px solid #1b2229;background:#fffbe8;padding:10px 12px;margin:10px 0}.keybox p{margin:6px 0}.keyrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.keybox code,.keybox details code{font-family:ui-monospace,Consolas,monospace;font-size:.82rem;word-break:break-all}.keyrow code{background:#fff;border:1px solid #c9c3b4;padding:4px 8px;user-select:all}.keybox details{margin:6px 0;font-size:.86rem}.sact{text-align:right;white-space:normal}.revask{font-size:.86rem;margin-right:6px}.revrow td{background:#fff4e0;text-align:right}.simrow{margin:10px 0 0}
 .mcredit{position:absolute;right:8px;bottom:58px;z-index:3;max-width:min(240px,calc(100% - 16px));text-align:right;background:rgba(255,254,248,.82);color:#1b2229;font-size:.66rem;padding:2px 6px;pointer-events:none}
 
 .m3{background:linear-gradient(#9ec4e0 0%,#c5d9b8 55%,#7a9a5e 100%);touch-action:none}

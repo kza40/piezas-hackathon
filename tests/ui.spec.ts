@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createFarmAndField, signUp } from './scenarios/helpers';
+import { createFarmAndField, openField, signUp } from './scenarios/helpers';
 import { toMapXY } from '../src/geo';
 
 // UI guarantees that are not SPEC scenarios: a real farm never sees the demo simulator's numbers or its
@@ -133,4 +133,56 @@ test('Adjust farm on the satellite map: dragging a real field saves its new plac
   const drawn = (await page.locator('#fmap .fpoly').first().getAttribute('points'))!.split(' ')[0].split(',').map(Number);
   expect(drawn[0]).toBeCloseTo(x1, 0);
   expect(drawn[1]).toBeCloseTo(y1, 0);
+// R-004 / R-005 from the field page: the key is shown once, the device sends with it, and revoking it (asked
+// twice, as there is no undo) makes the server refuse that device.
+test("a field's sensors: add one, its key works once copied, and revoking it refuses the device", async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await signUp(page);
+  await createFarmAndField(page, 'Sensor Farm', 'North Field');
+  await openField(page, 'North Field');
+  await expect(page.getByTestId('sensors-card')).toContainText('No sensors on this field yet');
+
+  await page.getByTestId('register-sensor').click();
+  await page.getByTestId('sensor-name').fill('North probe');
+  await page.getByTestId('sensor-name').press('Enter');
+  const key = (await page.getByTestId('device-key-once').textContent())!.trim();
+  expect(key).toMatch(/^fwk_[A-Za-z0-9_-]{43}$/);
+  await expect(page.getByTestId('sensor-status')).toContainText('Active');
+  await page.getByTestId('copy-device-key').click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(key);
+  await page.getByTestId('key-saved').click();
+  await expect(page.getByTestId('device-key-once')).toHaveCount(0); // shown once: gone for good
+
+  const send = (k: string) =>
+    page.request.post('/api/ingest', { headers: { 'x-device-key': k }, data: { type: 'soil_moisture', value: 27.4, unit: '%', time: new Date().toISOString() } });
+  expect((await send(key)).status()).toBe(202);
+  await page.reload();
+  await expect(page.getByTestId('topbar')).toBeVisible();
+  await openField(page, 'North Field');
+  await expect(page.getByTestId('sensor-status')).toContainText('Online');
+  await expect(page.getByTestId('sensor-row')).toContainText('27.4');
+
+  await page.getByTestId('revoke-sensor').click();
+  await page.getByRole('button', { name: 'Keep it' }).click(); // changed their mind: nothing happens
+  await expect(page.getByTestId('sensor-status')).toContainText('Online');
+  await page.getByTestId('revoke-sensor').click();
+  await page.getByTestId('confirm-revoke').click();
+  await expect(page.getByTestId('sensor-status')).toContainText('Key revoked');
+  await expect(page.getByTestId('revoke-sensor')).toHaveCount(0);
+  expect((await send(key)).status()).toBe(401);
+});
+
+test("a new field's sensors can be filled with simulated readings, offered only while none has reported", async ({ page }) => {
+  await signUp(page);
+  await createFarmAndField(page, 'Demo Farm', 'Demo Field');
+  await openField(page, 'Demo Field');
+  await expect(page.getByTestId('simulate-field')).toHaveCount(0); // nothing to fill without a sensor
+  await page.getByTestId('register-sensor').click();
+  await page.getByTestId('sensor-name').fill('Demo probe');
+  await page.getByTestId('save-sensor').click();
+  await expect(page.getByTestId('sensor-status')).toContainText('waiting for its first reading');
+  await page.getByTestId('simulate-field').click();
+  await expect(page.getByRole('status').filter({ hasText: 'Filled Demo Field with simulated readings' })).toBeVisible();
+  await expect(page.getByTestId('sensor-status')).not.toContainText('waiting');
+  await expect(page.getByTestId('simulate-field')).toHaveCount(0); // it would replace readings the field now has
 });

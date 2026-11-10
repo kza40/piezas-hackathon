@@ -171,6 +171,14 @@ export interface AppState {
   liveAlerts: LiveAlert[];
   /** Fields covered by the last finished live load: until a field is here, it shows Loading, never seed numbers. */
   liveFields: string[];
+  /** The Add a sensor form, open on one field. */
+  sensorForm: SensorForm | null;
+  /** A sensor's device key, shown once right after it is added (only its hash is kept on the server). */
+  newSensorKey: { fieldId: string; name: string; key: string } | null;
+  /** The sensor whose key the farmer asked to revoke, waiting for them to confirm. */
+  revokeAsk: string | null;
+  /** A sensor change (revoke, simulate) in flight: its buttons are locked. */
+  sensorBusy: boolean;
   liveSensors: Record<string, LiveSensor[]>;
   liveMoistureSeries: Record<string, number[]>;
   liveHistory: Record<string, LiveHistory>;
@@ -274,4 +282,15 @@ export interface LiveSensor {
   h: number | null;
   online: boolean;
   ageHours: number;
+  /** R-004: whether the sensor's device key still works. Absent means active. */
+  keyStatus?: 'active' | 'revoked';
+  /** Whether it has sent any reading yet. */
+  reported?: boolean;
+}
+
+/** R-004: adding a sensor to a field, kept as the farmer types so a redraw never wipes it. */
+export interface SensorForm {
+  fieldId: string;
+  name: string;
+  saving: boolean;
 }

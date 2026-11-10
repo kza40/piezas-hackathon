@@ -1,9 +1,8 @@
 import { expect, type Page } from '@playwright/test';
 
 // Shared UI steps for the scenario suite; each test still does its own Given/When/Then.
-// signUp, signIn, createFarm and createField use the test ids the UI has today (src/views/pages.ts).
-// openField and registerSensor use the ids the field page should get once it is built
-// (the S-003 to S-018 scenarios marked fixme depend on them).
+// signUp, signIn, createFarm, createField, openField and registerSensor use the test ids the UI has today
+// (src/views/pages.ts). Several scenarios marked fixme still use ids of field-page parts not built yet.
 let nextUser = 0;
 // Also the password scripts/seed.ts should give the test farmers that the fixme scenarios sign in as.
 export const PASSWORD = 'Scenario-pass-123';
@@ -55,8 +54,14 @@ export async function createFarmAndField(page: Page, farm = 'Scenario Farm', fie
   await createField(page, field);
 }
 
+// The Fields & sensors panel, on the named field (its tab reads "01. Name").
 export async function openField(page: Page, name = 'Blueberry Field') {
-  await page.getByTestId('field-card').filter({ hasText: name }).getByTestId('open-field').click();
+  await page.getByTestId('dock-field').click();
+  const panel = page.getByTestId('panel-field');
+  await expect(panel).toBeVisible();
+  const tab = panel.locator('[data-act=sel]', { hasText: name });
+  if (await tab.count()) await tab.first().click();
+  await expect(page.getByTestId('sensors-card')).toContainText(name);
 }
 
 export async function registerSensor(page: Page, name = 'Scenario Probe') {
