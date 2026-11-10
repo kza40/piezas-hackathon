@@ -5,6 +5,7 @@ import { onLiveDataLoaded, refreshFieldAdvice, refreshLiveData } from './live';
 import { refreshFields, restoreSession, signIn, signOut, signUp } from './auth';
 import { F, fld } from './seed/simulate';
 import { S, saveCards, saveLog, saveOffsets } from './state';
+import { warmSatelliteCache } from './satCache';
 import type { AlertFilter, CardId, Crop, FieldId, MapLayer, MetricKey, PanelId, Units } from './types';
 import { esc, liveLoading, openAlerts } from './ui/helpers';
 import { onRailKey, onRailPointerDown, railGrip, railStyle, resetRail } from './ui/rail';
@@ -346,6 +347,7 @@ async function act(node: ActionElement, target: Element) {
         S.farm = farm.name;
         S.farmLat = farm.latitude;
         S.farmLng = farm.longitude;
+        warmSatelliteCache();
         return say(`Created ${farm.name}`);
       } catch (e) {
         return say(e instanceof ApiError ? e.message : 'Could not create farm');

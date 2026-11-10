@@ -29,10 +29,12 @@ export interface Field {
   irrigated: boolean; // R-021: false (rain-fed) until the farmer says otherwise
   trigger: SavedTrigger | null; // R-009: the farmer's soil-moisture trigger for this field
   eventFeedback: Record<string, EventLabel>; // R-023: the farmer's labels for detected wetting events, by event start
+  boundary: FieldBoundary | null;
   createdAt: string;
 }
 
 export type EventLabel = 'irrigation' | 'rain' | 'none';
+export type FieldBoundary = [number, number][];
 export interface SavedTrigger {
   value: number; // soil moisture %, on the field's sensors' own scale
   source: 'suggested' | 'manual';
@@ -116,6 +118,7 @@ async function withCrops(records: EntityRecord[]): Promise<Field[]> {
     irrigated: r.data.irrigated === true,
     trigger: storedTrigger(r.data.trigger),
     eventFeedback: storedFeedback(r.data.eventFeedback),
+    boundary: storedBoundary(r.data.boundary),
     createdAt: r.createdAt,
   }));
 }
@@ -135,6 +138,21 @@ function storedFeedback(v: unknown): Record<string, EventLabel> {
   return Object.fromEntries(Object.entries(v).filter(([, l]) => LABELS.includes(l as EventLabel))) as Record<string, EventLabel>;
 }
 
+function storedBoundary(v: unknown): FieldBoundary | null {
+  if (!Array.isArray(v) || v.length < 3) return null;
+  const ring: FieldBoundary = [];
+  for (const pt of v) {
+    if (!Array.isArray(pt) || pt.length < 2) return null;
+    const lng = Number(pt[0]);
+    const lat = Number(pt[1]);
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+    if (lng < -180 || lng > 180 || lat < -90 || lat > 90) return null;
+    ring.push([lng, lat]);
+  }
+  return ring;
+}
+
+
 // Read-modify-writes of one field's settings run one at a time (Piezas has no optimistic locking, E13).
 const withFieldLock = <T>(fieldId: string, fn: () => Promise<T>) => withLock(`field:${fieldId}`, fn);
 
@@ -147,6 +165,14 @@ export function parseFieldSettings(body: unknown, now: Date) {
   }
   if (b.stage !== undefined) patch.stage = b.stage === null || b.stage === '' ? '' : text('Growth stage', b.stage, { max: 60 });
   if (b.soil !== undefined) patch.soil = b.soil === null || b.soil === '' ? '' : text('Soil type', b.soil, { max: 60 });
+  if (b.boundary !== undefined) {
+    if (b.boundary === null) patch.boundary = [];
+    else {
+      const ring = storedBoundary(b.boundary);
+      if (!ring) throw badRequest('boundary must be an array of [lng, lat] points (at least 3).');
+      patch.boundary = ring;
+    }
+  }
   if (b.trigger !== undefined) {
     if (b.trigger === null) patch.trigger = {}; // cleared: reads as unset
     else {

@@ -328,6 +328,7 @@ function fieldFromApi(row: ApiField, freeParcels: FieldId[] = []): Field {
         row.cropProfile?.phMin != null && row.cropProfile?.phMax != null
           ? [row.cropProfile.phMin, row.cropProfile.phMax]
           : base.phr,
+      boundary: row.boundary ?? null,
     };
   }
   const meta = CROP_DEFAULTS[crop];
@@ -359,7 +360,7 @@ function fieldFromApi(row: ApiField, freeParcels: FieldId[] = []): Field {
     const moisture = seed.mi[0] + (seed.mi[1] - seed.mi[0]) * 0.55;
     SEN.push(makeSensor(row.id, '1', moisture - 2), makeSensor(row.id, '2', moisture), makeSensor(row.id, '3', moisture + 2));
   }
-  return { ...fieldFromSeed(seed), layout: row.id };
+  return { ...fieldFromSeed(seed), layout: row.id, boundary: row.boundary ?? null };
 }
 
 /** Replace the visible farm with fields from the API (server ids). */

@@ -51,6 +51,8 @@ export interface Field extends FieldSeed {
   s: [online: number, total: number];
   hl: Health;
   stn: Record<StationKey, number[]>;
+  /** Geo ring [lng,lat][]; null/undefined = cartoon POLY map. */
+  boundary?: [number, number][] | null;
 }
 
 export interface Metric {

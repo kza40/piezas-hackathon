@@ -4,6 +4,7 @@ import { S, saveOffsets } from '../state';
 import type { Field, FieldId, Health, MapLayer } from '../types';
 import { decision, esc, hasReading, lastWatered, mix, moistureTint, pending, T, ws } from '../ui/helpers';
 import { canIn, fieldNumberLabel, plants, polyKey, polyPoints } from '../ui/icons';
+import { satMapBackdrop } from './mapGeo';
 
 const VIEW_W = 800;
 const VIEW_H = 520;
@@ -103,7 +104,9 @@ export function map(): string {
     : `<span class=hint3>Drag to pan · scroll to zoom</span>`;
   const controls = `<div class=mtop><div class=mtl>${dim}<div class=mpc role=group aria-label='Colour the map by'><span class=mpl aria-hidden=true>Colour by</span>${LAYERS.map(([key, n]) => `<button data-act=lyr data-k=${key} aria-pressed=${L === key}>${n}</button>`).join('')}</div><div class=mpc><button aria-pressed=${S.edit} data-act=ed>${S.edit ? 'Done' : 'Adjust farm'}</button>${S.edit ? `<button data-act=rl>Standard layout</button>` : ''}</div>${S.edit ? `<span class='mpc note'>Drag parcels to match your farm · Standard layout restores the default</span>` : ''}</div><div class=mtr><div class=mpc><button aria-label='Zoom in' data-act=zm data-f=1.5>+</button><button aria-label='Zoom out' data-act=zm data-f=${1 / 1.5}>−</button><button aria-label='Reset view' data-act=rs>⟲</button></div><div class=mpc><button aria-pressed=${S.bare} data-act=bare data-testid=toggle-cards>${S.bare ? 'Show side panel' : 'Hide side panel'}</button></div></div></div>`;
   const scale = `<div class=mscale aria-hidden=true><span class=north>▲ N</span><span class=sbar><i></i>200 m</span></div>`;
-  const svg = `<svg id=fmap viewBox='0 0 ${VIEW_W} ${VIEW_H}' style='width:100%;height:100%;display:block;touch-action:none;cursor:grab' role=group aria-label='Farm map'>${PATTERNS}<g id=vp transform='translate(${S.v.x} ${S.v.y}) scale(${S.v.k})'>${BASE}${F.map((x) => fieldShape(x, L)).join('')}${Object.keys(S.off).length ? '' : PIPES}</g></svg>`;
+  const sat = satMapBackdrop(VIEW_W, VIEW_H);
+  const land = sat ?? BASE;
+  const svg = `<svg id=fmap viewBox='0 0 ${VIEW_W} ${VIEW_H}' style='width:100%;height:100%;display:block;touch-action:none;cursor:grab' role=group aria-label='Farm map'>${PATTERNS}<g id=vp transform='translate(${S.v.x} ${S.v.y}) scale(${S.v.k})'>${land}${F.map((x) => fieldShape(x, L)).join('')}${Object.keys(S.off).length ? '' : PIPES}</g></svg>`;
   if (S.d3) return `<div class='mapbox m3' id=m3 data-testid=map-3d></div>${controls}${hint}`;
   return `<div class='mapbox${S.bare ? ' bare' : ''}'>${svg}</div>${controls}${scale}`;
 }

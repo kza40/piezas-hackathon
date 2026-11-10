@@ -46,7 +46,7 @@ const DEMO: { email: string; password: string; profile: { name: string; phone: s
     profile: { name: 'Sam Whitfield', phone: '(604) 555-0142' },
     // Fraser Valley, BC: where the crop guidance and the blueberry fields come from.
     // demoWeather: a scripted dry spell (lib/weather/demo.ts), so Water today shows whatever the real sky does.
-    farm: { name: 'Willow Creek Farm', latitude: 49.08, longitude: -122.25, demoWeather: true },
+    farm: { name: 'Willow Creek Farm', latitude: 49.02418, longitude: -122.12805, demoWeather: true },
     // Six fields: the map has six parcels. Fields of this farm not listed here are removed.
     fields: [
       // Need attention
@@ -72,6 +72,25 @@ const DEMO: { email: string; password: string; profile: { name: string; phone: s
     ],
   },
 ];
+
+
+/** Small rectangle around the farm pin so maps can draw real geo polygons. */
+function demoBoundary(lat: number, lng: number, index: number): [number, number][] {
+  const row = Math.floor(index / 3);
+  const col = index % 3;
+  const ox = (col - 1) * 0.004;
+  const oy = (row - 0.5) * 0.003;
+  const w = 0.0015;
+  const h = 0.0012;
+  const clat = lat + oy;
+  const clng = lng + ox;
+  return [
+    [clng - w, clat - h],
+    [clng + w, clat - h],
+    [clng + w, clat + h],
+    [clng - w, clat + h],
+  ];
+}
 
 const crops = new Map((await listCropProfiles()).map((c) => [c.key, c.id]));
 
@@ -115,6 +134,10 @@ for (const d of DEMO) {
     } else if (want?.irrigated && !f.irrigated) {
       // Irrigated demo fields show the watering advice flow (R-021). Only `irrigated` is set, so a trigger saved during a demo is kept.
       await updateFieldSettings(user.id, f.id, { irrigated: true });
+    }
+    if (want) {
+      const ix = d.fields.findIndex((x) => x.name === f.name);
+      await updateFieldSettings(user.id, f.id, { boundary: demoBoundary(d.farm.latitude, d.farm.longitude, ix) });
     }
     // Device keys are not kept: the demo sensors are fed by the simulator, not by devices.
     const probes = want?.probes ?? ['North probe', 'South probe'];
