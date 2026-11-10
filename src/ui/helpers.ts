@@ -64,6 +64,9 @@ export const ws = (f: Field): WaterState => {
     // to the seed's crop range below (a rain-fed field must never look like it needs water; R-021).
     return 'none';
   }
+  // Signed in, loaded, and no advice came back (a failed or timed-out call): say so. The guess below is
+  // the signed-out demo's, run on made-up numbers; it must never tell a real farm to water.
+  if (S.farmerId) return 'err';
   const lo = f.mi[0];
   if (f.m < lo) return f.m >= lo - 3 ? 'rain' : 'now';
   return f.stMax > 20 || f.m < lo + 4 ? 'soon' : 'none';

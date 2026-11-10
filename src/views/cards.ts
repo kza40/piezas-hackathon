@@ -10,7 +10,7 @@ const mine = <T extends { f: string }>(rows: T[]) => rows.filter((r) => ownsSeed
 const recFor = (f: Field) => (S.farmerId ? undefined : mine(REC).find((q) => q.f === f.id || q.f === f.layout));
 const fieldForSeed = (ref: string) => F.find((f) => f.id === ref || f.layout === ref) ?? fld(ref);
 
-const ORDER: Record<WaterState, number> = { now: 0, check: 1, soon: 2, rain: 3, none: 4, load: 5 };
+const ORDER: Record<WaterState, number> = { now: 0, check: 1, err: 2, soon: 3, rain: 4, none: 5, load: 6 };
 const LAYER_KEY: Record<Exclude<MapLayer, 'water'>, string> = {
   health: 'Green = healthy, yellow = needs attention, red = critical.',
   moisture: 'Darker blue = wetter soil.',

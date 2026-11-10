@@ -28,7 +28,7 @@ import {
 import { can, cropG } from '../ui/icons';
 import { eventsCard, healthOf, healthPill, setupCard, triggerOf, triggerShort, wateringBlock } from './watering';
 
-const ORDER: Record<WaterState, number> = { now: 0, check: 1, soon: 2, rain: 3, none: 4, load: 5 };
+const ORDER: Record<WaterState, number> = { now: 0, check: 1, err: 2, soon: 3, rain: 4, none: 5, load: 6 };
 const byUrgency = () => [...F].sort((a, b) => ORDER[ws(a)] - ORDER[ws(b)]);
 const sum = (fn: (f: Field) => number) => F.reduce((a, f) => a + fn(f), 0);
 
@@ -274,13 +274,15 @@ export function recs(): string {
     // Most urgent first; each field is one row that opens it.
     const cards = byUrgency().map((field) => {
       const a = S.liveAdvice[field.id];
-      if (!a) return '';
+      if (!a) {
+        return `<button class=rrow data-act=go data-p=field data-id=${field.id}>${can('err', 32)}<span class=rbody><b>${esc(field.name)} · ${esc(decision(field))}</b><span class=mut>${noAdviceText(field)}</span></span><span class=rgo aria-hidden=true>›</span></button>`;
+      }
       const notes = [a.waterBy?.text, a.soilWarning, a.frostWarning].filter(Boolean).map((x) => `<span class=rnote>${esc(x!)}</span>`).join('');
       return `<button class=rrow data-act=go data-p=field data-id=${field.id}>${can(ws(field), 32)}<span class=rbody><b>${esc(field.name)} · ${esc(decision(field))}</b><span class=mut>${esc(a.reason)}</span>${notes}</span><span class=rgo aria-hidden=true>›</span></button>`;
     }).join('');
     const lead = !F.length
       ? 'Add a field to get watering advice.'
-      : !cards
+      : !F.some((x) => S.liveAdvice[x.id])
         ? 'Couldn’t load advice right now. Reload the page to try again.'
         : esc(farmVerdict());
     return `${demo()}<h1>Recommended actions</h1><p class=lead data-testid=recs-lead>${lead}</p>${cards}`;
@@ -367,6 +369,7 @@ export function wateringModal(f: Field): string {
     rain: `Moisture is ${f.m}%, just under range, with rain likely soon.`,
     none: `Moisture is ${f.m}%, inside the ${lo}–${hi}% range.`,
     load: 'This field’s readings are still loading.',
+    err: 'Fieldwise couldn’t load advice for this field.',
   };
   const next: Record<WaterState, string> = {
     now: 'Water lightly today, then check again tonight.',
@@ -375,6 +378,7 @@ export function wateringModal(f: Field): string {
     rain: 'Hold off if rain is still expected.',
     none: 'Nothing to do right now.',
     load: NXT.load,
+    err: NXT.err,
   };
   const wx = S.liveWeather
     ? `${S.liveWeather.rainNext48hMm.toFixed(1)} mm rain next 48h · overnight ${T(S.liveWeather.overnightLowC)}`

@@ -6,7 +6,8 @@ export type Health = 'ok' | 'wn' | 'cr';
 export type Level = Health | 'in';
 /** check: the sensors can't be trusted right now (no recent reading, or all faulty), so no watering call. */
 /** 'load': signed in, and this field's live readings have not arrived yet. */
-export type WaterState = 'now' | 'check' | 'soon' | 'rain' | 'none' | 'load';
+/** 'err': signed in, the load finished, and the server's advice for this field didn't come back. */
+export type WaterState = 'now' | 'check' | 'soon' | 'rain' | 'none' | 'load' | 'err';
 export type SensorKey = 'm' | 'st' | 'ph' | 'ec';
 export type StationKey = 'at' | 'h' | 'l';
 export type MetricKey = SensorKey | StationKey;
