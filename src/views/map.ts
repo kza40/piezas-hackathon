@@ -52,7 +52,15 @@ const fieldShape = (x: Field, layer: MapLayer) => {
       return `<circle cx='${cx + s.dx}' cy='${cy + s.dy}' r='6' fill='${s.online ? '#1f3d27' : '#fff'}' stroke='${s.online ? '#fff' : '#b97a00'}' stroke-width='${s.online ? 2 : 3}'/>${label}`;
     })
     .join('');
-  const hud = `<g class=fhud pointer-events='none'><rect x='${cx - 92}' y='${cy + 64}' width='184' height='52' fill='#fffef8' stroke='#1b2229' stroke-width='1.5'/><text x='${cx}' y='${cy + 82}' text-anchor='middle' font-size='11' font-weight='800' fill='#1b2229'>Humidity ${x.h}% · ${T(x.st)}</text><text x='${cx}' y='${cy + 98}' text-anchor='middle' font-size='11' font-weight='700' fill='#434e3a'>Last watered: ${lastWatered(x.id)}</text><text x='${cx}' y='${cy + 112}' text-anchor='middle' font-size='10' fill='#434e3a'>Moisture ${Math.min(...posts.map((s) => s.m ?? x.m))}-${Math.max(...posts.map((s) => s.m ?? x.m))}% across the field</text></g>`;
+  // The spread of the probes' readings. A signed-in field with no probe reading yet (one just added) has none
+  // to show: Math.min of nothing is Infinity.
+  const ms = posts.map((s) => s.m).filter((v): v is number => v != null);
+  const across = ms.length
+    ? `Moisture ${Math.round(Math.min(...ms))}–${Math.round(Math.max(...ms))}% across the field`
+    : S.farmerId
+      ? 'No moisture reading yet'
+      : `Moisture ${x.m}% across the field`;
+  const hud = `<g class=fhud pointer-events='none'><rect x='${cx - 92}' y='${cy + 64}' width='184' height='52' fill='#fffef8' stroke='#1b2229' stroke-width='1.5'/><text x='${cx}' y='${cy + 82}' text-anchor='middle' font-size='11' font-weight='800' fill='#1b2229'>Humidity ${x.h}% · ${T(x.st)}</text><text x='${cx}' y='${cy + 98}' text-anchor='middle' font-size='11' font-weight='700' fill='#434e3a'>Last watered: ${lastWatered(x.id)}</text><text x='${cx}' y='${cy + 112}' text-anchor='middle' font-size='10' fill='#434e3a'>${across}</text></g>`;
   const pk = polyKey(x.id);
   return `<g class='ffield${S.hud === x.id ? ' on' : ''}' data-act=pk data-id=${x.id} transform='translate(${(S.off[x.id] ?? [0, 0]).join(' ')})' tabindex=0 role=button aria-label='${esc(x.name)}, ${esc(decision(x))}' style='cursor:pointer'><polygon class=fpoly points='${POLY[pk]}' fill='${fillFor(x, layer)}' stroke='${sel ? '#1b2229' : '#fff'}' stroke-width='${sel ? 7 : 3}' stroke-linejoin='round'/><polygon points='${POLY[pk]}' fill='url(#st${(pk.charCodeAt(0) || 0) % 3})' pointer-events='none'/>${zones}<polygon points='${POLY[pk]}' fill=none stroke='#7a5a3a' stroke-width=1.6 stroke-dasharray='2 6' stroke-linecap=round pointer-events=none />${fieldNumberLabel(x.id)}${plants(x.id, x.crop)}${sensors}<g data-w=1><circle cx='${cx}' cy='${cy - 8}' r='24' fill='#fff' stroke='#1b2229' stroke-width='4'/><g transform='translate(${cx - 17} ${cy - 25}) scale(1.21)'>${canIn(ws(x))}</g></g><rect x='${cx - 64}' y='${cy + 18}' width='128' height='42' fill='#1b2229'/><text x='${cx}' y='${cy + 36}' text-anchor='middle' font-size='14' font-weight='800' fill='#f6efd9'>${esc(x.name)}</text><text x='${cx}' y='${cy + 53}' text-anchor='middle' font-size='13' font-weight='800' fill='#f0d6a0'>${valueFor(x, layer)}</text>${hud}</g>`;
 };
