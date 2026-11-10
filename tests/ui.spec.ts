@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createFarmAndField, signUp } from './scenarios/helpers';
+import { toMapXY } from '../src/geo';
 
 // UI guarantees that are not SPEC scenarios: a real farm never sees the demo simulator's numbers or its
 // watering guess, and the side rail can be resized without getting stuck.
@@ -87,4 +88,49 @@ test('the rail resizes, and a re-render mid-drag does not leave the map unclicka
   await page.getByTestId('rail-grip').focus();
   await page.keyboard.press('Home');
   await expect.poll(async () => Math.round((await rail.boundingBox())!.width)).toBe(360);
+});
+
+test('Adjust farm on the satellite map: dragging a real field saves its new place', async ({ page }) => {
+  await page.route(/server\.arcgisonline\.com/, (r) => r.abort()); // the imagery is not needed for this
+  await signUp(page);
+  await createFarmAndField(page, 'Drag Farm', 'Home Field');
+  const pin: [number, number] = [-122.3, 49.05]; // createFarm's location
+  const ring: [number, number][] = [[-122.301, 49.0495], [-122.299, 49.0495], [-122.299, 49.0505], [-122.301, 49.0505]];
+  const farm = (await (await page.request.get('/api/farms')).json()).farms[0];
+  const field = (await (await page.request.get(`/api/farms/${farm.id}/fields`)).json()).fields[0];
+  expect((await page.request.patch(`/api/fields/${field.id}`, { data: { boundary: ring } })).ok()).toBe(true);
+  await page.reload();
+  await expect(page.getByTestId('topbar')).toBeVisible();
+  await page.getByTestId('view-2d').click();
+  await page.getByRole('button', { name: 'Adjust farm' }).click();
+  await expect(page.getByTestId('adjust-note')).toContainText('line it up with the satellite image');
+  await expect(page.getByRole('button', { name: 'Standard layout' })).toHaveCount(0); // nothing sketched to restore
+
+  // Drag the field 60 screen pixels right and 30 up.
+  const poly = page.locator('#fmap .fpoly').first();
+  const box = (await poly.boundingBox())!;
+  const unitsPerPx = await page.locator('#fmap').evaluate((svg) => {
+    const r = svg.getBoundingClientRect();
+    return Math.max(800 / r.width, 520 / r.height);
+  });
+  const [x, y] = [box.x + box.width * 0.25, box.y + box.height * 0.75]; // a spot clear of the labels
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 30, y - 15, { steps: 4 });
+  await page.mouse.move(x + 60, y - 30, { steps: 4 });
+  await page.mouse.up();
+  await expect(page.getByRole('status')).toContainText('Moved Home Field');
+
+  // Saved on the server: the field moved about 60 px east and 30 px north on the ground.
+  const saved = (await (await page.request.get(`/api/fields/${field.id}`)).json()).field.boundary as [number, number][];
+  const [x0, y0] = toMapXY(ring[0], pin);
+  const [x1, y1] = toMapXY(saved[0], pin);
+  expect(x1 - x0).toBeCloseTo(60 * unitsPerPx, -0.5);
+  expect(y1 - y0).toBeCloseTo(-30 * unitsPerPx, -0.5);
+  // And still there after a reload.
+  await page.reload();
+  await expect(page.getByTestId('topbar')).toBeVisible();
+  const drawn = (await page.locator('#fmap .fpoly').first().getAttribute('points'))!.split(' ')[0].split(',').map(Number);
+  expect(drawn[0]).toBeCloseTo(x1, 0);
+  expect(drawn[1]).toBeCloseTo(y1, 0);
 });

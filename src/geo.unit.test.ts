@@ -2,11 +2,11 @@
 // scale, in both map views. These check the arithmetic each one relies on.
 import { afterEach, describe, mock, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { esriImageryUrl, mercatorBBox, M_PER_UNIT, PIN_XY, toMapXY } from './geo';
+import { esriImageryUrl, mercatorBBox, M_PER_UNIT, PIN_XY, shiftRing, toMapXY } from './geo';
 import { farmImageryUrl, forgetImagery, imageryClock, imageryIfReady, loadImagery, RETRY_FIRST_MS, SAT_H, SAT_W } from './satCache';
 import { S } from './state';
 import { EMPTY_FIELD, F } from './seed/simulate';
-import { drawnFromBoundary, parcelOffset, polyPoints, sketchPipesFit } from './ui/icons';
+import { drawnFromBoundary, parcelOffset, polyPoints, realFieldRoom, sketchPipesFit } from './ui/icons';
 import { scaleBarFor } from './views/map';
 
 const PIN: [number, number] = [-122.128, 49.024];
@@ -21,6 +21,20 @@ describe('ground to map units', () => {
     close(north[1], PIN_XY[1] - 100 / M_PER_UNIT, 1e-6, '100 m north');
     const east = toMapXY([PIN[0] + 100 / (M_PER_DEG_LAT * Math.cos((PIN[1] * Math.PI) / 180)), PIN[1]], PIN);
     close(east[0], PIN_XY[0] + 100 / M_PER_UNIT, 1e-6, '100 m east');
+  });
+});
+
+describe('moving a field on the ground (Adjust farm)', () => {
+  test('a ring moved by (dx, dy) map units lands (dx, dy) further on the map: east is +x, north is -y', () => {
+    const ring: [number, number][] = [PIN, [PIN[0] + 0.002, PIN[1]], [PIN[0] + 0.002, PIN[1] + 0.001]];
+    const moved = shiftRing(ring, [40, -20], PIN[1]); // 100 m east, 50 m north
+    moved.forEach((p, i) => {
+      const [x0, y0] = toMapXY(ring[i], PIN);
+      const [x1, y1] = toMapXY(p, PIN);
+      close(x1 - x0, 40, 0.05, 'dx');
+      close(y1 - y0, -20, 0.05, 'dy');
+    });
+    assert.ok(moved[0][1] > PIN[1], 'moved north: a larger latitude');
   });
 });
 
@@ -201,6 +215,22 @@ describe('field outlines', () => {
     F.splice(0, F.length, { ...EMPTY_FIELD, id: 'moved', layout: 'A', boundary: far });
     assert.equal(drawnFromBoundary('moved'), false);
     assert.equal(polyPoints('moved')[0].join(','), '38,42');
+  });
+
+  test('a real field can be dragged as far as keeps it on the imagery, and no further', () => {
+    S.farmLat = PIN[1];
+    S.farmLng = PIN[0];
+    F.splice(0, F.length, { ...EMPTY_FIELD, id: 'real', boundary: ring });
+    const [[minDx, minDy], [maxDx, maxDy]] = realFieldRoom('real');
+    const xs = polyPoints('real').map((p) => p[0]);
+    const ys = polyPoints('real').map((p) => p[1]);
+    close(Math.max(...xs) + maxDx, PIN_XY[0] + SAT_W / 2, 1e-9, 'right edge');
+    close(Math.min(...xs) + minDx, PIN_XY[0] - SAT_W / 2, 1e-9, 'left edge');
+    close(Math.max(...ys) + maxDy, PIN_XY[1] + SAT_H / 2, 1e-9, 'bottom edge');
+    close(Math.min(...ys) + minDy, PIN_XY[1] - SAT_H / 2, 1e-9, 'top edge');
+    // Dragged to the very edge, it is still drawn at its real place.
+    F[0] = { ...F[0], boundary: shiftRing(ring, [maxDx, maxDy], PIN[1]) };
+    assert.equal(drawnFromBoundary('real'), true);
   });
 
   test('without a farm location the boundary cannot be placed, so the sketch parcel is drawn', () => {

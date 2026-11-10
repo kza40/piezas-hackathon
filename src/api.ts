@@ -139,7 +139,12 @@ export const farmApi = {
   // R-009/R-021: the field's watering setup. trigger: null clears it.
   updateField: (
     fieldId: string,
-    body: { irrigated?: boolean; soil?: string; trigger?: { value: number; source?: 'suggested' | 'manual'; basis?: string } | null },
+    body: {
+      irrigated?: boolean;
+      soil?: string;
+      trigger?: { value: number; source?: 'suggested' | 'manual'; basis?: string } | null;
+      boundary?: [number, number][] | null; // R-027: [longitude, latitude] points
+    },
   ) => api<{ field: ApiField }>(`/api/fields/${fieldId}`, { method: 'PATCH', body: JSON.stringify(body) }),
   // R-023: the farmer's label for a detected wetting event; null removes it.
   eventFeedback: (fieldId: string, start: string, label: EventLabel | null) =>
