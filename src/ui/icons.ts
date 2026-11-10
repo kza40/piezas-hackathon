@@ -1,5 +1,7 @@
 import { CC, POLY, WS } from '../seed/farm';
-import { F } from '../seed/simulate';
+import { F, sensorsOf } from '../seed/simulate';
+import { hasBoundary, toMapXY } from '../geo';
+import { S } from '../state';
 import type { Crop, FieldId, WaterState } from '../types';
 import { fieldNo } from './helpers';
 
@@ -10,8 +12,38 @@ export const polyKey = (id: FieldId): FieldId => {
   return POLY[key] ? key : id;
 };
 
+/** A field's saved boundary in map units, placed around the farm pin, or null (no boundary, or no farm location). */
+const realOutline = (id: FieldId): [number, number][] | null => {
+  const ring = F.find((x) => x.id === id)?.boundary;
+  if (!hasBoundary(ring) || S.farmLat == null || S.farmLng == null) return null;
+  const pin: [number, number] = [S.farmLng, S.farmLat];
+  return ring.map((p) => toMapXY(p, pin));
+};
+
+/** Whether a field is drawn at its real place (from its boundary) rather than as a sketch parcel. */
+export const drawnFromBoundary = (id: FieldId) => realOutline(id) != null;
+
+/** A field's outline in map units, in both views: its real boundary when it has one, else its sketch parcel. */
 export const polyPoints = (id: FieldId): [number, number][] =>
-  (POLY[polyKey(id)] || '0,0 1,0 1,1').split(' ').map((s) => s.split(',').map(Number) as [number, number]);
+  realOutline(id) ?? (POLY[polyKey(id)] || '0,0 1,0 1,1').split(' ').map((s) => s.split(',').map(Number) as [number, number]);
+
+/**
+ * A field's sensors as placed on the map. Their spots are laid out for a sketch parcel (about 270×170 units), so on a
+ * smaller field (a real boundary) they are pulled in towards its middle to stay inside it.
+ */
+export const sensorsOn = (id: FieldId) => {
+  const ss = sensorsOf(id);
+  const p = polyPoints(id);
+  const span = (k: 0 | 1) => Math.max(...p.map((q) => q[k])) - Math.min(...p.map((q) => q[k]));
+  const fit = Math.min(1, (span(0) * 0.32) / 70, (span(1) * 0.32) / 60);
+  return fit === 1 ? ss : ss.map((s) => ({ ...s, dx: s.dx * fit, dy: s.dy * fit }));
+};
+
+/** How far the farmer dragged a sketch parcel. A field drawn at its real place is never moved. */
+export const parcelOffset = (id: FieldId): [number, number] => (drawnFromBoundary(id) ? [0, 0] : (S.off[id] ?? [0, 0]));
+
+/** The sketched irrigation pipes fit the standard sketch layout only. */
+export const sketchPipesFit = () => Object.keys(S.off).length === 0 && !F.some((f) => drawnFromBoundary(f.id));
 
 const CAN_GLYPH: Record<WaterState, string> = {
   now: `<path d='M22 17.5c1.4 1.8 2.2 2.8 2.2 3.8a2.2 2.2 0 0 1-4.4 0c0-1 .8-2 2.2-3.8z' fill='#fff'/>`,

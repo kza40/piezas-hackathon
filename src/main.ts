@@ -5,13 +5,12 @@ import { onLiveDataLoaded, refreshFieldAdvice, refreshLiveData } from './live';
 import { refreshFields, restoreSession, signIn, signOut, signUp } from './auth';
 import { F, fld } from './seed/simulate';
 import { S, saveCards, saveLog, saveOffsets } from './state';
-import { warmSatelliteCache } from './satCache';
 import type { AlertFilter, CardId, Crop, FieldId, MapLayer, MetricKey, PanelId, Units } from './types';
 import { esc, liveLoading, openAlerts } from './ui/helpers';
 import { onRailKey, onRailPointerDown, railGrip, railStyle, resetRail } from './ui/rail';
 import { IC } from './ui/icons';
 import { alertsCard, fieldCard, legendCard, profileCard, todayCard, topBar, weatherCard } from './views/cards';
-import { map, onMapPointerDown, onMapWheel, resetView, zoom } from './views/map';
+import { map, onMapPointerDown, onMapWheel, resetView, updateScaleBar, zoom } from './views/map';
 import { dispose3D, mount3D, reset3D, zoom3D } from './views/map3d';
 import * as pages from './views/pages';
 
@@ -110,7 +109,9 @@ function render() {
   });
   const host = document.getElementById('m3');
   if (host) mount3D(host, pickField);
+  else updateScaleBar();
 }
+addEventListener('resize', updateScaleBar);
 
 function pickField(id: FieldId) {
   if (!id) {
@@ -347,7 +348,6 @@ async function act(node: ActionElement, target: Element) {
         S.farm = farm.name;
         S.farmLat = farm.latitude;
         S.farmLng = farm.longitude;
-        warmSatelliteCache();
         return say(`Created ${farm.name}`);
       } catch (e) {
         return say(e instanceof ApiError ? e.message : 'Could not create farm');

@@ -1,18 +1,33 @@
-import { satUrl2d } from '../satCache';
-import { S } from '../state';
+import { IMAGERY_CREDIT, PIN_XY } from '../geo';
+import { farmImageryUrl, imageryIfReady, loadImagery, SAT_H, SAT_W } from '../satCache';
+import { esc } from '../ui/helpers';
 
-export function satMapBackdrop(viewW: number, viewH: number): string | null {
-  if (S.farmLat == null || S.farmLng == null) return null;
-  const img = satUrl2d();
-  if (!img) return null;
-  const scale = 3;
-  const w = viewW * scale;
-  const h = viewH * scale;
-  const x = (viewW - w) / 2;
-  const y = (viewH - h) / 2;
-  return (
-    `<image href="${img}" xlink:href="${img}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="none" />` +
-    `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#1b2229" fill-opacity="0.08"/>` +
-    `<text x="12" y="${viewH - 10}" font-size="10" fill="#fff" fill-opacity="0.9">Imagery (c) Esri</text>`
-  );
+/**
+ * The satellite image for the 2D map, centred on the farm pin, or '' without a farm location. It is drawn over
+ * the sketched landscape, which shows until the image has arrived, and for good if it never does. Drawing the
+ * map starts the download; when it lands, the image is put into the map as drawn, without a redraw.
+ */
+export function satMapBackdrop(): string {
+  const url = farmImageryUrl();
+  if (!url) return '';
+  const local = imageryIfReady(url);
+  if (!local) {
+    loadImagery(url).then(
+      (src) => {
+        const img = document.getElementById('sat');
+        if (img?.dataset.for !== url) return; // the map now shows another farm, or none
+        img.setAttribute('href', src);
+        img.removeAttribute('visibility');
+      },
+      () => console.warn('Satellite imagery could not be loaded; showing the drawn map'),
+    );
+  }
+  const x = PIN_XY[0] - SAT_W / 2;
+  const y = PIN_XY[1] - SAT_H / 2;
+  return `<image id=sat data-for="${esc(url)}" href="${local ?? ''}"${local ? '' : ' visibility="hidden"'} x="${x}" y="${y}" width="${SAT_W}" height="${SAT_H}" preserveAspectRatio="none" data-testid="satellite-image"/>`;
+}
+
+/** The imagery credit, fixed in a corner of the map in both views. */
+export function satCredit(): string {
+  return farmImageryUrl() ? `<div class=mcredit data-testid=imagery-credit>Imagery: ${esc(IMAGERY_CREDIT)}</div>` : '';
 }

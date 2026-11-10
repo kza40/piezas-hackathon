@@ -73,23 +73,21 @@ const DEMO: { email: string; password: string; profile: { name: string; phone: s
   },
 ];
 
-
-/** Small rectangle around the farm pin so maps can draw real geo polygons. */
-function demoBoundary(lat: number, lng: number, index: number): [number, number][] {
-  const row = Math.floor(index / 3);
-  const col = index % 3;
-  const ox = (col - 1) * 0.004;
-  const oy = (row - 0.5) * 0.003;
-  const w = 0.0015;
-  const h = 0.0012;
-  const clat = lat + oy;
-  const clng = lng + ox;
-  return [
-    [clng - w, clat - h],
-    [clng + w, clat - h],
-    [clng + w, clat + h],
-    [clng - w, clat + h],
-  ];
+// A demo boundary (R-027): fields in a 3×2 grid of 620 m × 500 m cells around the farm pin, each a rectangle
+// of its acres (capped to its cell, less a 40 m lane), so the map draws them at a real place and size.
+const CELL_M: [number, number] = [620, 500];
+const LANE_M = 40;
+const M_PER_ACRE = 4046.86;
+const M_PER_DEG_LAT = 111_320;
+function demoBoundary(lat: number, lng: number, index: number, acres: number): [number, number][] {
+  const mPerDegLng = M_PER_DEG_LAT * Math.cos((lat * Math.PI) / 180);
+  const east = ((index % 3) - 1) * CELL_M[0];
+  const north = (0.5 - Math.floor(index / 3)) * CELL_M[1];
+  const aspect = CELL_M[0] / CELL_M[1];
+  const w = Math.min(Math.sqrt(acres * M_PER_ACRE * aspect), CELL_M[0] - LANE_M);
+  const h = Math.min(w / aspect, CELL_M[1] - LANE_M);
+  const at = (e: number, n: number): [number, number] => [+(lng + e / mPerDegLng).toFixed(6), +(lat + n / M_PER_DEG_LAT).toFixed(6)];
+  return [at(east - w / 2, north - h / 2), at(east + w / 2, north - h / 2), at(east + w / 2, north + h / 2), at(east - w / 2, north + h / 2)];
 }
 
 const crops = new Map((await listCropProfiles()).map((c) => [c.key, c.id]));
@@ -136,8 +134,8 @@ for (const d of DEMO) {
       await updateFieldSettings(user.id, f.id, { irrigated: true });
     }
     if (want) {
-      const ix = d.fields.findIndex((x) => x.name === f.name);
-      await updateFieldSettings(user.id, f.id, { boundary: demoBoundary(d.farm.latitude, d.farm.longitude, ix) });
+      const ix = d.fields.indexOf(want);
+      await updateFieldSettings(user.id, f.id, { boundary: demoBoundary(d.farm.latitude, d.farm.longitude, ix, want.acres) });
     }
     // Device keys are not kept: the demo sensors are fed by the simulator, not by devices.
     const probes = want?.probes ?? ['North probe', 'South probe'];

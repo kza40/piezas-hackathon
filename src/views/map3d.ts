@@ -4,14 +4,14 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RIDGES, TREES } from '../seed/farm';
-import { F, sensorsOf } from '../seed/simulate';
+import { F } from '../seed/simulate';
 import { S } from '../state';
 import type { Field, FieldId, MapLayer, WaterState } from '../types';
 import { esc, hasReading, lastWatered, moistureTint, mText, pending, T, ws } from '../ui/helpers';
-import { can, polyPoints } from '../ui/icons';
+import { can, drawnFromBoundary, parcelOffset, polyPoints, sensorsOn, sketchPipesFit } from '../ui/icons';
 import { plantField } from './crops3d';
 import { center, fillFor, layerKnown, valueFor } from './map';
-import { geoReady, addSatelliteGround } from './map3dSat';
+import { addSatelliteGround } from './map3dSat';
 
 const MID_X = 400;
 const MID_Y = 260;
@@ -74,7 +74,8 @@ interface Ctx {
 }
 
 let ctx: Ctx | null = null;
-const layoutKey = () => `${S.farmerId ?? ''}:${S.farmLat}:${S.farmLng}:${F.map((f) => `${f.id}:${f.boundary?.[0]?.join(',') ?? ''}`).join('|')}`;
+const geoReady = () => S.farmLat != null && S.farmLng != null;
+const layoutKey = () => `${S.farmerId ?? ''}:${S.farmLat}:${S.farmLng}:${F.map((f) => (drawnFromBoundary(f.id) ? `${f.id}@${f.boundary!.flat().join(',')}` : f.id)).join('|')}`;
 
 const prng = (seed: number) => () => {
   seed = (seed * 16807) % 2147483647;
@@ -110,115 +111,112 @@ function waterPath(pts: [number, number][], radius: number, color: string) {
 }
 
 function scenery(scene: THREE.Scene) {
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.MeshStandardMaterial({ color: '#6d9658', roughness: 1 }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // Soft meadow patches so open land reads as pasture, not bare dirt.
+  for (const [x, z, sx, sz, tone] of [
+    [wx(40), wz(40), 180, 90, '#628850'],
+    [wx(400), wz(20), 420, 70, '#73985c'],
+    [wx(20), wz(300), 70, 280, '#5f874c'],
+    [wx(780), wz(280), 90, 260, '#678e54'],
+    [wx(460), wz(360), 90, 220, '#4f7340'],
+    [wx(680), wz(450), 160, 120, '#5a8048'],
+  ] as const) {
+    const patch = new THREE.Mesh(new THREE.PlaneGeometry(sx, sz), new THREE.MeshStandardMaterial({ color: tone, roughness: 1 }));
+    patch.rotation.x = -Math.PI / 2;
+    patch.position.set(x, 0.15, z);
+    patch.receiveShadow = true;
+    scene.add(patch);
+  }
+
+  // A farm with a location gets its real ground: the satellite image, over the drawn ground above (which shows
+  // until the image loads, or if it never does). The sketched mountains, creeks, pond, barn and trees would sit on
+  // someone's real land there, so they are drawn only on a farm without a location.
   if (geoReady()) {
-    addSatelliteGround(scene);
-  } else {
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.MeshStandardMaterial({ color: '#6d9658', roughness: 1 }));
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    scene.add(ground);
+    addSatelliteGround(scene, () => ctx?.scene === scene);
+    return;
+  }
 
-    // Soft meadow patches so open land reads as pasture, not bare dirt.
-    for (const [x, z, sx, sz, tone] of [
-      [wx(40), wz(40), 180, 90, '#628850'],
-      [wx(400), wz(20), 420, 70, '#73985c'],
-      [wx(20), wz(300), 70, 280, '#5f874c'],
-      [wx(780), wz(280), 90, 260, '#678e54'],
-      [wx(460), wz(360), 90, 220, '#4f7340'],
-      [wx(680), wz(450), 160, 120, '#5a8048'],
-    ] as const) {
-      const patch = new THREE.Mesh(new THREE.PlaneGeometry(sx, sz), new THREE.MeshStandardMaterial({ color: tone, roughness: 1 }));
-      patch.rotation.x = -Math.PI / 2;
-      patch.position.set(x, 0.15, z);
-      patch.receiveShadow = true;
-      scene.add(patch);
+  // Distant mountain range north of the farm.
+  const rock = new THREE.MeshStandardMaterial({ color: '#5a6d78', roughness: 0.95 });
+  const snow = new THREE.MeshStandardMaterial({ color: '#eef3f6', roughness: 0.7 });
+  RIDGES.forEach(({ x, h, w }, i) => {
+    const peak = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.ConeGeometry(w * 0.42, h * 1.8, 7), rock);
+    body.position.y = h * 0.9;
+    body.castShadow = true;
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(w * 0.16, h * 0.45, 6), snow);
+    cap.position.y = h * 1.55;
+    peak.add(body, cap);
+    if (i % 2 === 0) {
+      const shoulder = new THREE.Mesh(new THREE.ConeGeometry(w * 0.28, h * 1.1, 6), rock);
+      shoulder.position.set(w * 0.28, h * 0.55, w * 0.08);
+      peak.add(shoulder);
     }
-  }
+    peak.position.set(wx(x), 0, wz(-90 - (i % 3) * 40));
+    scene.add(peak);
+  });
+  // Far hinterland ridges so the horizon isn't flat.
+  [[-900, 220, 380], [200, 280, 420], [1100, 200, 360], [-400, 160, 300], [700, 190, 340]].forEach(([x, h, r], i) => {
+    const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, 6), new THREE.MeshStandardMaterial({ color: i % 2 ? '#4c5f6c' : '#677b86', roughness: 1 }));
+    m.position.set(x, h / 2 - 10, -1100 - (i % 3) * 120);
+    scene.add(m);
+  });
 
-  if (!geoReady()) {
-    // Distant mountain range north of the farm (cartoon ground only).
-    const rock = new THREE.MeshStandardMaterial({ color: '#5a6d78', roughness: 0.95 });
-    const snow = new THREE.MeshStandardMaterial({ color: '#eef3f6', roughness: 0.7 });
-    RIDGES.forEach(({ x, h, w }, i) => {
-      const peak = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.ConeGeometry(w * 0.42, h * 1.8, 7), rock);
-      body.position.y = h * 0.9;
-      body.castShadow = true;
-      const cap = new THREE.Mesh(new THREE.ConeGeometry(w * 0.16, h * 0.45, 6), snow);
-      cap.position.y = h * 1.55;
-      peak.add(body, cap);
-      if (i % 2 === 0) {
-        const shoulder = new THREE.Mesh(new THREE.ConeGeometry(w * 0.28, h * 1.1, 6), rock);
-        shoulder.position.set(w * 0.28, h * 0.55, w * 0.08);
-        peak.add(shoulder);
-      }
-      peak.position.set(wx(x), 0, wz(-90 - (i % 3) * 40));
-      scene.add(peak);
-    });
-    [[-900, 220, 380], [200, 280, 420], [1100, 200, 360], [-400, 160, 300], [700, 190, 340]].forEach(([x, h, r], i) => {
-      const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, 6), new THREE.MeshStandardMaterial({ color: i % 2 ? '#4c5f6c' : '#677b86', roughness: 1 }));
-      m.position.set(x, h / 2 - 10, -1100 - (i % 3) * 120);
-      scene.add(m);
-    });
-  }
+  scene.add(waterPath([[470, 195], [492, 275], [478, 365], [468, 440], [458, 545]], 9, '#4a8eb8'));
+  scene.add(waterPath([[125, 508], [185, 472], [245, 458], [315, 450], [435, 432], [472, 402]], 6, '#3d7aaa'));
 
-  if (!geoReady()) {
-    scene.add(waterPath([[470, 195], [492, 275], [478, 365], [468, 440], [458, 545]], 9, '#4a8eb8'));
-    scene.add(waterPath([[125, 508], [185, 472], [245, 458], [315, 450], [435, 432], [472, 402]], 6, '#3d7aaa'));
+  const pond = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 48), new THREE.MeshStandardMaterial({ color: '#3d7aaa', roughness: 0.2, metalness: 0.15 }));
+  pond.scale.set(62, 1.2, 34);
+  pond.position.set(wx(620), 0.2, wz(460));
+  scene.add(pond);
+  const bank = new THREE.Mesh(new THREE.TorusGeometry(1, 0.08, 8, 48), new THREE.MeshStandardMaterial({ color: '#2f5a3a', roughness: 1 }));
+  bank.scale.set(62, 1, 34);
+  bank.rotation.x = Math.PI / 2;
+  bank.position.set(wx(620), 0.8, wz(460));
+  scene.add(bank);
 
-    const pond = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 48), new THREE.MeshStandardMaterial({ color: '#3d7aaa', roughness: 0.2, metalness: 0.15 }));
-    pond.scale.set(62, 1.2, 34);
-    pond.position.set(wx(620), 0.2, wz(460));
-    scene.add(pond);
-    const bank = new THREE.Mesh(new THREE.TorusGeometry(1, 0.08, 8, 48), new THREE.MeshStandardMaterial({ color: '#2f5a3a', roughness: 1 }));
-    bank.scale.set(62, 1, 34);
-    bank.rotation.x = Math.PI / 2;
-    bank.position.set(wx(620), 0.8, wz(460));
-    scene.add(bank);
-  }
+  const barn = new THREE.Group();
+  barn.add(box(72, 24, 46, '#8a4a32', 0, 12, 0));
+  const roofShape = new THREE.Shape([new THREE.Vector2(-40, 0), new THREE.Vector2(40, 0), new THREE.Vector2(0, 18)]);
+  const roof = new THREE.Mesh(new THREE.ExtrudeGeometry(roofShape, { depth: 50, bevelEnabled: false }), new THREE.MeshStandardMaterial({ color: '#3b2f2a', roughness: 0.8 }));
+  roof.position.set(0, 24, -25);
+  roof.castShadow = true;
+  barn.add(roof);
+  const silo = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 44, 24), new THREE.MeshStandardMaterial({ color: '#c9c3b4', roughness: 0.6, metalness: 0.3 }));
+  silo.position.set(50, 22, 0);
+  silo.castShadow = true;
+  barn.add(silo);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(9, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), silo.material);
+  cap.position.set(50, 44, 0);
+  barn.add(cap);
+  barn.position.set(wx(712), 0, wz(313));
+  scene.add(barn);
 
-  if (!geoReady()) {
-    const barn = new THREE.Group();
-    barn.add(box(72, 24, 46, '#8a4a32', 0, 12, 0));
-    const roofShape = new THREE.Shape([new THREE.Vector2(-40, 0), new THREE.Vector2(40, 0), new THREE.Vector2(0, 18)]);
-    const roof = new THREE.Mesh(new THREE.ExtrudeGeometry(roofShape, { depth: 50, bevelEnabled: false }), new THREE.MeshStandardMaterial({ color: '#3b2f2a', roughness: 0.8 }));
-    roof.position.set(0, 24, -25);
-    roof.castShadow = true;
-    barn.add(roof);
-    const silo = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 44, 24), new THREE.MeshStandardMaterial({ color: '#c9c3b4', roughness: 0.6, metalness: 0.3 }));
-    silo.position.set(50, 22, 0);
-    silo.castShadow = true;
-    barn.add(silo);
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(9, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), silo.material);
-    cap.position.set(50, 44, 0);
-    barn.add(cap);
-    barn.position.set(wx(712), 0, wz(313));
-    scene.add(barn);
-  }
-
-  if (!geoReady()) {
-    const leaves = ['#3d6b45', '#4a7a52', '#2f5a38', '#557f5c'].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.92 }));
-    const bark = new THREE.MeshStandardMaterial({ color: '#5a4030', roughness: 1 });
-    TREES.forEach(([x, y], i) => {
-      const t = new THREE.Group();
-      const tall = 22 + (i % 5) * 5;
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2.4, tall * 0.45, 6), bark);
-      trunk.position.y = tall * 0.22;
-      const crown = new THREE.Mesh(new THREE.SphereGeometry(9 + (i % 4) * 2.2, 8, 6), leaves[i % leaves.length]);
-      crown.position.y = tall * 0.55;
-      crown.scale.y = 1.15 + (i % 3) * 0.1;
-      if (i % 3 !== 1) {
-        const mid = new THREE.Mesh(new THREE.SphereGeometry(7 + (i % 3), 8, 6), leaves[(i + 1) % leaves.length]);
-        mid.position.set(3, tall * 0.42, -2);
-        mid.castShadow = true;
-        t.add(mid);
-      }
-      crown.castShadow = trunk.castShadow = true;
-      t.add(trunk, crown);
-      t.position.set(wx(x), 0, wz(y));
-      scene.add(t);
-    });
-  }
+  const leaves = ['#3d6b45', '#4a7a52', '#2f5a38', '#557f5c'].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.92 }));
+  const bark = new THREE.MeshStandardMaterial({ color: '#5a4030', roughness: 1 });
+  TREES.forEach(([x, y], i) => {
+    const t = new THREE.Group();
+    const tall = 22 + (i % 5) * 5;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2.4, tall * 0.45, 6), bark);
+    trunk.position.y = tall * 0.22;
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(9 + (i % 4) * 2.2, 8, 6), leaves[i % leaves.length]);
+    crown.position.y = tall * 0.55;
+    crown.scale.y = 1.15 + (i % 3) * 0.1;
+    if (i % 3 !== 1) {
+      const mid = new THREE.Mesh(new THREE.SphereGeometry(7 + (i % 3), 8, 6), leaves[(i + 1) % leaves.length]);
+      mid.position.set(3, tall * 0.42, -2);
+      mid.castShadow = true;
+      t.add(mid);
+    }
+    crown.castShadow = trunk.castShadow = true;
+    t.add(trunk, crown);
+    t.position.set(wx(x), 0, wz(y));
+    scene.add(t);
+  });
 }
 
 function irrigation(): THREE.Group {
@@ -245,7 +243,7 @@ function irrigation(): THREE.Group {
 }
 
 function moistureAt(x: number, y: number, f: Field, cx: number, cy: number): number {
-  const ss = sensorsOf(f.id).filter((s) => s.m != null);
+  const ss = sensorsOn(f.id).filter((s) => s.m != null);
   if (!ss.length) return f.m;
   let num = 0;
   let den = 0;
@@ -291,7 +289,7 @@ function zoneTiles(f: Field, pts: [number, number][], cx: number, cy: number): T
 function hudHtml(f: Field): string {
   if (pending(f)) return `<p class=hud3-k>${esc(f.name)} · ${f.crop}</p><p class=mut>Loading this field’s readings…</p>`;
   // Click HUD: last watering, humidity, and moisture per sensor area.
-  const zones = sensorsOf(f.id);
+  const zones = sensorsOn(f.id);
   const live = zones.filter((s) => s.m != null).map((s) => s.m!);
   const lo = live.length ? Math.min(...live) : f.m;
   const hi = live.length ? Math.max(...live) : f.m;
@@ -327,7 +325,7 @@ function fieldNode(f: Field, labels: HTMLDivElement): FieldNode {
   plantField(crops, f, pts, prng(f.id.charCodeAt(0) * 7919), wx, wz);
   top.add(zones, crops);
 
-  const ss = sensorsOf(f.id);
+  const ss = sensorsOn(f.id);
   ss.forEach((s) => {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 16), new THREE.MeshStandardMaterial({ color: '#2a2f33' }));
     post.position.set(wx(cx + s.dx), 8, wz(cy + s.dy));
@@ -382,7 +380,7 @@ function create(onPick: (id: FieldId) => void): Ctx {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#9ec4e0');
-  scene.fog = null;
+  scene.fog = new THREE.Fog('#b7cfc0', 1400, 3200);
   scene.add(new THREE.HemisphereLight('#e8f2ff', '#5f874c', 1.35));
   const sun = new THREE.DirectionalLight('#fff4dc', 2.2);
   sun.position.set(-380, 620, 300);
@@ -466,7 +464,7 @@ function sync(c: Ctx) {
     n.block.material[0].emissive.set(sel ? '#2a2a14' : '#000000');
     n.edge.material.color.set(sel ? '#1b2229' : '#ffffff');
     n.target = heightFor(f, L) + (sel ? 6 : 0);
-    const [ox, oy] = S.off[n.id] ?? [0, 0];
+    const [ox, oy] = parcelOffset(n.id);
     n.group.position.set(ox, 0, oy);
     // Selected field: moisture map is loud; other fields keep a light soil wash under the crop.
     const zm = n.zones.material as THREE.MeshStandardMaterial;
@@ -486,7 +484,7 @@ function sync(c: Ctx) {
     n.label.setAttribute('aria-label', `${f.name}, ${valueFor(f, L)}`);
     n.hud.innerHTML = hudHtml(f);
     n.hud.classList.add('on');
-    const ss = sensorsOf(f.id);
+    const ss = sensorsOn(f.id);
     n.pins.forEach((p, i) => {
       const s = ss[i];
       p.el.classList.add('on');
@@ -495,7 +493,7 @@ function sync(c: Ctx) {
       p.el.style.borderColor = s.m == null ? '#b8b2a2' : moistureTint(s.m);
     });
   }
-  c.pipes.visible = Object.keys(S.off).length === 0;
+  c.pipes.visible = sketchPipesFit();
   if (S.sel !== c.sel) {
     c.sel = S.sel;
     const n = c.fields.find((x) => x.id === S.sel);

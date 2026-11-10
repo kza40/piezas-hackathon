@@ -2,7 +2,6 @@ import { ApiError, authApi, farmApi, type ApiUser, type ApiProfile } from './api
 import { clearFarmScope, F, hydrateFields } from './seed/simulate';
 import { S } from './state';
 import { loadLiveDataInBackground } from './live';
-import { warmSatelliteCache } from './satCache';
 import type { Crop } from './types';
 
 function applyProfile(user: ApiUser, profile: ApiProfile) {
@@ -31,7 +30,6 @@ async function loadFarmData() {
   S.farm = farm?.name ?? '';
   S.farmLat = farm?.latitude ?? null;
   S.farmLng = farm?.longitude ?? null;
-  warmSatelliteCache();
   if (!farm) {
     clearFarmScope();
     S.sel = '';

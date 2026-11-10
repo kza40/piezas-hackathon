@@ -170,6 +170,26 @@ describe('farms and fields over HTTP', () => {
     assert.deepEqual([cleared.body.field.trigger, cleared.body.field.soil, cleared.body.field.irrigated], [null, 'Clay loam', true]);
   });
 
+  test('R-027: a field boundary is saved, validated, capped and cleared', async () => {
+    assert.equal((await sam('GET', `/api/fields/${fieldId}`)).body.field.boundary, null);
+    const ring = [[-122.13, 49.02], [-122.12, 49.02], [-122.12, 49.03], [-122.13, 49.03]];
+    const saved = await sam('PATCH', `/api/fields/${fieldId}`, { boundary: ring });
+    assert.equal(saved.status, 200);
+    assert.deepEqual(saved.body.field.boundary, ring);
+    assert.deepEqual((await sam('GET', `/api/fields/${fieldId}`)).body.field.boundary, ring, 'stored, not just echoed');
+
+    const square = (n: number) => Array.from({ length: n }, (_, i) => [-122.13 + i * 1e-6, 49.02 + (i % 2) * 1e-4]);
+    for (const bad of [[[0, 0], [1, 1]], [[-122, 49], [-122, 91], [-121, 49]], [['a', 49], [-122, 49], [-121, 49]], 'square', square(501)]) {
+      const r = await sam('PATCH', `/api/fields/${fieldId}`, { boundary: bad });
+      assert.equal(r.status, 400, JSON.stringify(bad).slice(0, 80));
+    }
+    assert.equal((await sam('PATCH', `/api/fields/${fieldId}`, { boundary: square(500) })).status, 200, '500 points is the limit, not over it');
+    assert.equal((await jordan('PATCH', `/api/fields/${fieldId}`, { boundary: ring })).status, 404);
+
+    const cleared = await sam('PATCH', `/api/fields/${fieldId}`, { boundary: null });
+    assert.equal(cleared.body.field.boundary, null);
+  });
+
   test('R-023: the farmer labels a detected event, changes the label, and removes it', async () => {
     const start = new Date(Date.now() - 3 * 86_400_000).toISOString();
     const path = `/api/fields/${fieldId}/events/${encodeURIComponent(start)}/feedback`;

@@ -1,77 +1,48 @@
-import { esriImageryUrl, type LngLatBBox } from './geo';
+// Satellite imagery under the farm map: one image, shared by the 2D map and the 3D scene, of a fixed stretch of
+// ground centred on the farm pin. It is fetched only when the map is drawn (the farm's location goes to Esri then),
+// and never prefetched. Esri marks it uncacheable (max-age=0) and it takes seconds to make, so it is downloaded
+// once into a local blob URL: the map is redrawn often, and each redraw must not fetch it again.
+import { esriImageryUrl, mercatorBBox, M_PER_UNIT } from './geo';
 import { S } from './state';
 
-const PAD = 0.09;
+/** The ground the image covers, in map units: twice the 2D view each way (4 km × 2.6 km), centred on the pin. */
+export const SAT_W = 1600;
+export const SAT_H = 1040;
+/** Pixel size: same shape as the ground, about 2 m per pixel. */
+const SAT_PX: [number, number] = [2000, 1300];
 
-export function farmSatBBox(): LngLatBBox | null {
+/** The imagery URL for the signed-in farm, or null when the farm has no location. */
+export function farmImageryUrl(): string | null {
   if (S.farmLat == null || S.farmLng == null) return null;
-  const lat = S.farmLat;
-  const lng = S.farmLng;
-  return {
-    minLng: lng - PAD,
-    maxLng: lng + PAD,
-    minLat: lat - PAD * 0.65,
-    maxLat: lat + PAD * 0.65,
-  };
+  return esriImageryUrl(mercatorBBox([S.farmLng, S.farmLat], SAT_W * M_PER_UNIT, SAT_H * M_PER_UNIT), SAT_PX);
 }
 
-export function satUrl2d(): string | null {
-  const b = farmSatBBox();
-  if (!b) return null;
-  return esriImageryUrl(b, 960, 624);
-}
+const loads = new Map<string, Promise<string>>();
+const ready = new Map<string, string>();
 
-export function satUrl3dPreview(): string | null {
-  const b = farmSatBBox();
-  if (!b) return null;
-  return esriImageryUrl(b, 1024, 683);
-}
-
-export function satUrl3dFull(): string | null {
-  const b = farmSatBBox();
-  if (!b) return null;
-  return esriImageryUrl(b, 1600, 1067);
-}
-
-type Slot = { promise: Promise<HTMLImageElement>; img?: HTMLImageElement };
-const ready = new Map<string, Slot>();
-
-export function preloadSat(url: string): Promise<HTMLImageElement> {
-  let slot = ready.get(url);
-  if (!slot) {
-    slot = {
-      promise: new Promise((resolve, reject) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          slot!.img = img;
-          resolve(img);
-        };
-        img.onerror = () => reject(new Error('sat preload failed'));
-        img.src = url;
-      }),
-    };
-    ready.set(url, slot);
+/**
+ * Downloads the image once per URL, shared by whoever asks, and resolves to a local blob URL for it. A failed
+ * download is forgotten, so the next view tries again. Esri answers some errors with 200 and a JSON body, so
+ * anything that is not an image counts as a failure.
+ */
+export function loadImagery(url: string): Promise<string> {
+  let load = loads.get(url);
+  if (!load) {
+    load = fetch(url)
+      .then((r) => {
+        if (!r.ok || !r.headers.get('content-type')?.startsWith('image/')) throw new Error(`Satellite imagery could not be loaded (${r.status})`);
+        return r.blob();
+      })
+      .then((blob) => {
+        const local = URL.createObjectURL(blob);
+        ready.set(url, local);
+        return local;
+      });
+    loads.set(url, load);
+    load.catch(() => loads.delete(url));
   }
-  return slot.promise;
+  return load;
 }
 
-/** Instant hit if warm/login already finished this URL. */
-export function satImageIfReady(url: string): HTMLImageElement | null {
-  return ready.get(url)?.img ?? null;
-}
-
-export function warmSatelliteCache(): void {
-  const a = satUrl2d();
-  const b = satUrl3dPreview();
-  const c = satUrl3dFull();
-  void (async () => {
-    try {
-      if (a) await preloadSat(a);
-      if (b) await preloadSat(b);
-      if (c) await preloadSat(c);
-    } catch {
-      /* map views still fetch */
-    }
-  })();
-}
+/** The downloaded image's local URL, or null if it has not arrived (yet). */
+export const imageryIfReady = (url: string): string | null => ready.get(url) ?? null;

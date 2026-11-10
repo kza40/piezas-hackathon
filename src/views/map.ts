@@ -1,10 +1,11 @@
 import { FB, HL, MEADOWS, POLY, RIDGES, SENSOR_XY, TREES, WS } from '../seed/farm';
-import { F, sensorsOf } from '../seed/simulate';
+import { F } from '../seed/simulate';
 import { S, saveOffsets } from '../state';
 import type { Field, FieldId, Health, MapLayer } from '../types';
 import { decision, esc, hasReading, lastWatered, mix, moistureTint, pending, T, ws } from '../ui/helpers';
-import { canIn, fieldNumberLabel, plants, polyKey, polyPoints } from '../ui/icons';
-import { satMapBackdrop } from './mapGeo';
+import { canIn, drawnFromBoundary, fieldNumberLabel, parcelOffset, plants, polyKey, polyPoints, sensorsOn, sketchPipesFit } from '../ui/icons';
+import { M_PER_UNIT } from '../geo';
+import { satCredit, satMapBackdrop } from './mapGeo';
 
 const VIEW_W = 800;
 const VIEW_H = 520;
@@ -43,7 +44,7 @@ export const valueFor = (x: Field, layer: MapLayer) => {
 const fieldShape = (x: Field, layer: MapLayer) => {
   const [cx, cy] = center(x.id);
   const sel = S.sel === x.id;
-  const posts = sensorsOf(x.id);
+  const posts = sensorsOn(x.id);
   const zones = posts
     .map((s) => {
       const fill = s.m == null ? '#ccc' : moistureTint(s.m);
@@ -69,7 +70,8 @@ const fieldShape = (x: Field, layer: MapLayer) => {
       : `Moisture ${x.m}% across the field`;
   const hud = `<g class=fhud pointer-events='none'><rect x='${cx - 92}' y='${cy + 64}' width='184' height='52' fill='#fffef8' stroke='#1b2229' stroke-width='1.5'/><text x='${cx}' y='${cy + 82}' text-anchor='middle' font-size='11' font-weight='800' fill='#1b2229'>${[hasReading(x, 'h') ? `Humidity ${x.h}%` : '', hasReading(x, 'st') ? T(x.st) : ''].filter(Boolean).join(' · ') || 'No sensor readings yet'}</text><text x='${cx}' y='${cy + 98}' text-anchor='middle' font-size='11' font-weight='700' fill='#434e3a'>Last watered: ${lastWatered(x.id)}</text><text x='${cx}' y='${cy + 112}' text-anchor='middle' font-size='10' fill='#434e3a'>${across}</text></g>`;
   const pk = polyKey(x.id);
-  return `<g class='ffield${S.hud === x.id ? ' on' : ''}' data-act=pk data-id=${x.id} transform='translate(${(S.off[x.id] ?? [0, 0]).join(' ')})' tabindex=0 role=button aria-label='${esc(x.name)}, ${esc(decision(x))}' style='cursor:pointer'><polygon class=fpoly points='${POLY[pk]}' fill='${fillFor(x, layer)}' stroke='${sel ? '#1b2229' : '#fff'}' stroke-width='${sel ? 7 : 3}' stroke-linejoin='round'/><polygon points='${POLY[pk]}' fill='url(#st${(pk.charCodeAt(0) || 0) % 3})' pointer-events='none'/>${zones}<polygon points='${POLY[pk]}' fill=none stroke='#7a5a3a' stroke-width=1.6 stroke-dasharray='2 6' stroke-linecap=round pointer-events=none />${fieldNumberLabel(x.id)}${plants(x.id, x.crop)}${sensors}<g data-w=1><circle cx='${cx}' cy='${cy - 8}' r='24' fill='#fff' stroke='#1b2229' stroke-width='4'/><g transform='translate(${cx - 17} ${cy - 25}) scale(1.21)'>${canIn(ws(x))}</g></g><rect x='${cx - 64}' y='${cy + 18}' width='128' height='42' fill='#1b2229'/><text x='${cx}' y='${cy + 36}' text-anchor='middle' font-size='14' font-weight='800' fill='#f6efd9'>${esc(x.name)}</text><text x='${cx}' y='${cy + 53}' text-anchor='middle' font-size='13' font-weight='800' fill='#f0d6a0'>${valueFor(x, layer)}</text>${hud}</g>`;
+  const outline = polyPoints(x.id).map((p) => p.map((v) => Math.round(v * 10) / 10).join(',')).join(' ');
+  return `<g class='ffield${S.hud === x.id ? ' on' : ''}' data-act=pk data-id=${x.id} transform='translate(${parcelOffset(x.id).join(' ')})' tabindex=0 role=button aria-label='${esc(x.name)}, ${esc(decision(x))}' style='cursor:pointer'><polygon class=fpoly points='${outline}' fill='${fillFor(x, layer)}' stroke='${sel ? '#1b2229' : '#fff'}' stroke-width='${sel ? 7 : 3}' stroke-linejoin='round'/><polygon points='${outline}' fill='url(#st${(pk.charCodeAt(0) || 0) % 3})' pointer-events='none'/>${zones}<polygon points='${outline}' fill=none stroke='#7a5a3a' stroke-width=1.6 stroke-dasharray='2 6' stroke-linecap=round pointer-events=none />${fieldNumberLabel(x.id)}${plants(x.id, x.crop)}${sensors}<g data-w=1><circle cx='${cx}' cy='${cy - 8}' r='24' fill='#fff' stroke='#1b2229' stroke-width='4'/><g transform='translate(${cx - 17} ${cy - 25}) scale(1.21)'>${canIn(ws(x))}</g></g><rect x='${cx - 64}' y='${cy + 18}' width='128' height='42' fill='#1b2229'/><text x='${cx}' y='${cy + 36}' text-anchor='middle' font-size='14' font-weight='800' fill='#f6efd9'>${esc(x.name)}</text><text x='${cx}' y='${cy + 53}' text-anchor='middle' font-size='13' font-weight='800' fill='#f0d6a0'>${valueFor(x, layer)}</text>${hud}</g>`;
 };
 
 const treeMark = (a: number, b: number, i: number) => {
@@ -103,12 +105,12 @@ export function map(): string {
     ? `<span class=hint3>Drag to rotate · right-drag to pan · scroll to zoom · taller block = ${HEIGHT_MEANS[L]}</span>`
     : `<span class=hint3>Drag to pan · scroll to zoom</span>`;
   const controls = `<div class=mtop><div class=mtl>${dim}<div class=mpc role=group aria-label='Colour the map by'><span class=mpl aria-hidden=true>Colour by</span>${LAYERS.map(([key, n]) => `<button data-act=lyr data-k=${key} aria-pressed=${L === key}>${n}</button>`).join('')}</div><div class=mpc><button aria-pressed=${S.edit} data-act=ed>${S.edit ? 'Done' : 'Adjust farm'}</button>${S.edit ? `<button data-act=rl>Standard layout</button>` : ''}</div>${S.edit ? `<span class='mpc note'>Drag parcels to match your farm · Standard layout restores the default</span>` : ''}</div><div class=mtr><div class=mpc><button aria-label='Zoom in' data-act=zm data-f=1.5>+</button><button aria-label='Zoom out' data-act=zm data-f=${1 / 1.5}>−</button><button aria-label='Reset view' data-act=rs>⟲</button></div><div class=mpc><button aria-pressed=${S.bare} data-act=bare data-testid=toggle-cards>${S.bare ? 'Show side panel' : 'Hide side panel'}</button></div></div></div>`;
-  const scale = `<div class=mscale aria-hidden=true><span class=north>▲ N</span><span class=sbar><i></i>200 m</span></div>`;
-  const sat = satMapBackdrop(VIEW_W, VIEW_H);
-  const land = sat ?? BASE;
-  const svg = `<svg id=fmap viewBox='0 0 ${VIEW_W} ${VIEW_H}' style='width:100%;height:100%;display:block;touch-action:none;cursor:grab' role=group aria-label='Farm map'>${PATTERNS}<g id=vp transform='translate(${S.v.x} ${S.v.y}) scale(${S.v.k})'>${land}${F.map((x) => fieldShape(x, L)).join('')}${Object.keys(S.off).length ? '' : PIPES}</g></svg>`;
-  if (S.d3) return `<div class='mapbox m3' id=m3 data-testid=map-3d></div>${controls}${hint}`;
-  return `<div class='mapbox${S.bare ? ' bare' : ''}'>${svg}</div>${controls}${scale}`;
+  const scale = `<div class=mscale aria-hidden=true><span class=north>▲ N</span><span class=sbar data-testid=scale-bar><i></i><span></span></span></div>`;
+  // The sketched landscape is always drawn: the satellite image goes over it, and if it never loads the map still has ground.
+  const land = BASE + satMapBackdrop();
+  const svg = `<svg id=fmap viewBox='0 0 ${VIEW_W} ${VIEW_H}' style='width:100%;height:100%;display:block;touch-action:none;cursor:grab' role=group aria-label='Farm map'>${PATTERNS}<g id=vp transform='translate(${S.v.x} ${S.v.y}) scale(${S.v.k})'>${land}${F.map((x) => fieldShape(x, L)).join('')}${sketchPipesFit() ? PIPES : ''}</g></svg>`;
+  if (S.d3) return `<div class='mapbox m3' id=m3 data-testid=map-3d></div>${controls}${hint}${satCredit()}`;
+  return `<div class='mapbox${S.bare ? ' bare' : ''}'>${svg}</div>${controls}${scale}${satCredit()}`;
 }
 
 // ---- pan, zoom and layout editing -----------------------------------------
@@ -130,6 +132,29 @@ function clampView() {
 
 function applyView() {
   document.getElementById('vp')?.setAttribute('transform', `translate(${S.v.x} ${S.v.y}) scale(${S.v.k})`);
+  updateScaleBar();
+}
+
+const SCALE_STEPS_M = [25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
+const SCALE_MAX_PX = 110;
+
+/** The longest round distance whose bar fits, for metres per screen pixel; null when the map is not laid out. */
+export function scaleBarFor(mPerPx: number): { m: number; px: number } | null {
+  if (!(mPerPx > 0) || !Number.isFinite(mPerPx)) return null;
+  const m = [...SCALE_STEPS_M].reverse().find((d) => d / mPerPx <= SCALE_MAX_PX) ?? SCALE_STEPS_M[0];
+  return { m, px: Math.round(m / mPerPx) };
+}
+
+/** Sizes the scale bar to the map as drawn: its on-screen size and zoom (M_PER_UNIT metres per map unit). */
+export function updateScaleBar() {
+  const svg = document.getElementById('fmap');
+  const bar = document.querySelector<HTMLElement>('.sbar');
+  if (!svg || !bar) return;
+  const fit = scaleBarFor((viewScale(svg).s * M_PER_UNIT) / S.v.k);
+  bar.style.visibility = fit ? '' : 'hidden';
+  if (!fit) return;
+  bar.querySelector('i')!.style.width = `${fit.px}px`;
+  bar.querySelector('span')!.textContent = fit.m >= 1000 ? `${fit.m / 1000} km` : `${fit.m} m`;
 }
 
 export function zoom(factor: number, px = VIEW_W / 2, py = VIEW_H / 2) {
@@ -180,7 +205,9 @@ export function onMapPointerDown(e: PointerEvent, svg: Element) {
   if (e.button > 0) return;
   S.moved = false;
   const target = e.target as Element;
-  const shape = S.edit ? target.closest<SVGGElement>('g[data-id]') : null;
+  const picked = S.edit ? target.closest<SVGGElement>('g[data-id]') : null;
+  // A field drawn at its real place stays there; only sketch parcels can be dragged.
+  const shape = picked && !drawnFromBoundary(picked.dataset.id as FieldId) ? picked : null;
   if (shape) {
     const id = shape.dataset.id as FieldId;
     const start = S.off[id] ?? [0, 0];

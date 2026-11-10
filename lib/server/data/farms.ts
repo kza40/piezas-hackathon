@@ -138,8 +138,12 @@ function storedFeedback(v: unknown): Record<string, EventLabel> {
   return Object.fromEntries(Object.entries(v).filter(([, l]) => LABELS.includes(l as EventLabel))) as Record<string, EventLabel>;
 }
 
+/** Most points a saved field boundary may have: plenty for a surveyed field, and it goes out with every field list. */
+export const MAX_BOUNDARY_POINTS = 500;
+
+// A boundary as stored: a ring of at least 3 [lng, lat] points, or null for anything else (including too many points).
 function storedBoundary(v: unknown): FieldBoundary | null {
-  if (!Array.isArray(v) || v.length < 3) return null;
+  if (!Array.isArray(v) || v.length < 3 || v.length > MAX_BOUNDARY_POINTS) return null;
   const ring: FieldBoundary = [];
   for (const pt of v) {
     if (!Array.isArray(pt) || pt.length < 2) return null;
@@ -151,7 +155,6 @@ function storedBoundary(v: unknown): FieldBoundary | null {
   }
   return ring;
 }
-
 
 // Read-modify-writes of one field's settings run one at a time (Piezas has no optimistic locking, E13).
 const withFieldLock = <T>(fieldId: string, fn: () => Promise<T>) => withLock(`field:${fieldId}`, fn);
@@ -169,7 +172,7 @@ export function parseFieldSettings(body: unknown, now: Date) {
     if (b.boundary === null) patch.boundary = [];
     else {
       const ring = storedBoundary(b.boundary);
-      if (!ring) throw badRequest('boundary must be an array of [lng, lat] points (at least 3).');
+      if (!ring) throw badRequest(`boundary must be a list of 3 to ${MAX_BOUNDARY_POINTS} [longitude, latitude] points.`);
       patch.boundary = ring;
     }
   }
@@ -185,7 +188,7 @@ export function parseFieldSettings(body: unknown, now: Date) {
       } satisfies SavedTrigger;
     }
   }
-  if (!Object.keys(patch).length) throw badRequest('Nothing to change: send irrigated, stage, soil or trigger.');
+  if (!Object.keys(patch).length) throw badRequest('Nothing to change: send irrigated, stage, soil, trigger or boundary.');
   return patch;
 }
 

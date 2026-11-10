@@ -49,7 +49,7 @@ The session is an httpOnly, SameSite=Lax cookie named `piezas_session` (lasts 7 
 | `GET /api/farms/:farmId/fields` | none | `{ fields: [field] }` |
 | `POST /api/farms/:farmId/fields` | `{ name, cropProfileId, acres?, stage?, soil? }` | 201 `{ field }` |
 | `GET /api/fields/:fieldId` | none | `{ field }` |
-| `PATCH /api/fields/:fieldId` | any of `{ irrigated, stage, soil, trigger }` | `{ field }` |
+| `PATCH /api/fields/:fieldId` | any of `{ irrigated, stage, soil, trigger, boundary }` | `{ field }` |
 | `POST /api/fields/:fieldId/events/:start/feedback` | `{ label: "irrigation" \| "rain" \| "none" \| null }` | `{ field }` |
 | `DELETE /api/fields/:fieldId` | none | 204 |
 
