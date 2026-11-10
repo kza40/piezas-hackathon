@@ -38,6 +38,15 @@ export const mix = (a: number[], b: number[], t: number) => {
 export const pending = (f: Field) => !!S.farmerId && !S.liveFields.includes(f.id);
 /** Any field of a signed-in farm still waiting for its first live load. */
 export const liveLoading = () => F.some(pending);
+/**
+ * Why a field has no advice to show: still loading, or the load came back without it (a failed call).
+ * Never "loading" once the load is over, so a failure can't read as a wait that never ends.
+ */
+export const noAdviceText = (f: Field) =>
+  pending(f) ? 'Loading advice…' : 'Couldn’t load advice for this field. Reload the page to try again.';
+/** Why there is no forecast: still loading, the load failed, or (signed out) there is no farm to forecast for. */
+export const noWeatherText = () =>
+  !S.farmerId ? 'Sign in to see your farm’s forecast.' : liveLoading() ? 'Loading forecast…' : 'Couldn’t load the forecast right now.';
 /** A skeleton bar where a number will be. */
 export const SK = '<i class=sk aria-hidden=true></i>';
 

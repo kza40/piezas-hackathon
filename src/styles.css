@@ -353,3 +353,4 @@ body.resizing .stage{pointer-events:none}
 @keyframes sk{from{background-position:200% 0}to{background-position:-200% 0}}
 @keyframes skp{50%{opacity:.35}}
 @media(prefers-reduced-motion:reduce){.sk,.tb-sync.wait i{animation:none}}
+.lead{font-size:1.15rem;margin:6px 0 16px}

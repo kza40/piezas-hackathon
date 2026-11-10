@@ -16,6 +16,8 @@ import {
   metric,
   openAlerts,
   pill,
+  noAdviceText,
+  noWeatherText,
   rng,
   SK,
   T,
@@ -40,7 +42,7 @@ const feat = (f: Field) => {
   const next = advice
     ? esc(advice.label) + (advice.reason ? ' · ' + esc(advice.reason) : '') + (advice.waterBy ? ' ' + esc(advice.waterBy.text) : '')
     : S.farmerId
-      ? 'Advice loading…'
+      ? noAdviceText(f)
       : 'Check sensors and the forecast before you water.';
   const target = advice ? triggerShort(advice).toUpperCase() : `IDEAL ${f.mi[0]}–${f.mi[1]}%`;
   return `<section class=feat style='background:${b.bg};color:${b.fg}'><div class=ft><p class=fk>FIELD ${fieldNo(f.id)} — ${f.crop.toUpperCase()}</p><div class=fn style='color:${b.n}'>${f.m}<span>%</span></div><p class=fk>SOIL MOISTURE · ${target}</p><p class=chip style='background:${b.fg};color:${b.bg}'><i style='background:${WS[k].h}'></i>${esc(chipText(f, b.c))}</p><p class=fw>${next}</p><p class=fa><button class=btn style='background:${b.fg};color:${b.bg}' data-act=op data-id=${f.id}>Why?</button> <button class='btn alt' style='border-color:${b.fg};color:${b.fg}' data-act=pkm data-id=${f.id}>Show on map</button></p></div><div class=fr>${soil(f)}</div></section>`;
@@ -235,7 +237,7 @@ export function field(): string {
     ? wateringBlock(f, live) + setupCard(f, live)
     : r
       ? `<div class='blk orange'><h2>Recommended action</h2><p><b>${r.t}</b></p><p>${r.w}</p><p>${r.c}</p></div>`
-      : `<div class='blk lime'><h2>Recommended action</h2><p class=mut>Advice loading…</p></div>`;
+      : `<div class='blk lime'><h2>Recommended action</h2><p class=mut>${noAdviceText(f)}</p></div>`;
   const metricTabs = MET.map((m) => `<button aria-pressed=${m.key === S.mk} data-act=mk data-k=${m.key}>${m.name}</button>`).join('');
   return `${demo()}<h1>Fields &amp; sensors</h1><p class=mut>Readings, history and watering for each parcel — in one place.</p><p><button class='btn alt sm' data-act=export data-testid=export-csv>Download last 14 days (CSV)</button></p>${fieldTabs()}${feat(f)}<h2 class=sh>Readings against the ideal</h2><div class=mgrid>${tiles}</div>${rec}<h2 class=sh>Sensor history</h2><div class=tabs>${metricTabs}</div>${history(f)}${live ? eventsCard(f, live) : waterLog(f)}`;
 }
@@ -243,7 +245,7 @@ export function field(): string {
 export function weather(): string {
   const live = S.liveWeather;
   if (!live) {
-    return `${demo()}<h1>Weather and your fields</h1><p class=mut>Sign in and set a farm location to load the forecast.</p>`;
+    return `${demo()}<h1>Weather and your fields</h1><p class=mut>${noWeatherText()}</p>`;
   }
   const now = live.hours[0];
   // One card per local day of the forecast (a whole day's rain and its low, not one hour's reading).
@@ -262,7 +264,7 @@ export function weather(): string {
 <div class="card" style="margin-top:14px"><h3>What this means for your fields</h3>${F.map((f) => {
   const a = S.liveAdvice[f.id];
   return a ? `<div class="item"><div>${pill(a.label === 'Water today' ? 'cr' : 'ok')}</div><div><b>${esc(f.name)}</b> — ${esc(a.label)}. ${esc(a.reason)}</div></div>` : '';
-}).join('') || '<p class=mut>Advice loads with your fields.</p>'}</div>`;
+}).join('') || `<p class=mut>${F.length ? 'No field has advice yet.' : 'Add a field to see what the weather means for it.'}</p>`}</div>`;
 }
 
 export function recs(): string {
@@ -272,7 +274,15 @@ export function recs(): string {
       if (!a) return '';
       return `<div class="card" style="margin-bottom:12px"><div class="row"><div style="display:flex;gap:8px;align-items:center">${can(ws(field), 34)}${pill(a.label === 'Water today' ? 'cr' : a.label === 'Wait' ? 'wn' : 'ok')}</div><button class="btn alt" data-act="go" data-p="field" data-id="${field.id}">${esc(field.name)}</button></div><h2 style="margin:8px 0">${esc(a.label)}</h2><p>${esc(a.reason)}</p>${a.soilWarning ? `<p class="mut">${esc(a.soilWarning)}</p>` : ''}${a.frostWarning ? `<p class="mut">${esc(a.frostWarning)}</p>` : ''}</div>`;
     }).join('');
-    return `${demo()}<h1>Recommended actions</h1><p class="mut">From live advice for each field.</p>${cards || '<p class=mut>No advice yet — check sensors and farm location.</p>'}`;
+    const act = F.filter((f) => ws(f) === 'now' || ws(f) === 'check').length;
+    const lead = !F.length
+      ? 'Add a field to get watering advice.'
+      : !cards
+        ? 'Couldn’t load advice right now. Reload the page to try again.'
+        : act
+          ? `${act} ${act === 1 ? 'field needs' : 'fields need'} you today. The rest are fine.`
+          : 'All fields are fine today. Nothing to do.';
+    return `${demo()}<h1>Recommended actions</h1><p class=lead data-testid=recs-lead>${lead}</p>${cards}`;
   }
   const cards = REC.filter((r) => ownsSeedRef(r.f)).map((r) => {
     const field = F.find((f) => f.id === r.f || f.layout === r.f) ?? fld(r.f);
@@ -367,7 +377,7 @@ export function wateringModal(f: Field): string {
   };
   const wx = S.liveWeather
     ? `${S.liveWeather.rainNext48hMm.toFixed(1)} mm rain next 48h · overnight ${T(S.liveWeather.overnightLowC)}`
-    : 'Forecast loads with your farm location.';
+    : noWeatherText();
   const whyText = live?.reason ?? why[k];
   const nextText = live ? live.label + (live.waterBy ? ` · ${live.waterBy.text}` : '') : next[k];
   const target = live

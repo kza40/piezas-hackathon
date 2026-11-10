@@ -2,7 +2,7 @@ import { FARM, FB, NXT, W, WS } from '../seed/farm';
 import { DN, F, ownsSeedRef, REC, RT, SEN, fld, sensorsOf } from '../seed/simulate';
 import { S } from '../state';
 import type { CardId, Field, MapLayer, PanelId, WaterState } from '../types';
-import { esc, fieldNo, firstName, initials, lastWatered, liveLoading, moistureTint, openAlerts, pending, pill, SK, T, ws } from '../ui/helpers';
+import { esc, fieldNo, firstName, initials, lastWatered, liveLoading, moistureTint, noAdviceText, noWeatherText, openAlerts, pending, pill, SK, T, ws } from '../ui/helpers';
 import { can } from '../ui/icons';
 import { chipText, healthOf, lastWateredText, triggerShort } from './watering';
 
@@ -65,7 +65,7 @@ function moistureHistory(f: Field): number[] {
 
 function spark(f: Field): string {
   const h = moistureHistory(f);
-  if (!h.length) return "<p class='mut tiny'>Moisture history loads with your sensors.</p>";
+  if (!h.length) return "<p class='mut tiny'>No moisture history yet: it builds up as the sensors report.</p>";
   const a = S.liveAdvice[f.id];
   const trig = a?.setup.irrigated ? (a.setup.trigger?.value ?? null) : null;
   const marks = a ? (trig != null ? [trig] : []) : f.mi;
@@ -111,7 +111,7 @@ export function fieldCard(): string {
     .join('');
   const hero = `<div class=fhero style='background:${look.bg};color:${look.fg}'><div><div class=fn style='color:${look.n}'>${f.m}<span>%</span></div><div class=fsub>Soil moisture · ${trend}</div></div><button class=cb data-act=op data-id=${f.id} aria-label='Watering details'>${can(k, 48)}</button><p class=chip style='background:${look.fg};color:${look.bg}'><i style='background:${WS[k].h}'></i>${esc(chipText(f, look.c))}</p></div>`;
   const grid = `<div class='kvs g2'>${kv('Crop', `${f.crop} · ${esc(f.stage)}`)}${kv('Area', `${f.ac} ac`)}${kv('Soil', esc(f.soil))}${kv('Air humidity', `${f.h}%`)}${kv('Soil temp', T(f.st))}${kv('pH', String(f.ph))}${kv('Last watered', a ? lastWateredText(a) : lastWatered(f.id))}${kv('Across field', span)}</div>`;
-  const body = `${hero}${spark(f)}${grid}<p class=sub>Moisture by area</p><div class=zrows>${zones}</div><div class=nx><span class=mut>Recommended action</span><br>${a ? esc(a.label) : r ? r.t : 'No action needed right now'}${a?.waterBy ? `<div class=wby>${esc(a.waterBy.text)}</div>` : ''}${a?.reason ? `<div class='mut tiny'>${esc(a.reason)}</div>` : ''}</div><div class=btns><button class='btn sm' data-act=go data-p=field data-id=${f.id} data-testid=open-field-panel>Open field &amp; sensors</button><button class='btn alt sm' data-act=op data-id=${f.id}>Why this advice?</button></div>`;
+  const body = `${hero}${spark(f)}${grid}<p class=sub>Moisture by area</p><div class=zrows>${zones}</div><div class=nx><span class=mut>Recommended action</span><br>${a ? esc(a.label) : r ? r.t : S.farmerId ? noAdviceText(f) : 'No action needed right now'}${a?.waterBy ? `<div class=wby>${esc(a.waterBy.text)}</div>` : ''}${a?.reason ? `<div class='mut tiny'>${esc(a.reason)}</div>` : ''}</div><div class=btns><button class='btn sm' data-act=go data-p=field data-id=${f.id} data-testid=open-field-panel>Open field &amp; sensors</button><button class='btn alt sm' data-act=op data-id=${f.id}>Why this advice?</button></div>`;
   return mapCard('field', `Field ${fieldNo(f.id)} · ${esc(f.name)}`, body, { sum: `${f.m}% · ${esc(a?.label ?? WS[k].t)}`, panel: 'field', cls: 'fcard' });
 }
 
@@ -147,7 +147,7 @@ export function todayCard(): string {
 export function weatherCard(): string {
   const live = S.liveWeather;
   if (!live) {
-    return mapCard('weather', 'Weather', '<p class=mut>Weather loads from your farm location after sign-in.</p>', { sum: 'Waiting for farm weather', panel: 'weather' });
+    return mapCard('weather', 'Weather', `<p class='mut tiny'>${noWeatherText()}</p>${liveLoading() ? SK : ''}`, { sum: noWeatherText(), panel: 'weather' });
   }
   const now = live.hours[0];
   const nextRain = live.hours.find((h) => h.rainMm > 0.2);
@@ -195,5 +195,5 @@ export function topBar(): string {
   const crit = openAlerts().some((a) => a.l === 'cr');
   const place =
     S.farmLat != null && S.farmLng != null ? `${S.farmLat.toFixed(2)}°, ${S.farmLng.toFixed(2)}°` : S.farm ? 'Your farm' : 'No farm yet';
-  return `<header class=topbar data-testid=topbar><div class=tb-brand>${can('now', 18, '#fff')}<span>Fieldwise</span></div><div class=tb-farm><b>${esc(S.farm || 'No farm yet')}</b><span>${esc(place)} · ${F.length} fields · ${totalAcres()} ac</span></div><div class=tb-wx data-testid=top-weather>${S.liveWeather ? `<span>${S.liveWeather.rainNext48hMm.toFixed(1)} mm rain / 48h</span><span class=mut>low ${T(S.liveWeather.overnightLowC)}</span>` : `<span class=mut>Weather loads from your farm location</span>`}</div><div class=tb-right><span class=tb-date>${date}</span>${liveLoading() ? `<span class='tb-sync wait' title='Loading live farm data'><i></i>Loading readings…</span>` : `<span class=tb-sync title='Live farm data'><i></i>${on}/${total} sensors online</span>`}<button class='tb-btn${crit ? ' hot' : ''}' data-act=go data-p=alerts data-testid=top-alerts aria-label='${open} open alerts'>🔔<span class=badge>${open}</span></button><button class=tb-user data-act=me data-testid=top-profile aria-label='Farmer profile'><span class='av sm'>${esc(initials())}</span><span class=tb-un><b>${esc(S.name)}</b><span>${esc(S.role)}</span></span></button></div></header>`;
+  return `<header class=topbar data-testid=topbar><div class=tb-brand>${can('now', 18, '#fff')}<span>Fieldwise</span></div><div class=tb-farm><b>${esc(S.farm || 'No farm yet')}</b><span>${esc(place)} · ${F.length} fields · ${totalAcres()} ac</span></div><div class=tb-wx data-testid=top-weather>${S.liveWeather ? `<span>${S.liveWeather.rainNext48hMm.toFixed(1)} mm rain / 48h</span><span class=mut>low ${T(S.liveWeather.overnightLowC)}</span>` : `<span class=mut>${noWeatherText()}</span>`}</div><div class=tb-right><span class=tb-date>${date}</span>${liveLoading() ? `<span class='tb-sync wait' title='Loading live farm data'><i></i>Loading readings…</span>` : `<span class=tb-sync title='Live farm data'><i></i>${on}/${total} sensors online</span>`}<button class='tb-btn${crit ? ' hot' : ''}' data-act=go data-p=alerts data-testid=top-alerts aria-label='${open} open alerts'>🔔<span class=badge>${open}</span></button><button class=tb-user data-act=me data-testid=top-profile aria-label='Farmer profile'><span class='av sm'>${esc(initials())}</span><span class=tb-un><b>${esc(S.name)}</b><span>${esc(S.role)}</span></span></button></div></header>`;
 }
