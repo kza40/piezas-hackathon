@@ -160,6 +160,7 @@ export const sensorsOf = (id: FieldId): FieldSensor[] => {
       dy: SENSOR_XY[i % SENSOR_XY.length][1],
     }));
   }
+  if (S.farmerId) return []; // a real farm's probes, or none: never the seed's
   const layout = layoutOf(id);
   return SEN.filter((s) => s.f === layout).map((s, i) => ({
     id: s.id,

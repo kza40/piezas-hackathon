@@ -100,6 +100,7 @@ export async function loadLiveData(): Promise<boolean> {
     S.liveSensors = {};
     S.liveMoistureSeries = {};
     S.liveHistory = {};
+    S.liveFields = [];
     return true;
   }
   const now = Date.now();
@@ -229,6 +230,7 @@ export async function loadLiveData(): Promise<boolean> {
   S.liveSensors = next.sensors;
   S.liveMoistureSeries = next.series;
   S.liveHistory = next.history;
+  S.liveFields = fields.map((f) => f.id);
   for (const [id, live] of Object.entries(next.sensors)) applySensorsToField(id, live);
   return true;
 }

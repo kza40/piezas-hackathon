@@ -7,7 +7,7 @@ import { POLY, RIDGES, TREES } from '../seed/farm';
 import { F, sensorsOf } from '../seed/simulate';
 import { S } from '../state';
 import type { Field, FieldId, MapLayer, WaterState } from '../types';
-import { esc, lastWatered, moistureTint, T, ws } from '../ui/helpers';
+import { esc, lastWatered, moistureTint, pending, T, ws } from '../ui/helpers';
 import { can, polyPoints } from '../ui/icons';
 import { plantField } from './crops3d';
 import { center, fillFor, valueFor } from './map';
@@ -18,11 +18,12 @@ const MID_Y = 260;
 const wx = (x: number) => x - MID_X;
 const wz = (y: number) => y - MID_Y;
 
-const WATER_H: Record<WaterState, number> = { now: 34, check: 26, soon: 24, rain: 18, none: 10 };
+const WATER_H: Record<WaterState, number> = { now: 34, check: 26, soon: 24, rain: 18, none: 10, load: 6 };
 const HEALTH_H = { cr: 34, wn: 22, ok: 12 } as const;
 
 /** Block height shows the active layer, so the worst fields stand tallest. */
 function heightFor(f: Field, layer: MapLayer): number {
+  if (pending(f)) return WATER_H.load; // flat until real readings say otherwise
   if (layer === 'water') return WATER_H[ws(f)];
   if (layer === 'health') return HEALTH_H[f.hl];
   if (layer === 'moisture') return 4 + f.m * 0.75;
@@ -276,6 +277,7 @@ function zoneTiles(f: Field, pts: [number, number][], cx: number, cy: number): T
 }
 
 function hudHtml(f: Field): string {
+  if (pending(f)) return `<p class=hud3-k>${esc(f.name)} · ${f.crop}</p><p class=mut>Loading this field’s readings…</p>`;
   // Click HUD: last watering, humidity, and moisture per sensor area.
   const zones = sensorsOf(f.id);
   const live = zones.filter((s) => s.m != null).map((s) => s.m!);

@@ -31,7 +31,18 @@ export const mix = (a: number[], b: number[], t: number) => {
   return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * k))})`;
 };
 
+/**
+ * Signed in, a field shows its live readings or nothing: the seed's made-up numbers must never stand in
+ * for a real farm, not even for the seconds before the first load (they would say the wrong field needs water).
+ */
+export const pending = (f: Field) => !!S.farmerId && !S.liveFields.includes(f.id);
+/** Any field of a signed-in farm still waiting for its first live load. */
+export const liveLoading = () => F.some(pending);
+/** A skeleton bar where a number will be. */
+export const SK = '<i class=sk aria-hidden=true></i>';
+
 export const ws = (f: Field): WaterState => {
+  if (pending(f)) return 'load';
   const a = S.liveAdvice[f.id];
   if (a) {
     if (a.status === 'water_today' || a.label === 'Water today') return 'now';

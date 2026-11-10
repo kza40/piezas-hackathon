@@ -1,5 +1,5 @@
 import { DEMO_ACCOUNTS } from '../seed/farmers';
-import { FB, MET, W, WS } from '../seed/farm';
+import { FB, MET, NXT, W, WS } from '../seed/farm';
 import { AL, DN, F, FH, HR, MI, MN, ownsSeedRef, REC, RT, SEN, fld, lastV } from '../seed/simulate';
 import { S } from '../state';
 import type { AlertFilter, Field, Level, WaterState } from '../types';
@@ -17,13 +17,14 @@ import {
   openAlerts,
   pill,
   rng,
+  SK,
   T,
   ws,
 } from '../ui/helpers';
 import { can, cropG } from '../ui/icons';
 import { chipText, eventsCard, healthOf, healthPill, setupCard, triggerOf, triggerShort, wateringBlock } from './watering';
 
-const ORDER: Record<WaterState, number> = { now: 0, check: 1, soon: 2, rain: 3, none: 4 };
+const ORDER: Record<WaterState, number> = { now: 0, check: 1, soon: 2, rain: 3, none: 4, load: 5 };
 const byUrgency = () => [...F].sort((a, b) => ORDER[ws(a)] - ORDER[ws(b)]);
 const sum = (fn: (f: Field) => number) => F.reduce((a, f) => a + fn(f), 0);
 
@@ -338,6 +339,11 @@ export function profile(): string {
   return `${demo()}<h1>Your profile</h1><div class='grid g2'><div class=card><div class=row style='justify-content:flex-start;gap:16px'><div class=av>${esc(initials())}</div><div><h2>${esc(S.name)}</h2><span class=mut>${esc(S.role)} · ${esc(S.farm || 'No farm yet')}</span></div></div><label for=pn>Your name</label><input id=pn data-bind=name value="${esc(S.name)}" data-testid=profile-name><label for=pp>Phone</label><input id=pp data-bind=phone value="${esc(S.phone)}" data-testid=profile-phone><label for=pf>Farm name</label><input id=pf data-bind=farm value="${esc(S.farm)}" ${S.farmId ? 'disabled' : ''}><label for=pr>Your role</label><select id=pr data-bind=role>${roles}</select>${farmForm}<p><button class=btn data-act=savep data-testid=save-profile>Save profile</button></p></div><div class=card data-testid=my-fields><h3>My fields (${F.length})</h3><p class=mut>Open a field on the map, or remove it from your farm.</p><div class=field-list>${fields || '<p class=mut>No fields yet. Add one below.</p>'}</div>${add}<p style='margin-top:14px'><button class='btn alt' data-act=go data-p=settings>Notifications and sensors</button> <button class='btn alt' data-act=out>Sign out</button></p></div></div>`;
 }
 
+/** A data panel while the farm's live readings are still on their way. */
+export function loadingPage(title: string): string {
+  return `${demo()}<h1>${esc(title)}</h1><div class=skpage role=status><p class=mut>Loading your farm’s readings…</p>${SK}${SK}${SK}</div>`;
+}
+
 export function wateringModal(f: Field): string {
   const k = ws(f);
   const w = WS[k];
@@ -349,6 +355,7 @@ export function wateringModal(f: Field): string {
     soon: `Moisture is fine at ${f.m}%, but the soil is warm (${T(f.st)}) and will dry out fast.`,
     rain: `Moisture is ${f.m}%, just under range, with rain likely soon.`,
     none: `Moisture is ${f.m}%, inside the ${lo}–${hi}% range.`,
+    load: 'This field’s readings are still loading.',
   };
   const next: Record<WaterState, string> = {
     now: 'Water lightly today, then check again tonight.',
@@ -356,6 +363,7 @@ export function wateringModal(f: Field): string {
     soon: 'Check this field this afternoon. Water this evening if moisture keeps dropping.',
     rain: 'Hold off if rain is still expected.',
     none: 'Nothing to do right now.',
+    load: NXT.load,
   };
   const wx = S.liveWeather
     ? `${S.liveWeather.rainNext48hMm.toFixed(1)} mm rain next 48h · overnight ${T(S.liveWeather.overnightLowC)}`

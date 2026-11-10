@@ -18,6 +18,7 @@ const CAN_GLYPH: Record<WaterState, string> = {
   soon: `<path d='M22 18v3.2l2 1.3' stroke='#fff' stroke-width='1.4' fill='none' stroke-linecap='round'/>`,
   rain: `<path d='M19.5 21.5a2 2 0 0 1 .6-3.9 3 3 0 0 1 5.6 1 1.6 1.6 0 0 1-.4 2.9z' fill='#fff'/>`,
   none: `<path d='M19.3 21l2 2 3.6-4' stroke='#fff' stroke-width='1.8' fill='none' stroke-linecap='round'/>`,
+  load: `<circle cx='19.6' cy='21' r='1' fill='#fff'/><circle cx='22' cy='21' r='1' fill='#fff'/><circle cx='24.4' cy='21' r='1' fill='#fff'/>`,
 };
 
 /** Watering-can glyph body, without the outer <svg>. */

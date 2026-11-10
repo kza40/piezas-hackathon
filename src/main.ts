@@ -6,7 +6,7 @@ import { refreshFields, restoreSession, signIn, signOut, signUp } from './auth';
 import { F, fld } from './seed/simulate';
 import { S, saveCards, saveLog, saveOffsets } from './state';
 import type { AlertFilter, CardId, Crop, FieldId, MapLayer, MetricKey, PanelId, Units } from './types';
-import { esc, openAlerts } from './ui/helpers';
+import { esc, liveLoading, openAlerts } from './ui/helpers';
 import { onRailKey, onRailPointerDown, railGrip, railStyle, resetRail } from './ui/rail';
 import { IC } from './ui/icons';
 import { alertsCard, fieldCard, legendCard, profileCard, todayCard, topBar, weatherCard } from './views/cards';
@@ -39,9 +39,13 @@ function dock(): string {
     .join('')}</nav>`;
 }
 
+/** Panels built from live readings: until they arrive these show a loading page, never seed numbers. */
+const LIVE_PANELS: ReadonlySet<PanelId> = new Set(['dashboard', 'field', 'weather', 'recs', 'alerts']);
+
 function panel(id: PanelId): string {
   const narrow = id === 'settings' || id === 'profile' ? ' panel-center' : '';
-  return `<section class='panel${narrow}' data-testid=panel-${id} data-scroll=p role=dialog aria-label='${PANELS[id].title}'><button class='btn alt sm pclose' data-act=go data-p=map aria-label='Close and show the map'>✕ Back to map</button><div class=panel-body>${PANELS[id].view()}</div></section>`;
+  const view = LIVE_PANELS.has(id) && liveLoading() ? () => pages.loadingPage(PANELS[id].title) : PANELS[id].view;
+  return `<section class='panel${narrow}' data-testid=panel-${id} data-scroll=p role=dialog aria-label='${PANELS[id].title}'><button class='btn alt sm pclose' data-act=go data-p=map aria-label='Close and show the map'>✕ Back to map</button><div class=panel-body>${view()}</div></section>`;
 }
 
 /** Re-rendering replaces the overlays, so keep each scrolled area where the farmer left it. */
